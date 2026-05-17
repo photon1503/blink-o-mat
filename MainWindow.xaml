@@ -105,13 +105,13 @@
                                         <Border.InputBindings>
                                             <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
                                         </Border.InputBindings>
-                                        <Image Stretch="Uniform" Source="{Binding ThumbnailPath}" ToolTip="Click to open preview" />
+                                        <Image Stretch="Uniform" Source="{Binding ThumbnailImage}" ToolTip="Click to open preview" />
                                     </Border>
                                     <Border Width="160" Height="160" BorderBrush="#22000000" BorderThickness="1">
                                         <Border.InputBindings>
                                             <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
                                         </Border.InputBindings>
-                                        <Image Stretch="UniformToFill" Source="{Binding RoiThumbnailPath}" ToolTip="Click to open preview" />
+                                        <Image Stretch="UniformToFill" Source="{Binding RoiImage}" ToolTip="Click to open preview" />
                                     </Border>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Margin="10,0,0,0">

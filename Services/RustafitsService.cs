@@ -20,11 +20,7 @@ public sealed class RustafitsService
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
 
-            Directory.CreateDirectory(thumbnailDirectory);
-            var thumbnailPath = Path.Combine(thumbnailDirectory, Path.GetFileNameWithoutExtension(filePath) + ".jpg");
-            var roiThumbnailPath = Path.Combine(thumbnailDirectory, Path.GetFileNameWithoutExtension(filePath) + "_roi.jpg");
-            SaveThumbnail(frame.Pixels, frame.Width, frame.Height, thumbnailPath, stretchStrength: 1.0);
-            SaveRoiThumbnail(frame.Pixels, frame.Width, frame.Height, roiThumbnailPath, stretchStrength: 1.0, roiNormalizedCenter: null);
+            var previews = await RenderPreviewBitmapsAsync(new LoadedFrame(frame.Pixels, frame.Width, frame.Height), 1.0, null, cancellationToken);
 
             var metrics = ComputeMetrics(frame.Pixels, frame.Width, frame.Height);
 
@@ -32,9 +28,8 @@ public sealed class RustafitsService
             {
                 FilePath = filePath,
                 FileName = Path.GetFileName(filePath),
-                ThumbnailPath = thumbnailPath,
-                RoiThumbnailPath = roiThumbnailPath,
-                FullPreviewPath = thumbnailPath,
+                ThumbnailImage = previews.Full,
+                RoiImage = previews.Roi,
                 Metrics = metrics
             };
         }, cancellationToken);
@@ -45,26 +40,33 @@ public sealed class RustafitsService
         return Task.Run(async () =>
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
-            NormalizeInPlace(frame.Pixels);
             return new LoadedFrame(frame.Pixels, frame.Width, frame.Height);
         }, cancellationToken);
     }
 
     public Task RenderThumbnailsAsync(LoadedFrame frame, string thumbnailPath, string roiThumbnailPath, double stretchStrength, (double X, double Y)? roiNormalizedCenter, CancellationToken cancellationToken)
     {
-        return Task.Run(() =>
-        {
-            SaveThumbnail(frame.Pixels, frame.Width, frame.Height, thumbnailPath, stretchStrength);
-            SaveRoiThumbnail(frame.Pixels, frame.Width, frame.Height, roiThumbnailPath, stretchStrength, roiNormalizedCenter);
-        }, cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task RenderFullFrameAsync(LoadedFrame frame, string outputPath, double stretchStrength, CancellationToken cancellationToken)
     {
+        return Task.CompletedTask;
+    }
+
+    public Task<(BitmapSource Full, BitmapSource Roi)> RenderPreviewBitmapsAsync(LoadedFrame frame, double stretchStrength, (double X, double Y)? roiNormalizedCenter, CancellationToken cancellationToken)
+    {
         return Task.Run(() =>
         {
-            SaveFullFrame(frame.Pixels, frame.Width, frame.Height, outputPath, stretchStrength);
+            var full = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stretchStrength);
+            var roi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stretchStrength, roiNormalizedCenter);
+            return (full, roi);
         }, cancellationToken);
+    }
+
+    public Task<BitmapSource> RenderFullBitmapAsync(LoadedFrame frame, double stretchStrength, CancellationToken cancellationToken)
+    {
+        return Task.Run(() => CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stretchStrength), cancellationToken);
     }
 
     public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame)
@@ -370,47 +372,6 @@ public sealed class RustafitsService
 
     private readonly record struct FitsHeaderInfo(int BitPix, int AxisCount, long[] Axes, double BScale, double BZero);
 
-    private static void NormalizeInPlace(float[] pixels)
-    {
-        if (pixels.Length == 0)
-        {
-            return;
-        }
-
-        var min = float.PositiveInfinity;
-        var max = float.NegativeInfinity;
-        for (var i = 0; i < pixels.Length; i++)
-        {
-            var v = pixels[i];
-            if (float.IsNaN(v) || float.IsInfinity(v))
-            {
-                continue;
-            }
-
-            if (v < min) min = v;
-            if (v > max) max = v;
-        }
-
-        if (!float.IsFinite(min) || !float.IsFinite(max) || max - min < 1e-20f)
-        {
-            Array.Fill(pixels, 0f);
-            return;
-        }
-
-        var scale = 1.0f / (max - min);
-        for (var i = 0; i < pixels.Length; i++)
-        {
-            var v = pixels[i];
-            if (float.IsNaN(v) || float.IsInfinity(v))
-            {
-                pixels[i] = 0;
-                continue;
-            }
-
-            pixels[i] = (v - min) * scale;
-        }
-    }
-
     private static async Task<(float[] Pixels, int Width, int Height)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
     {
         var image = await XisfImage.LoadAsync(filePath, cancellationToken);
@@ -496,40 +457,24 @@ public sealed class RustafitsService
         };
     }
 
-    private static void SaveThumbnail(float[] pixels, int width, int height, string outputPath, double stretchStrength)
+    private static BitmapSource CreateThumbnailBitmap(float[] pixels, int width, int height, int maxWidth, int maxHeight, double stretchStrength)
     {
-        var directory = Path.GetDirectoryName(outputPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        const int targetMax = 320;
-        var scale = Math.Max(width, height) > targetMax ? targetMax / (double)Math.Max(width, height) : 1.0;
+        var scale = Math.Min(maxWidth / (double)Math.Max(1, width), maxHeight / (double)Math.Max(1, height));
+        scale = Math.Min(1.0, scale <= 0 ? 1.0 : scale);
         var targetWidth = Math.Max(1, (int)Math.Round(width * scale));
         var targetHeight = Math.Max(1, (int)Math.Round(height * scale));
 
         var sample = DownsampleAndStretch(pixels, width, height, targetWidth, targetHeight, stretchStrength);
-        Debug.WriteLine($"SaveThumbnail {Path.GetFileName(outputPath)} stretch={stretchStrength:F2} min={sample.Min()} max={sample.Max()} avg={sample.Select(v => (int)v).Average():F2}");
+        Debug.WriteLine($"CreateThumbnailBitmap stretch={stretchStrength:F2} min={sample.Min()} max={sample.Max()} avg={sample.Select(v => (int)v).Average():F2}");
         var stride = targetWidth * 3;
 
         var bitmap = BitmapSource.Create(targetWidth, targetHeight, 96, 96, PixelFormats.Rgb24, null, sample, stride);
-        var encoder = new JpegBitmapEncoder { QualityLevel = 90 };
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-
-        using var fs = File.Create(outputPath);
-        encoder.Save(fs);
+        bitmap.Freeze();
+        return bitmap;
     }
 
-    private static void SaveRoiThumbnail(float[] pixels, int width, int height, string outputPath, double stretchStrength, (double X, double Y)? roiNormalizedCenter)
+    private static BitmapSource CreateRoiBitmap(float[] pixels, int width, int height, int roiSize, double stretchStrength, (double X, double Y)? roiNormalizedCenter)
     {
-        var directory = Path.GetDirectoryName(outputPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        const int roiSize = 220;
         var (cx, cy) = roiNormalizedCenter is { } roi
             ? ((int)Math.Round(Math.Clamp(roi.X, 0, 1) * (width - 1)), (int)Math.Round(Math.Clamp(roi.Y, 0, 1) * (height - 1)))
             : DetectRoiCenter(pixels, width, height);
@@ -549,32 +494,20 @@ public sealed class RustafitsService
         }
 
         var sample = DownsampleAndStretch(crop, actualWidth, actualHeight, roiSize, roiSize, stretchStrength);
-        Debug.WriteLine($"SaveRoiThumbnail {Path.GetFileName(outputPath)} stretch={stretchStrength:F2} min={sample.Min()} max={sample.Max()} avg={sample.Select(v => (int)v).Average():F2}");
+        Debug.WriteLine($"CreateRoiBitmap stretch={stretchStrength:F2} min={sample.Min()} max={sample.Max()} avg={sample.Select(v => (int)v).Average():F2}");
         var stride = roiSize * 3;
         var bitmap = BitmapSource.Create(roiSize, roiSize, 96, 96, PixelFormats.Rgb24, null, sample, stride);
-        var encoder = new JpegBitmapEncoder { QualityLevel = 90 };
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-
-        using var fs = File.Create(outputPath);
-        encoder.Save(fs);
+        bitmap.Freeze();
+        return bitmap;
     }
 
-    private static void SaveFullFrame(float[] pixels, int width, int height, string outputPath, double stretchStrength)
+    private static BitmapSource CreateFullFrameBitmap(float[] pixels, int width, int height, double stretchStrength)
     {
-        var directory = Path.GetDirectoryName(outputPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
         var sample = DownsampleAndStretch(pixels, width, height, width, height, stretchStrength);
         var stride = width * 3;
         var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Rgb24, null, sample, stride);
-        var encoder = new JpegBitmapEncoder { QualityLevel = 92 };
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-
-        using var fs = File.Create(outputPath);
-        encoder.Save(fs);
+        bitmap.Freeze();
+        return bitmap;
     }
 
     private static (int X, int Y) DetectRoiCenter(float[] pixels, int width, int height)

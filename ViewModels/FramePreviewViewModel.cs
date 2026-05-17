@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Media.Imaging;
 using blink_o_mat.Models;
 
 namespace blink_o_mat.ViewModels;
@@ -8,18 +9,18 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 {
     private readonly Action<double> _setStretch;
     private readonly Func<double> _getStretch;
-    private string _imagePath = string.Empty;
+    private BitmapSource? _image;
     private double _zoom = 1.0;
 
     public FrameItem Item { get; }
 
-    public string ImagePath
+    public BitmapSource? Image
     {
-        get => _imagePath;
+        get => _image;
         set
         {
-            if (_imagePath == value) return;
-            _imagePath = value;
+            if (ReferenceEquals(_image, value)) return;
+            _image = value;
             OnPropertyChanged();
         }
     }
@@ -53,7 +54,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Item = item;
         _getStretch = getStretch;
         _setStretch = setStretch;
-        _imagePath = item.FullPreviewPath;
+        _image = null;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

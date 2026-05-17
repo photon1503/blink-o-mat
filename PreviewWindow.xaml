@@ -24,7 +24,7 @@
 
             <Border Grid.Row="1" BorderBrush="#22000000" BorderThickness="1" Background="#111111">
                 <ScrollViewer x:Name="ImageScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" PreviewMouseWheel="ImageScrollViewer_PreviewMouseWheel">
-                    <Image x:Name="PreviewImage" Source="{Binding ImagePath}" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image x:Name="PreviewImage" Source="{Binding Image}" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality">
                         <Image.LayoutTransform>
                             <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
                         </Image.LayoutTransform>

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using blink_o_mat.ViewModels;
 
 namespace blink_o_mat;
@@ -15,10 +16,10 @@ public partial class PreviewWindow : Window
         DataContext = _vm;
     }
 
-    public void RefreshImagePath(string path)
+    public void RefreshImage(BitmapSource image)
     {
-        _vm.ImagePath = string.Empty;
-        _vm.ImagePath = path;
+        _vm.Image = null;
+        _vm.Image = image;
     }
 
     private void Smaller_Click(object sender, RoutedEventArgs e)

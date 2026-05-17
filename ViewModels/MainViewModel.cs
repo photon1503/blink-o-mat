@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using blink_o_mat.Infrastructure;
 using blink_o_mat.Models;
 using blink_o_mat.Services;
@@ -14,9 +15,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private sealed record LoadedFrameContext(
         FrameItem Item,
         RustafitsService.LoadedFrame FrameData,
-        string ThumbnailFilePath,
-        string RoiThumbnailFilePath,
-        string FullPreviewFilePath);
+        BitmapSource FullImage);
 
     private readonly FrameDiscoveryService _discovery = new();
     private readonly RustafitsService _rustafits = new();
@@ -266,25 +265,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     _globalRoiCenter ??= _rustafits.DetectRoiNormalizedCenter(raw);
 
                     var baseName = Path.GetFileNameWithoutExtension(file);
-                    var thumbFile = Path.Combine(tempThumbs, baseName + ".jpg");
-                    var roiFile = Path.Combine(tempThumbs, baseName + "_roi.jpg");
-                    var fullFile = Path.Combine(tempThumbs, baseName + "_full.jpg");
-
-                    await _rustafits.RenderThumbnailsAsync(raw, thumbFile, roiFile, StretchStrength, _globalRoiCenter, CancellationToken.None);
-                    await _rustafits.RenderFullFrameAsync(raw, fullFile, StretchStrength, CancellationToken.None);
+                    var _ = baseName;
+                    var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, StretchStrength, _globalRoiCenter, CancellationToken.None);
+                    var fullImage = await _rustafits.RenderFullBitmapAsync(raw, StretchStrength, CancellationToken.None);
 
                     var item = new FrameItem
                     {
                         FilePath = file,
                         FileName = Path.GetFileName(file),
-                        ThumbnailPath = Path.GetFullPath(thumbFile),
-                        RoiThumbnailPath = Path.GetFullPath(roiFile),
-                        FullPreviewPath = Path.GetFullPath(fullFile),
+                        ThumbnailImage = previews.Full,
+                        RoiImage = previews.Roi,
                         Metrics = metrics
                     };
 
                     Frames.Add(item);
-                    _loadedFrames.Add(new LoadedFrameContext(item, raw, thumbFile, roiFile, fullFile));
+                    _loadedFrames.Add(new LoadedFrameContext(item, raw, fullImage));
                 }
                 catch (Exception ex)
                 {
@@ -328,20 +323,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 var loaded = _loadedFrames[i];
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
-                await _rustafits.RenderThumbnailsAsync(loaded.FrameData, loaded.ThumbnailFilePath, loaded.RoiThumbnailFilePath, StretchStrength, _globalRoiCenter, CancellationToken.None);
-                await _rustafits.RenderFullFrameAsync(loaded.FrameData, loaded.FullPreviewFilePath, StretchStrength, CancellationToken.None);
+                var previews = await _rustafits.RenderPreviewBitmapsAsync(loaded.FrameData, StretchStrength, _globalRoiCenter, CancellationToken.None);
+                var fullImage = await _rustafits.RenderFullBitmapAsync(loaded.FrameData, StretchStrength, CancellationToken.None);
 
-                loaded.Item.ThumbnailPath = string.Empty;
-                loaded.Item.RoiThumbnailPath = string.Empty;
-                loaded.Item.FullPreviewPath = string.Empty;
-                loaded.Item.ThumbnailPath = Path.GetFullPath(loaded.ThumbnailFilePath);
-                loaded.Item.RoiThumbnailPath = Path.GetFullPath(loaded.RoiThumbnailFilePath);
-                loaded.Item.FullPreviewPath = Path.GetFullPath(loaded.FullPreviewFilePath);
+                loaded.Item.ThumbnailImage = previews.Full;
+                loaded.Item.RoiImage = previews.Roi;
 
                 if (_previewItem == loaded.Item)
                 {
-                    _previewWindow?.RefreshImagePath(loaded.Item.FullPreviewPath);
+                    _previewWindow?.RefreshImage(fullImage);
                 }
+
+                _loadedFrames[i] = loaded with { FullImage = fullImage };
 
                 ProgressValue = i + 1;
             }
@@ -370,7 +363,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (_previewWindow is not null)
         {
             _previewItem = item;
-            _previewWindow.RefreshImagePath(item.FullPreviewPath);
+            var existing = _loadedFrames.FirstOrDefault(f => f.Item == item);
+            _previewWindow.RefreshImage(existing.FullImage);
             _previewWindow.Activate();
             await Task.CompletedTask;
             return;
@@ -379,6 +373,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _previewItem = item;
         var vm = new FramePreviewViewModel(item, () => StretchStrength, value => StretchStrength = value);
         _previewWindow = new PreviewWindow(vm);
+        var current = _loadedFrames.FirstOrDefault(f => f.Item == item);
+        _previewWindow.RefreshImage(current.FullImage);
         _previewWindow.Closed += (_, _) =>
         {
             _previewWindow = null;

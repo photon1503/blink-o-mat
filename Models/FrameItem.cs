@@ -1,60 +1,45 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Media.Imaging;
 
 namespace blink_o_mat.Models;
 
 public sealed class FrameItem : INotifyPropertyChanged
 {
     private bool _isRejected;
-    private string _thumbnailPath = string.Empty;
-    private string _roiThumbnailPath = string.Empty;
-    private string _fullPreviewPath = string.Empty;
+    private BitmapSource? _thumbnailImage;
+    private BitmapSource? _roiImage;
 
     public required string FilePath { get; init; }
     public required string FileName { get; init; }
     public required AstroMetrics Metrics { get; init; }
 
-    public required string ThumbnailPath
+    public required BitmapSource? ThumbnailImage
     {
-        get => _thumbnailPath;
+        get => _thumbnailImage;
         set
         {
-            if (_thumbnailPath == value)
+            if (ReferenceEquals(_thumbnailImage, value))
             {
                 return;
             }
 
-            _thumbnailPath = value;
+            _thumbnailImage = value;
             OnPropertyChanged();
         }
     }
 
-    public required string RoiThumbnailPath
+    public required BitmapSource? RoiImage
     {
-        get => _roiThumbnailPath;
+        get => _roiImage;
         set
         {
-            if (_roiThumbnailPath == value)
+            if (ReferenceEquals(_roiImage, value))
             {
                 return;
             }
 
-            _roiThumbnailPath = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public required string FullPreviewPath
-    {
-        get => _fullPreviewPath;
-        set
-        {
-            if (_fullPreviewPath == value)
-            {
-                return;
-            }
-
-            _fullPreviewPath = value;
+            _roiImage = value;
             OnPropertyChanged();
         }
     }
