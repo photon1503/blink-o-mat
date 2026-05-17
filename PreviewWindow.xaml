@@ -37,45 +37,61 @@
             </Border>
         </Grid>
 
-        <StackPanel Grid.Column="1" Margin="12,0,0,0">
-            <TextBlock FontWeight="SemiBold" FontSize="15" Text="{Binding Item.FileName}" TextWrapping="Wrap" Margin="0,0,0,12" />
+        <ScrollViewer Grid.Column="1" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" FontSize="15" Text="{Binding Item.FileName}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Score:" FontWeight="SemiBold" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding Item.OverallScoreStars}" Foreground="Gold" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding Item.OverallScoreText}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
 
-            <TextBlock FontWeight="SemiBold" Text="ROI bias" />
-            <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,6" />
-            <TextBlock Text="Ctrl+Click image to set manual ROI override (persists for loaded set)." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,10" />
+                <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" Text="Inspection" Margin="0,0,0,6" />
+                        <TextBlock FontWeight="SemiBold" Text="ROI bias" />
+                        <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,6" />
+                        <TextBlock Text="Ctrl+Click image to set manual ROI override (persists for loaded set)." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,10" />
+                        <CheckBox Content="Skip rejected when blinking" IsChecked="{Binding SkipRejectedInPreview, Mode=TwoWay}" Margin="0,0,0,10" />
+                        <TextBlock FontWeight="SemiBold" Text="Stretch mode" />
+                        <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,2,0,6" />
+                        <TextBlock FontWeight="SemiBold" Text="Stretch" />
+                        <Slider Minimum="0.25" Maximum="5.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
+                        <TextBlock Text="{Binding Stretch, StringFormat=F2}" Margin="0,0,0,8" />
+                        <CheckBox Content="Reject frame" IsChecked="{Binding Item.IsRejected, Mode=TwoWay}" />
+                    </StackPanel>
+                </Border>
 
-            <CheckBox Content="Skip rejected when blinking" IsChecked="{Binding SkipRejectedInPreview, Mode=TwoWay}" Margin="0,0,0,10" />
+                <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" Text="Metrics" Margin="0,0,0,8" />
+                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.FwhmIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.Fwhm, StringFormat=FWHM: {0:F2}}" /></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.FwhmIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.FwhmArcsec, StringFormat=FWHM: {0:F2} arcsec, TargetNullValue=FWHM: n/a arcsec}" /></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.HfrIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.Hfr, StringFormat=HFR: {0:F2}}" /></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.StarsIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.StarCount, StringFormat=Stars: {0}}" /></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.EccentricityIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.Eccentricity, StringFormat=Eccentricity: {0:F3}}" /></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.MeanBackgroundIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.MeanBackground, StringFormat=Mean BG: {0:F1}}" /></StackPanel>
+                        <TextBlock Text="{Binding Item.Metrics.FocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
+                        <TextBlock Text="{Binding Item.Metrics.PixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
+                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.TrailIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.PossibleSatelliteTrail, StringFormat=Satellite trail: {0}}" /></StackPanel>
+                    </StackPanel>
+                </Border>
 
-            <TextBlock FontWeight="SemiBold" Text="Stretch mode" />
-            <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,2,0,6" />
-
-            <TextBlock FontWeight="SemiBold" Text="Stretch" />
-            <Slider Minimum="0.25" Maximum="5.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
-            <TextBlock Text="{Binding Stretch, StringFormat=F2}" Margin="0,0,0,12" />
-
-            <TextBlock FontWeight="SemiBold" Text="Metrics" Margin="0,0,0,8" />
-            <TextBlock Text="{Binding Item.Metrics.Fwhm, StringFormat=FWHM: {0:F2}}" />
-            <TextBlock Text="{Binding Item.Metrics.FwhmArcsec, StringFormat=FWHM: {0:F2} arcsec, TargetNullValue=FWHM: n/a arcsec}" />
-            <TextBlock Text="{Binding Item.Metrics.Hfr, StringFormat=HFR: {0:F2}}" />
-            <TextBlock Text="{Binding Item.Metrics.StarCount, StringFormat=Stars: {0}}" />
-            <TextBlock Text="{Binding Item.Metrics.Eccentricity, StringFormat=Eccentricity: {0:F3}}" />
-            <TextBlock Text="{Binding Item.Metrics.MeanBackground, StringFormat=Mean BG: {0:F1}}" />
-            <TextBlock Text="{Binding Item.Metrics.FocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
-            <TextBlock Text="{Binding Item.Metrics.PixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
-            <TextBlock Text="{Binding Item.Metrics.PossibleSatelliteTrail, StringFormat=Satellite trail: {0}}" Margin="0,0,0,12" />
-
-            <CheckBox Content="Reject frame" IsChecked="{Binding Item.IsRejected, Mode=TwoWay}" />
-
-            <Border Margin="0,14,0,0" Padding="8" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
-                <StackPanel>
-                    <TextBlock FontWeight="SemiBold" Text="Keyboard shortcuts" Margin="0,0,0,6" />
-                    <TextBlock Text="Left / Right: previous or next frame" TextWrapping="Wrap" FontSize="11" />
-                    <TextBlock Text="R: reject or unreject current frame" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
-                    <TextBlock Text="Ctrl + Mouse Wheel: zoom" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
-                    <TextBlock Text="Ctrl + Click: set manual ROI" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
-                </StackPanel>
-            </Border>
-        </StackPanel>
+                <Border Padding="8" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" Text="Keyboard shortcuts" Margin="0,0,0,6" />
+                        <TextBlock Text="Left / Right: previous or next frame" TextWrapping="Wrap" FontSize="11" />
+                        <TextBlock Text="R: reject or unreject current frame" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
+                        <TextBlock Text="Ctrl + Mouse Wheel: zoom" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
+                        <TextBlock Text="Ctrl + Click: set manual ROI" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Window>
 

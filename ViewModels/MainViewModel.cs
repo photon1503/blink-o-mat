@@ -8,6 +8,8 @@ using System.Windows.Media.Imaging;
 using blink_o_mat.Infrastructure;
 using blink_o_mat.Models;
 using blink_o_mat.Services;
+using WpfBrush = System.Windows.Media.Brush;
+using WpfBrushes = System.Windows.Media.Brushes;
 using WpfPoint = System.Windows.Point;
 
 namespace blink_o_mat.ViewModels;
@@ -483,6 +485,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
             }
 
+            UpdateFrameComparisons();
             ApplyThresholds();
             stopwatch.Stop();
             Status = $"Loaded {Frames.Count} frame(s) in {stopwatch.Elapsed.TotalSeconds:F1}s. {skippedCount} skipped.";
@@ -497,6 +500,104 @@ public sealed class MainViewModel : INotifyPropertyChanged
             IsProgressVisible = false;
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
         }
+    }
+
+    private void UpdateFrameComparisons()
+    {
+        if (Frames.Count == 0)
+        {
+            return;
+        }
+
+        var green = WpfBrushes.LimeGreen;
+        var yellow = WpfBrushes.Goldenrod;
+        var red = WpfBrushes.IndianRed;
+
+        var avgFwhm = Frames.Average(f => f.Metrics.Fwhm);
+        var avgHfr = Frames.Average(f => f.Metrics.Hfr);
+        var avgStars = Frames.Average(f => (double)f.Metrics.StarCount);
+        var avgEcc = Frames.Average(f => f.Metrics.Eccentricity);
+        var avgBg = Frames.Average(f => f.Metrics.MeanBackground);
+
+        foreach (var frame in Frames)
+        {
+            frame.FwhmIndicatorBrush = CompareLowerIsBetter(frame.Metrics.Fwhm, avgFwhm, green, yellow, red);
+            frame.HfrIndicatorBrush = CompareLowerIsBetter(frame.Metrics.Hfr, avgHfr, green, yellow, red);
+            frame.StarsIndicatorBrush = CompareHigherIsBetter(frame.Metrics.StarCount, avgStars, green, yellow, red);
+            frame.EccentricityIndicatorBrush = CompareLowerIsBetter(frame.Metrics.Eccentricity, avgEcc, green, yellow, red);
+            frame.MeanBackgroundIndicatorBrush = CompareLowerIsBetter(frame.Metrics.MeanBackground, avgBg, green, yellow, red);
+            frame.TrailIndicatorBrush = frame.Metrics.PossibleSatelliteTrail ? red : green;
+
+            const double fwhmWeight = 2.4;
+            const double hfrWeight = 2.2;
+            const double starsWeight = 1.1;
+            const double eccentricityWeight = 1.2;
+            const double backgroundWeight = 0.6;
+            const double trailWeight = 1.5;
+
+            var weightedScore = 0.0;
+            weightedScore += ScoreLowerIsBetter(frame.Metrics.Fwhm, avgFwhm) * fwhmWeight;
+            weightedScore += ScoreLowerIsBetter(frame.Metrics.Hfr, avgHfr) * hfrWeight;
+            weightedScore += ScoreHigherIsBetter(frame.Metrics.StarCount, avgStars) * starsWeight;
+            weightedScore += ScoreLowerIsBetter(frame.Metrics.Eccentricity, avgEcc) * eccentricityWeight;
+            weightedScore += ScoreLowerIsBetter(frame.Metrics.MeanBackground, avgBg) * backgroundWeight;
+            weightedScore += (frame.Metrics.PossibleSatelliteTrail ? 0.0 : 1.0) * trailWeight;
+
+            var totalWeight = fwhmWeight + hfrWeight + starsWeight + eccentricityWeight + backgroundWeight + trailWeight;
+            frame.OverallScore = Math.Clamp((weightedScore / totalWeight) * 5.0, 0.0, 5.0);
+        }
+    }
+
+    private static WpfBrush CompareLowerIsBetter(double value, double average, WpfBrush green, WpfBrush yellow, WpfBrush red)
+    {
+        if (value <= average * 0.92)
+        {
+            return green;
+        }
+
+        if (value >= average * 1.08)
+        {
+            return red;
+        }
+
+        return yellow;
+    }
+
+    private static WpfBrush CompareHigherIsBetter(double value, double average, WpfBrush green, WpfBrush yellow, WpfBrush red)
+    {
+        if (value >= average * 1.08)
+        {
+            return green;
+        }
+
+        if (value <= average * 0.92)
+        {
+            return red;
+        }
+
+        return yellow;
+    }
+
+    private static double ScoreLowerIsBetter(double value, double average)
+    {
+        if (average <= 1e-9)
+        {
+            return 0.5;
+        }
+
+        var ratio = value / average;
+        return Math.Clamp(1.5 - ratio, 0.0, 1.0);
+    }
+
+    private static double ScoreHigherIsBetter(double value, double average)
+    {
+        if (average <= 1e-9)
+        {
+            return 0.5;
+        }
+
+        var ratio = value / average;
+        return Math.Clamp(ratio - 0.5, 0.0, 1.0);
     }
 
     private async Task RebuildThumbnailsAsync()

@@ -1,0 +1,128 @@
+<UserControl x:Class="blink_o_mat.Controls.FrameListItemView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="180"
+             d:DesignWidth="900">
+    <Border BorderBrush="{StaticResource PanelBorderBrush}" Background="{StaticResource PanelBackgroundAltBrush}" BorderThickness="1" Padding="6" Margin="0,0,0,6">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="340" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Border Width="160" Height="160" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Margin="0,0,6,0">
+                    <Border.InputBindings>
+                        <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
+                    </Border.InputBindings>
+                    <Image Stretch="Uniform" Source="{Binding ThumbnailImage}" ToolTip="Click to open preview" />
+                </Border>
+                <Border Width="160" Height="160" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+                    <Border.InputBindings>
+                        <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
+                    </Border.InputBindings>
+                    <Image Stretch="UniformToFill" Source="{Binding RoiImage}" ToolTip="Click to open preview" />
+                </Border>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                <TextBlock FontWeight="SemiBold" Text="{Binding FileName}" />
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <TextBlock Text="Score:" FontWeight="SemiBold" Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding OverallScoreStars}" Foreground="Gold" Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding OverallScoreText}" />
+                </StackPanel>
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{Binding FwhmIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
+                            <TextBlock FontWeight="SemiBold" Text="FWHM px" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Metrics.Fwhm, StringFormat={}{0:F2}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{Binding FwhmIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
+                            <TextBlock FontWeight="SemiBold" Text="FWHM arcsec" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Metrics.FwhmArcsec, StringFormat={}{0:F2}, TargetNullValue=n/a}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{Binding HfrIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
+                            <TextBlock FontWeight="SemiBold" Text="HFR" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Metrics.Hfr, StringFormat={}{0:F2}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="6">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{Binding StarsIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
+                            <TextBlock FontWeight="SemiBold" Text="Stars" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Metrics.StarCount}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="8">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{Binding EccentricityIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
+                            <TextBlock FontWeight="SemiBold" Text="Ecc" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Metrics.Eccentricity, StringFormat={}{0:F3}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="10">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{Binding MeanBackgroundIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
+                            <TextBlock FontWeight="SemiBold" Text="Mean BG" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Metrics.MeanBackground, StringFormat={}{0:F1}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="12">
+                        <TextBlock FontWeight="SemiBold" Text="Exposure" />
+                        <TextBlock Text="{Binding ExposureSeconds, StringFormat={}{0:F1}s, TargetNullValue=n/a}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="14">
+                        <TextBlock FontWeight="SemiBold" Text="Filter" />
+                        <TextBlock Text="{Binding FilterName, TargetNullValue=n/a}" />
+                    </StackPanel>
+                </Grid>
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock FontWeight="SemiBold" Text="Date" />
+                        <TextBlock Text="{Binding ExposureDateTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}, TargetNullValue=n/a}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{Binding TrailIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
+                            <TextBlock FontWeight="SemiBold" Text="Trail" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Metrics.PossibleSatelliteTrail}" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+            <CheckBox Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="{Binding IsRejected, Mode=TwoWay}" Content="Reject" />
+        </Grid>
+    </Border>
+</UserControl>
