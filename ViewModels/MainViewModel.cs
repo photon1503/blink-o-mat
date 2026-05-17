@@ -11,7 +11,12 @@ namespace blink_o_mat.ViewModels;
 
 public sealed class MainViewModel : INotifyPropertyChanged
 {
-    private sealed record LoadedFrameContext(FrameItem Item, RustafitsService.LoadedFrame FrameData, string ThumbnailFilePath, string RoiThumbnailFilePath);
+    private sealed record LoadedFrameContext(
+        FrameItem Item,
+        RustafitsService.LoadedFrame FrameData,
+        string ThumbnailFilePath,
+        string RoiThumbnailFilePath,
+        string FullPreviewFilePath);
 
     private readonly FrameDiscoveryService _discovery = new();
     private readonly RustafitsService _rustafits = new();
@@ -33,6 +38,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _stretchStrength = 1.0;
 
     private readonly List<LoadedFrameContext> _loadedFrames = [];
+    private PreviewWindow? _previewWindow;
+    private FrameItem? _previewItem;
+    private (double X, double Y)? _globalRoiCenter;
 
     public ObservableCollection<FrameItem> Frames { get; } = [];
 
@@ -194,6 +202,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand BrowseRejectedCommand { get; }
     public ICommand LoadFramesCommand { get; }
     public ICommand MoveRejectedCommand { get; }
+    public ICommand OpenPreviewCommand { get; }
 
     public MainViewModel()
     {
@@ -201,6 +210,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         BrowseRejectedCommand = new RelayCommand(_ => BrowseRejected());
         LoadFramesCommand = new RelayCommand(async _ => await LoadFramesAsync(), _ => !IsBusy && !string.IsNullOrWhiteSpace(InputFolder));
         MoveRejectedCommand = new RelayCommand(_ => MoveRejected(), _ => !IsBusy && Frames.Any(f => f.IsRejected) && !string.IsNullOrWhiteSpace(RejectedFolder));
+        OpenPreviewCommand = new RelayCommand(async p => await OpenPreviewAsync(p as FrameItem));
     }
 
     private void BrowseInput()
@@ -236,6 +246,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Status = "Scanning folder...";
         Frames.Clear();
         _loadedFrames.Clear();
+        _globalRoiCenter = null;
 
         try
         {
@@ -252,11 +263,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
                     var metrics = _rustafits.AnalyzeFrame(raw);
+                    _globalRoiCenter ??= _rustafits.DetectRoiNormalizedCenter(raw);
 
                     var baseName = Path.GetFileNameWithoutExtension(file);
                     var thumbFile = Path.Combine(tempThumbs, baseName + ".jpg");
                     var roiFile = Path.Combine(tempThumbs, baseName + "_roi.jpg");
-                    await _rustafits.RenderThumbnailsAsync(raw, thumbFile, roiFile, StretchStrength, CancellationToken.None);
+                    var fullFile = Path.Combine(tempThumbs, baseName + "_full.jpg");
+
+                    await _rustafits.RenderThumbnailsAsync(raw, thumbFile, roiFile, StretchStrength, _globalRoiCenter, CancellationToken.None);
+                    await _rustafits.RenderFullFrameAsync(raw, fullFile, StretchStrength, CancellationToken.None);
 
                     var item = new FrameItem
                     {
@@ -264,11 +279,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         FileName = Path.GetFileName(file),
                         ThumbnailPath = Path.GetFullPath(thumbFile),
                         RoiThumbnailPath = Path.GetFullPath(roiFile),
+                        FullPreviewPath = Path.GetFullPath(fullFile),
                         Metrics = metrics
                     };
 
                     Frames.Add(item);
-                    _loadedFrames.Add(new LoadedFrameContext(item, raw, thumbFile, roiFile));
+                    _loadedFrames.Add(new LoadedFrameContext(item, raw, thumbFile, roiFile, fullFile));
                 }
                 catch (Exception ex)
                 {
@@ -312,11 +328,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 var loaded = _loadedFrames[i];
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
-                await _rustafits.RenderThumbnailsAsync(loaded.FrameData, loaded.ThumbnailFilePath, loaded.RoiThumbnailFilePath, StretchStrength, CancellationToken.None);
+                await _rustafits.RenderThumbnailsAsync(loaded.FrameData, loaded.ThumbnailFilePath, loaded.RoiThumbnailFilePath, StretchStrength, _globalRoiCenter, CancellationToken.None);
+                await _rustafits.RenderFullFrameAsync(loaded.FrameData, loaded.FullPreviewFilePath, StretchStrength, CancellationToken.None);
+
                 loaded.Item.ThumbnailPath = string.Empty;
                 loaded.Item.RoiThumbnailPath = string.Empty;
+                loaded.Item.FullPreviewPath = string.Empty;
                 loaded.Item.ThumbnailPath = Path.GetFullPath(loaded.ThumbnailFilePath);
                 loaded.Item.RoiThumbnailPath = Path.GetFullPath(loaded.RoiThumbnailFilePath);
+                loaded.Item.FullPreviewPath = Path.GetFullPath(loaded.FullPreviewFilePath);
+
+                if (_previewItem == loaded.Item)
+                {
+                    _previewWindow?.RefreshImagePath(loaded.Item.FullPreviewPath);
+                }
 
                 ProgressValue = i + 1;
             }
@@ -333,6 +358,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
             IsProgressVisible = false;
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
         }
+    }
+
+    private async Task OpenPreviewAsync(FrameItem? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        if (_previewWindow is not null)
+        {
+            _previewItem = item;
+            _previewWindow.RefreshImagePath(item.FullPreviewPath);
+            _previewWindow.Activate();
+            await Task.CompletedTask;
+            return;
+        }
+
+        _previewItem = item;
+        var vm = new FramePreviewViewModel(item, () => StretchStrength, value => StretchStrength = value);
+        _previewWindow = new PreviewWindow(vm);
+        _previewWindow.Closed += (_, _) =>
+        {
+            _previewWindow = null;
+            _previewItem = null;
+        };
+
+        _previewWindow.Show();
+        await Task.CompletedTask;
     }
 
     private void ApplyThresholds()

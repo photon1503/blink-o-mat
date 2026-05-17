@@ -96,13 +96,23 @@
                         <Border BorderBrush="#22000000" BorderThickness="1" Padding="6" Margin="0,0,0,6">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="340" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                    <Image Width="180" Height="120" Stretch="Uniform" Source="{Binding ThumbnailPath}" Margin="0,0,6,0" />
-                                    <Image Width="120" Height="120" Stretch="UniformToFill" Source="{Binding RoiThumbnailPath}" />
+                                    <Border Width="160" Height="160" BorderBrush="#22000000" BorderThickness="1" Margin="0,0,6,0">
+                                        <Border.InputBindings>
+                                            <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
+                                        </Border.InputBindings>
+                                        <Image Stretch="Uniform" Source="{Binding ThumbnailPath}" ToolTip="Click to open preview" />
+                                    </Border>
+                                    <Border Width="160" Height="160" BorderBrush="#22000000" BorderThickness="1">
+                                        <Border.InputBindings>
+                                            <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
+                                        </Border.InputBindings>
+                                        <Image Stretch="UniformToFill" Source="{Binding RoiThumbnailPath}" ToolTip="Click to open preview" />
+                                    </Border>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Margin="10,0,0,0">
                                     <TextBlock FontWeight="SemiBold" Text="{Binding FileName}" />

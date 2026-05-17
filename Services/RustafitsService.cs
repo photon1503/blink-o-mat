@@ -6,7 +6,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Diagnostics;
 using blink_o_mat.Models;
-using nom.tam.fits;
 using XisfSharp;
 
 namespace blink_o_mat.Services;
@@ -25,7 +24,7 @@ public sealed class RustafitsService
             var thumbnailPath = Path.Combine(thumbnailDirectory, Path.GetFileNameWithoutExtension(filePath) + ".jpg");
             var roiThumbnailPath = Path.Combine(thumbnailDirectory, Path.GetFileNameWithoutExtension(filePath) + "_roi.jpg");
             SaveThumbnail(frame.Pixels, frame.Width, frame.Height, thumbnailPath, stretchStrength: 1.0);
-            SaveRoiThumbnail(frame.Pixels, frame.Width, frame.Height, roiThumbnailPath, stretchStrength: 1.0);
+            SaveRoiThumbnail(frame.Pixels, frame.Width, frame.Height, roiThumbnailPath, stretchStrength: 1.0, roiNormalizedCenter: null);
 
             var metrics = ComputeMetrics(frame.Pixels, frame.Width, frame.Height);
 
@@ -35,6 +34,7 @@ public sealed class RustafitsService
                 FileName = Path.GetFileName(filePath),
                 ThumbnailPath = thumbnailPath,
                 RoiThumbnailPath = roiThumbnailPath,
+                FullPreviewPath = thumbnailPath,
                 Metrics = metrics
             };
         }, cancellationToken);
@@ -50,13 +50,27 @@ public sealed class RustafitsService
         }, cancellationToken);
     }
 
-    public Task RenderThumbnailsAsync(LoadedFrame frame, string thumbnailPath, string roiThumbnailPath, double stretchStrength, CancellationToken cancellationToken)
+    public Task RenderThumbnailsAsync(LoadedFrame frame, string thumbnailPath, string roiThumbnailPath, double stretchStrength, (double X, double Y)? roiNormalizedCenter, CancellationToken cancellationToken)
     {
         return Task.Run(() =>
         {
             SaveThumbnail(frame.Pixels, frame.Width, frame.Height, thumbnailPath, stretchStrength);
-            SaveRoiThumbnail(frame.Pixels, frame.Width, frame.Height, roiThumbnailPath, stretchStrength);
+            SaveRoiThumbnail(frame.Pixels, frame.Width, frame.Height, roiThumbnailPath, stretchStrength, roiNormalizedCenter);
         }, cancellationToken);
+    }
+
+    public Task RenderFullFrameAsync(LoadedFrame frame, string outputPath, double stretchStrength, CancellationToken cancellationToken)
+    {
+        return Task.Run(() =>
+        {
+            SaveFullFrame(frame.Pixels, frame.Width, frame.Height, outputPath, stretchStrength);
+        }, cancellationToken);
+    }
+
+    public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame)
+    {
+        var (x, y) = DetectRoiCenter(frame.Pixels, frame.Width, frame.Height);
+        return (frame.Width <= 1 ? 0.5 : x / (double)(frame.Width - 1), frame.Height <= 1 ? 0.5 : y / (double)(frame.Height - 1));
     }
 
     public AstroMetrics AnalyzeFrame(LoadedFrame frame)
@@ -82,77 +96,279 @@ public sealed class RustafitsService
 
     private static (float[] Pixels, int Width, int Height) LoadFits(string filePath)
     {
-        var fits = new Fits(filePath);
-        try
+        using var stream = File.OpenRead(filePath);
+        while (stream.Position < stream.Length)
         {
-            BasicHDU? selectedHdu = null;
-            Array? kernel = null;
-
-            BasicHDU? hdu;
-            while ((hdu = fits.ReadHDU()) is not null)
+            var header = ReadFitsHeader(stream);
+            if (header.AxisCount < 2)
             {
-                if (hdu.Axes is null || hdu.Axes.Length < 2)
-                {
-                    continue;
-                }
-
-                var candidateKernel = hdu.Kernel as Array ?? hdu.Data?.DataArray as Array;
-                if (candidateKernel is null)
-                {
-                    continue;
-                }
-
-                selectedHdu = hdu;
-                kernel = candidateKernel;
-                break;
+                SkipFitsData(stream, header);
+                continue;
             }
 
-            if (selectedHdu is null || selectedHdu.Axes is null || kernel is null)
+            var decoded = TryDecodeFitsImage(stream, header);
+            if (decoded is { } image)
             {
-                throw new InvalidOperationException("FITS image data not found.");
+                return image;
             }
 
-            var width = selectedHdu.Axes[0];
-            var height = selectedHdu.Axes[1];
-            var channels = selectedHdu.Axes.Length > 2 ? Math.Max(1, selectedHdu.Axes[2]) : 1;
-            var bScale = Math.Abs(selectedHdu.BScale) < double.Epsilon ? 1.0 : selectedHdu.BScale;
-            var bZero = selectedHdu.BZero;
-
-            var samples = new List<double>();
-            Flatten(kernel, samples);
-
-            var pixelCount = width * height;
-            if (samples.Count < pixelCount)
-            {
-                throw new InvalidOperationException("FITS data size mismatch.");
-            }
-
-            var luminance = new float[pixelCount];
-            if (channels <= 1 || samples.Count < pixelCount * channels)
-            {
-                for (var i = 0; i < pixelCount; i++)
-                {
-                    luminance[i] = (float)((samples[i] * bScale) + bZero);
-                }
-            }
-            else
-            {
-                for (var i = 0; i < pixelCount; i++)
-                {
-                    var r = (samples[i] * bScale) + bZero;
-                    var g = (samples[i + pixelCount] * bScale) + bZero;
-                    var b = (samples[i + (2 * pixelCount)] * bScale) + bZero;
-                    luminance[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
-                }
-            }
-
-            return (luminance, width, height);
+            SkipFitsData(stream, header);
         }
-        finally
+
+        throw new InvalidOperationException("FITS image data not found.");
+    }
+
+    private static (float[] Pixels, int Width, int Height)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
+    {
+        if (header.Axes.Length < 2)
         {
-            fits.Close();
+            return null;
+        }
+
+        var widthAxis = header.Axes[0];
+        var heightAxis = header.Axes[1];
+        if (widthAxis <= 0 || heightAxis <= 0 || widthAxis > int.MaxValue || heightAxis > int.MaxValue)
+        {
+            return null;
+        }
+
+        var width = (int)widthAxis;
+        var height = (int)heightAxis;
+        var axis3 = header.AxisCount > 2 ? Math.Max(1L, header.Axes[2]) : 1L;
+        if (axis3 > int.MaxValue)
+        {
+            return null;
+        }
+
+        var bytesPerSample = Math.Abs(header.BitPix) / 8;
+        if (bytesPerSample is not (1 or 2 or 4 or 8))
+        {
+            return null;
+        }
+
+        var pixelCount = width * height;
+        var result = new float[pixelCount];
+        var channels = (int)axis3;
+        var weights = new[] { 0.2126, 0.7152, 0.0722 };
+
+        var extraFrames = 1L;
+        for (var i = 3; i < header.AxisCount; i++)
+        {
+            extraFrames *= Math.Max(1L, header.Axes[i]);
+        }
+
+        long consumed = 0;
+        for (var c = 0; c < channels; c++)
+        {
+            for (var y = 0; y < height; y++)
+            {
+                for (var x = 0; x < width; x++)
+                {
+                    var value = ReadFitsSample(stream, header.BitPix);
+                    consumed++;
+
+                    if (channels == 1)
+                    {
+                        result[(y * width) + x] = (float)((value * header.BScale) + header.BZero);
+                        continue;
+                    }
+
+                    if (c < 3)
+                    {
+                        var scaled = (value * header.BScale) + header.BZero;
+                        result[(y * width) + x] += (float)(scaled * weights[c]);
+                    }
+                }
+            }
+        }
+
+        var totalSamples = Math.Max(1L, axis3) * pixelCount * extraFrames;
+        var remainingSamples = totalSamples - consumed;
+        if (remainingSamples > 0)
+        {
+            stream.Seek(remainingSamples * bytesPerSample, SeekOrigin.Current);
+        }
+
+        var dataBytes = totalSamples * bytesPerSample;
+        var paddingBytes = (2880L - (dataBytes % 2880L)) % 2880L;
+        if (paddingBytes > 0)
+        {
+            stream.Seek(paddingBytes, SeekOrigin.Current);
+        }
+
+        return (result, width, height);
+    }
+
+    private static FitsHeaderInfo ReadFitsHeader(Stream stream)
+    {
+        var cards = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        while (true)
+        {
+            var block = new byte[2880];
+            ReadExactly(stream, block);
+            for (var i = 0; i < block.Length; i += 80)
+            {
+                var card = System.Text.Encoding.ASCII.GetString(block, i, 80);
+                var keyword = card[..8].Trim();
+                if (keyword.Equals("END", StringComparison.OrdinalIgnoreCase))
+                {
+                    var bitPix = ParseInt(cards, "BITPIX", 0);
+                    var axisCount = ParseInt(cards, "NAXIS", 0);
+                    var axes = new long[Math.Max(0, axisCount)];
+                    for (var a = 0; a < axes.Length; a++)
+                    {
+                        axes[a] = Math.Max(0L, ParseLong(cards, $"NAXIS{a + 1}", 0));
+                    }
+
+                    var bScale = ParseDouble(cards, "BSCALE", 1.0);
+                    var bZero = ParseDouble(cards, "BZERO", 0.0);
+                    return new FitsHeaderInfo(bitPix, axisCount, axes, bScale, bZero);
+                }
+
+                if (!card.Contains('='))
+                {
+                    continue;
+                }
+
+                var eq = card.IndexOf('=');
+                if (eq < 0)
+                {
+                    continue;
+                }
+
+                var valuePart = card[(eq + 1)..];
+                var slash = valuePart.IndexOf('/');
+                var value = (slash >= 0 ? valuePart[..slash] : valuePart).Trim();
+                if (!string.IsNullOrWhiteSpace(keyword))
+                {
+                    cards[keyword] = value;
+                }
+            }
         }
     }
+
+    private static void SkipFitsData(Stream stream, FitsHeaderInfo header)
+    {
+        var bytesPerSample = Math.Abs(header.BitPix) / 8;
+        if (bytesPerSample <= 0)
+        {
+            return;
+        }
+
+        long totalSamples = 1;
+        for (var i = 0; i < header.AxisCount; i++)
+        {
+            totalSamples *= Math.Max(1L, header.Axes[i]);
+        }
+
+        var dataBytes = totalSamples * bytesPerSample;
+        var paddedBytes = ((dataBytes + 2879L) / 2880L) * 2880L;
+        stream.Seek(paddedBytes, SeekOrigin.Current);
+    }
+
+    private static double ReadFitsSample(Stream stream, int bitPix)
+    {
+        Span<byte> buf = stackalloc byte[8];
+        switch (bitPix)
+        {
+            case 8:
+            {
+                var b = stream.ReadByte();
+                if (b < 0)
+                {
+                    throw new EndOfStreamException();
+                }
+
+                return b;
+            }
+            case 16:
+                ReadExactly(stream, buf[..2]);
+                return BinaryPrimitives.ReadInt16BigEndian(buf[..2]);
+            case 32:
+                ReadExactly(stream, buf[..4]);
+                return BinaryPrimitives.ReadInt32BigEndian(buf[..4]);
+            case 64:
+                ReadExactly(stream, buf[..8]);
+                return BinaryPrimitives.ReadInt64BigEndian(buf[..8]);
+            case -32:
+                ReadExactly(stream, buf[..4]);
+                return BinaryPrimitives.ReadSingleBigEndian(buf[..4]);
+            case -64:
+                ReadExactly(stream, buf[..8]);
+                return BinaryPrimitives.ReadDoubleBigEndian(buf[..8]);
+            default:
+                throw new NotSupportedException($"Unsupported FITS BITPIX: {bitPix}");
+        }
+    }
+
+    private static void ReadExactly(Stream stream, Span<byte> buffer)
+    {
+        var offset = 0;
+        while (offset < buffer.Length)
+        {
+            var read = stream.Read(buffer[offset..]);
+            if (read <= 0)
+            {
+                throw new EndOfStreamException();
+            }
+
+            offset += read;
+        }
+    }
+
+    private static void ReadExactly(Stream stream, byte[] buffer)
+    {
+        var offset = 0;
+        while (offset < buffer.Length)
+        {
+            var read = stream.Read(buffer, offset, buffer.Length - offset);
+            if (read <= 0)
+            {
+                throw new EndOfStreamException();
+            }
+
+            offset += read;
+        }
+    }
+
+    private static int ParseInt(Dictionary<string, string> cards, string key, int fallback)
+    {
+        if (!cards.TryGetValue(key, out var raw))
+        {
+            return fallback;
+        }
+
+        return int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : fallback;
+    }
+
+    private static long ParseLong(Dictionary<string, string> cards, string key, long fallback)
+    {
+        if (!cards.TryGetValue(key, out var raw))
+        {
+            return fallback;
+        }
+
+        return long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : fallback;
+    }
+
+    private static double ParseDouble(Dictionary<string, string> cards, string key, double fallback)
+    {
+        if (!cards.TryGetValue(key, out var raw))
+        {
+            return fallback;
+        }
+
+        var normalized = raw.Replace('D', 'E').Replace('d', 'E');
+        return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : fallback;
+    }
+
+    private readonly record struct FitsHeaderInfo(int BitPix, int AxisCount, long[] Axes, double BScale, double BZero);
 
     private static void NormalizeInPlace(float[] pixels)
     {
@@ -305,7 +521,7 @@ public sealed class RustafitsService
         encoder.Save(fs);
     }
 
-    private static void SaveRoiThumbnail(float[] pixels, int width, int height, string outputPath, double stretchStrength)
+    private static void SaveRoiThumbnail(float[] pixels, int width, int height, string outputPath, double stretchStrength, (double X, double Y)? roiNormalizedCenter)
     {
         var directory = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrWhiteSpace(directory))
@@ -314,7 +530,9 @@ public sealed class RustafitsService
         }
 
         const int roiSize = 220;
-        var (cx, cy) = DetectRoiCenter(pixels, width, height);
+        var (cx, cy) = roiNormalizedCenter is { } roi
+            ? ((int)Math.Round(Math.Clamp(roi.X, 0, 1) * (width - 1)), (int)Math.Round(Math.Clamp(roi.Y, 0, 1) * (height - 1)))
+            : DetectRoiCenter(pixels, width, height);
 
         var half = roiSize / 2;
         var startX = Math.Clamp(cx - half, 0, Math.Max(0, width - roiSize));
@@ -341,38 +559,117 @@ public sealed class RustafitsService
         encoder.Save(fs);
     }
 
+    private static void SaveFullFrame(float[] pixels, int width, int height, string outputPath, double stretchStrength)
+    {
+        var directory = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sample = DownsampleAndStretch(pixels, width, height, width, height, stretchStrength);
+        var stride = width * 3;
+        var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Rgb24, null, sample, stride);
+        var encoder = new JpegBitmapEncoder { QualityLevel = 92 };
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+
+        using var fs = File.Create(outputPath);
+        encoder.Save(fs);
+    }
+
     private static (int X, int Y) DetectRoiCenter(float[] pixels, int width, int height)
     {
+        const int grid = 48;
+        var tileW = Math.Max(8, width / grid);
+        var tileH = Math.Max(8, height / grid);
+        var nx = Math.Max(1, width / tileW);
+        var ny = Math.Max(1, height / tileH);
+
         var sampled = Sample(pixels);
         Array.Sort(sampled);
-        var threshold = PercentileFromSorted(sampled, 0.999);
+        var bg = PercentileFromSorted(sampled, 0.5);
+        var hi = PercentileFromSorted(sampled, 0.995);
+        var floor = Math.Max(bg, hi * 0.25);
 
-        double w = 0;
-        double sx = 0;
-        double sy = 0;
-        for (var y = 0; y < height; y++)
+        double bestScore = double.NegativeInfinity;
+        int bestX = width / 2;
+        int bestY = height / 2;
+
+        for (var ty = 0; ty < ny; ty++)
         {
-            for (var x = 0; x < width; x++)
+            var y0 = ty * tileH;
+            var y1 = Math.Min(height, y0 + tileH);
+
+            for (var tx = 0; tx < nx; tx++)
             {
-                var v = pixels[(y * width) + x];
-                if (v < threshold)
+                var x0 = tx * tileW;
+                var x1 = Math.Min(width, x0 + tileW);
+
+                double sum = 0;
+                var count = 0;
+                double w = 0;
+                double sx = 0;
+                double sy = 0;
+                double sxx = 0;
+                double syy = 0;
+                double sxy = 0;
+                for (var y = y0; y < y1; y++)
                 {
-                    continue;
+                    var row = y * width;
+                    for (var x = x0; x < x1; x++)
+                    {
+                        var v = pixels[row + x];
+                        if (v <= floor)
+                        {
+                            continue;
+                        }
+
+                        var signal = v - floor;
+                        sum += signal;
+                        count++;
+
+                        w += signal;
+                        sx += signal * x;
+                        sy += signal * y;
+                        sxx += signal * x * x;
+                        syy += signal * y * y;
+                        sxy += signal * x * y;
+                    }
                 }
 
-                var weight = v - threshold;
-                w += weight;
-                sx += weight * x;
-                sy += weight * y;
+                var isotropy = 0.0;
+                if (w > 0)
+                {
+                    var mx = sx / w;
+                    var my = sy / w;
+                    var cxx = (sxx / w) - (mx * mx);
+                    var cyy = (syy / w) - (my * my);
+                    var cxy = (sxy / w) - (mx * my);
+
+                    var trace = cxx + cyy;
+                    var det = (cxx * cyy) - (cxy * cxy);
+                    var disc = Math.Max(0.0, (trace * trace) - (4.0 * det));
+                    var major = Math.Max(1e-12, (trace + Math.Sqrt(disc)) / 2.0);
+                    var minor = Math.Max(1e-12, (trace - Math.Sqrt(disc)) / 2.0);
+                    isotropy = Math.Clamp(minor / major, 0.0, 1.0);
+                }
+
+                var centerBiasX = ((x0 + x1) * 0.5 - (width * 0.5)) / width;
+                var centerBiasY = ((y0 + y1) * 0.5 - (height * 0.5)) / height;
+                var centerPenalty = (centerBiasX * centerBiasX) + (centerBiasY * centerBiasY);
+                var shapeWeight = 0.25 + (0.75 * isotropy);
+                var score = ((count > 0 ? sum / Math.Sqrt(count) : 0) * shapeWeight) - (0.10 * centerPenalty);
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestX = (x0 + x1) / 2;
+                    bestY = (y0 + y1) / 2;
+                }
             }
         }
 
-        if (w <= 0)
-        {
-            return (width / 2, height / 2);
-        }
-
-        return ((int)Math.Clamp(Math.Round(sx / w), 0, width - 1), (int)Math.Clamp(Math.Round(sy / w), 0, height - 1));
+        return (Math.Clamp(bestX, 0, width - 1), Math.Clamp(bestY, 0, height - 1));
     }
 
     private static byte[] DownsampleAndStretch(float[] pixels, int width, int height, int targetWidth, int targetHeight, double stretchStrength)

@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using blink_o_mat.Models;
 
 namespace blink_o_mat.Models;
 
@@ -9,9 +8,12 @@ public sealed class FrameItem : INotifyPropertyChanged
     private bool _isRejected;
     private string _thumbnailPath = string.Empty;
     private string _roiThumbnailPath = string.Empty;
+    private string _fullPreviewPath = string.Empty;
 
     public required string FilePath { get; init; }
     public required string FileName { get; init; }
+    public required AstroMetrics Metrics { get; init; }
+
     public required string ThumbnailPath
     {
         get => _thumbnailPath;
@@ -41,7 +43,21 @@ public sealed class FrameItem : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
-    public required AstroMetrics Metrics { get; init; }
+
+    public required string FullPreviewPath
+    {
+        get => _fullPreviewPath;
+        set
+        {
+            if (_fullPreviewPath == value)
+            {
+                return;
+            }
+
+            _fullPreviewPath = value;
+            OnPropertyChanged();
+        }
+    }
 
     public bool IsRejected
     {
