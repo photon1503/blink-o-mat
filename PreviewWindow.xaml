@@ -44,6 +44,9 @@
 
             <CheckBox Content="Skip rejected when blinking" IsChecked="{Binding SkipRejectedInPreview, Mode=TwoWay}" Margin="0,0,0,10" />
 
+            <TextBlock FontWeight="SemiBold" Text="Stretch mode" />
+            <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,2,0,6" />
+
             <TextBlock FontWeight="SemiBold" Text="Stretch" />
             <Slider Minimum="0.25" Maximum="5.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
             <TextBlock Text="{Binding Stretch, StringFormat=F2}" Margin="0,0,0,12" />
@@ -63,6 +66,8 @@
         </StackPanel>
     </Grid>
 </Window>
+
+
 
 
 

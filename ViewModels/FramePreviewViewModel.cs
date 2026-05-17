@@ -13,6 +13,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Action<WpfPoint> _setManualRoi;
     private readonly Func<RoiBias> _getRoiBias;
     private readonly Action<RoiBias> _setRoiBias;
+    private readonly Func<StretchMode> _getStretchMode;
+    private readonly Action<StretchMode> _setStretchMode;
     private readonly Func<int, Task> _navigate;
     private readonly Action _toggleReject;
     private readonly Func<bool> _getSkipRejected;
@@ -80,6 +82,19 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 
     public Array RoiBiasOptions { get; } = Enum.GetValues(typeof(RoiBias));
 
+    public StretchMode StretchMode
+    {
+        get => _getStretchMode();
+        set
+        {
+            if (_getStretchMode() == value) return;
+            _setStretchMode(value);
+            OnPropertyChanged();
+        }
+    }
+
+    public Array StretchModeOptions { get; } = Enum.GetValues(typeof(StretchMode));
+
     public bool SkipRejectedInPreview
     {
         get => _getSkipRejected();
@@ -97,6 +112,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Action<double> setStretch,
         Func<RoiBias> getRoiBias,
         Action<RoiBias> setRoiBias,
+        Func<StretchMode> getStretchMode,
+        Action<StretchMode> setStretchMode,
         Action<WpfPoint> setManualRoi,
         Func<int, Task> navigate,
         Action toggleReject,
@@ -108,6 +125,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _setStretch = setStretch;
         _getRoiBias = getRoiBias;
         _setRoiBias = setRoiBias;
+        _getStretchMode = getStretchMode;
+        _setStretchMode = setStretchMode;
         _setManualRoi = setManualRoi;
         _navigate = navigate;
         _toggleReject = toggleReject;

@@ -33,7 +33,7 @@ public sealed class RustafitsService
 
             var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName);
             var metrics = ComputeMetrics(loadedFrame);
-            var previews = await RenderPreviewBitmapsAsync(loadedFrame, 1.0, null, metrics, cancellationToken);
+            var previews = await RenderPreviewBitmapsAsync(loadedFrame, 1.0, StretchMode.Default, null, metrics, cancellationToken);
 
             return new FrameItem
             {
@@ -68,19 +68,19 @@ public sealed class RustafitsService
         return Task.CompletedTask;
     }
 
-    public Task<(BitmapSource Full, BitmapSource Roi)> RenderPreviewBitmapsAsync(LoadedFrame frame, double stretchStrength, (double X, double Y)? roiNormalizedCenter, AstroMetrics? metrics, CancellationToken cancellationToken)
+    public Task<(BitmapSource Full, BitmapSource Roi)> RenderPreviewBitmapsAsync(LoadedFrame frame, double stretchStrength, StretchMode stretchMode, (double X, double Y)? roiNormalizedCenter, AstroMetrics? metrics, CancellationToken cancellationToken)
     {
         return Task.Run(() =>
         {
-            var full = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stretchStrength, metrics);
-            var roi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stretchStrength, roiNormalizedCenter);
+            var full = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stretchStrength, stretchMode, metrics);
+            var roi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stretchStrength, stretchMode, roiNormalizedCenter);
             return (full, roi);
         }, cancellationToken);
     }
 
-    public Task<BitmapSource> RenderFullBitmapAsync(LoadedFrame frame, double stretchStrength, CancellationToken cancellationToken)
+    public Task<BitmapSource> RenderFullBitmapAsync(LoadedFrame frame, double stretchStrength, StretchMode stretchMode, CancellationToken cancellationToken)
     {
-        return Task.Run(() => CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stretchStrength), cancellationToken);
+        return Task.Run(() => CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stretchStrength, stretchMode), cancellationToken);
     }
 
     public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame, RoiBias bias)
@@ -906,14 +906,14 @@ public sealed class RustafitsService
         };
     }
 
-    private static BitmapSource CreateThumbnailBitmap(float[] pixels, int width, int height, int maxWidth, int maxHeight, double stretchStrength, AstroMetrics? metrics)
+    private static BitmapSource CreateThumbnailBitmap(float[] pixels, int width, int height, int maxWidth, int maxHeight, double stretchStrength, StretchMode stretchMode, AstroMetrics? metrics)
     {
         var scale = Math.Min(maxWidth / (double)Math.Max(1, width), maxHeight / (double)Math.Max(1, height));
         scale = Math.Min(1.0, scale <= 0 ? 1.0 : scale);
         var targetWidth = Math.Max(1, (int)Math.Round(width * scale));
         var targetHeight = Math.Max(1, (int)Math.Round(height * scale));
 
-        var sample = DownsampleAndStretch(pixels, width, height, targetWidth, targetHeight, stretchStrength);
+        var sample = DownsampleAndStretch(pixels, width, height, targetWidth, targetHeight, stretchStrength, stretchMode);
         if (metrics is { PossibleSatelliteTrail: true, TrailX1: not null, TrailY1: not null, TrailX2: not null, TrailY2: not null })
         {
             DrawTrailOverlay(sample, targetWidth, targetHeight, metrics);
@@ -990,7 +990,7 @@ public sealed class RustafitsService
         }
     }
 
-    private static BitmapSource CreateRoiBitmap(float[] pixels, int width, int height, int roiSize, double stretchStrength, (double X, double Y)? roiNormalizedCenter)
+    private static BitmapSource CreateRoiBitmap(float[] pixels, int width, int height, int roiSize, double stretchStrength, StretchMode stretchMode, (double X, double Y)? roiNormalizedCenter)
     {
         var (cx, cy) = roiNormalizedCenter is { } roi
             ? ((int)Math.Round(Math.Clamp(roi.X, 0, 1) * (width - 1)), (int)Math.Round(Math.Clamp(roi.Y, 0, 1) * (height - 1)))
@@ -1010,7 +1010,7 @@ public sealed class RustafitsService
             Array.Copy(pixels, sourceOffset, crop, targetOffset, actualWidth);
         }
 
-        var sample = DownsampleAndStretch(crop, actualWidth, actualHeight, roiSize, roiSize, stretchStrength);
+        var sample = DownsampleAndStretch(crop, actualWidth, actualHeight, roiSize, roiSize, stretchStrength, stretchMode);
         Debug.WriteLine($"CreateRoiBitmap stretch={stretchStrength:F2} min={sample.Min()} max={sample.Max()} avg={sample.Select(v => (int)v).Average():F2}");
         var stride = roiSize * 3;
         var bitmap = BitmapSource.Create(roiSize, roiSize, 96, 96, PixelFormats.Rgb24, null, sample, stride);
@@ -1018,9 +1018,9 @@ public sealed class RustafitsService
         return bitmap;
     }
 
-    private static BitmapSource CreateFullFrameBitmap(float[] pixels, int width, int height, double stretchStrength)
+    private static BitmapSource CreateFullFrameBitmap(float[] pixels, int width, int height, double stretchStrength, StretchMode stretchMode)
     {
-        var sample = DownsampleAndStretch(pixels, width, height, width, height, stretchStrength);
+        var sample = DownsampleAndStretch(pixels, width, height, width, height, stretchStrength, stretchMode);
         var stride = width * 3;
         var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
@@ -1194,7 +1194,7 @@ public sealed class RustafitsService
         return output;
     }
 
-    private static byte[] DownsampleAndStretch(float[] pixels, int width, int height, int targetWidth, int targetHeight, double stretchStrength)
+    private static byte[] DownsampleAndStretch(float[] pixels, int width, int height, int targetWidth, int targetHeight, double stretchStrength, StretchMode stretchMode)
     {
         var sampled = Sample(pixels);
         if (sampled.Length == 0)
@@ -1227,7 +1227,9 @@ public sealed class RustafitsService
         var c0 = Math.Clamp(medianN + (shadowsClipping * 1.4826 * madN), 0.0, 0.99);
 
         var medianPostClip = Math.Clamp((medianN - c0) / (1.0 - c0), 0.0, 1.0);
-        var targetBackground = Math.Clamp(0.22 - (0.06 * (normalizedStrength - 1.0)), 0.08, 0.30);
+        var targetBackground = stretchMode == StretchMode.NinaStyle
+            ? Math.Clamp(0.36 - (0.05 * (normalizedStrength - 1.0)), 0.20, 0.50)
+            : Math.Clamp(0.22 - (0.06 * (normalizedStrength - 1.0)), 0.08, 0.30);
         var midtones = InverseMidtonesTransfer(targetBackground, medianPostClip);
         if (double.IsNaN(midtones) || double.IsInfinity(midtones))
         {

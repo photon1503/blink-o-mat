@@ -65,6 +65,8 @@
                     <TextBlock Text="Stretch" />
                     <Slider Minimum="0.25" Maximum="5.0" Value="{Binding StretchStrength, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
                     <TextBlock Margin="0,0,0,8" Text="{Binding StretchStrength, StringFormat=F2}" />
+                    <TextBlock Text="Stretch mode" />
+                    <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,0,0,8" />
 
                     <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Automatic rejection thresholds" />
 
