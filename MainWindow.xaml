@@ -69,44 +69,60 @@
 
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,8,0">
                 <StackPanel>
-                    <TextBlock Text="Stretch" />
-                    <Slider Minimum="0.25" Maximum="5.0" Value="{Binding StretchStrength, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
-                    <TextBlock Margin="0,0,0,8" Text="{Binding StretchStrength, StringFormat=F2}" />
-                    <TextBlock Text="Stretch mode" />
-                    <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,0,0,8" />
+                    <Border Padding="10" Margin="0,0,0,10" Background="#08000000" BorderBrush="#22000000" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Session" />
+                            <TextBlock Text="{Binding SessionFocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
+                            <TextBlock Text="{Binding SessionPixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
+                        </StackPanel>
+                    </Border>
 
-                    <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Automatic rejection thresholds" />
+                    <Border Padding="10" Margin="0,0,0,10" Background="#08000000" BorderBrush="#22000000" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Preview and ROI" />
+                            <TextBlock Text="Stretch mode" />
+                            <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,2,0,8" />
+                            <TextBlock Text="Stretch" />
+                            <Slider Minimum="0.25" Maximum="5.0" Value="{Binding StretchStrength, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
+                            <TextBlock Margin="0,0,0,8" Text="{Binding StretchStrength, StringFormat=F2}" />
+                            <TextBlock Text="ROI bias" />
+                            <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </Border>
 
-                    <TextBlock Text="Max FWHM" />
-                    <Slider Minimum="0" Maximum="15" Value="{Binding MaxFwhm, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.25" IsSnapToTickEnabled="False" />
-                    <TextBlock Margin="0,0,0,8" Text="{Binding MaxFwhm, StringFormat=F2}" />
+                    <Border Padding="10" Margin="0,0,0,10" Background="#08000000" BorderBrush="#22000000" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Automatic rejection" />
+                            <CheckBox Content="Reject possible satellite trails" IsChecked="{Binding RejectSatelliteTrail}" Margin="0,0,0,10" />
 
-                    <TextBlock Text="Max HFR" />
-                    <Slider Minimum="0" Maximum="10" Value="{Binding MaxHfr, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.1" IsSnapToTickEnabled="False" />
-                    <TextBlock Margin="0,0,0,8" Text="{Binding MaxHfr, StringFormat=F2}" />
+                            <TextBlock Text="Max FWHM" />
+                            <Slider Minimum="0" Maximum="15" Value="{Binding MaxFwhm, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.25" IsSnapToTickEnabled="False" />
+                            <TextBlock Margin="0,0,0,8" Text="{Binding MaxFwhm, StringFormat=F2}" />
 
-                    <TextBlock Text="Max Eccentricity" />
-                    <Slider Minimum="0" Maximum="1" Value="{Binding MaxEccentricity, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
-                    <TextBlock Margin="0,0,0,8" Text="{Binding MaxEccentricity, StringFormat=F3}" />
+                            <TextBlock Text="Max HFR" />
+                            <Slider Minimum="0" Maximum="10" Value="{Binding MaxHfr, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.1" IsSnapToTickEnabled="False" />
+                            <TextBlock Margin="0,0,0,8" Text="{Binding MaxHfr, StringFormat=F2}" />
 
-                    <TextBlock Text="Max Mean Background" />
-                    <Slider Minimum="0" Maximum="10000" Value="{Binding MaxMeanBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="50" IsSnapToTickEnabled="False" />
-                    <TextBlock Margin="0,0,0,8" Text="{Binding MaxMeanBackground, StringFormat=F1}" />
+                            <TextBlock Text="Max Eccentricity" />
+                            <Slider Minimum="0" Maximum="1" Value="{Binding MaxEccentricity, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
+                            <TextBlock Margin="0,0,0,8" Text="{Binding MaxEccentricity, StringFormat=F3}" />
 
-                    <TextBlock Text="Min Stars" />
-                    <Slider Minimum="0" Maximum="1000" Value="{Binding MinStars, UpdateSourceTrigger=PropertyChanged}" TickFrequency="5" IsSnapToTickEnabled="False" />
-                    <TextBlock Margin="0,0,0,8" Text="{Binding MinStars, StringFormat=F0}" />
+                            <TextBlock Text="Max Mean Background" />
+                            <Slider Minimum="0" Maximum="10000" Value="{Binding MaxMeanBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="50" IsSnapToTickEnabled="False" />
+                            <TextBlock Margin="0,0,0,8" Text="{Binding MaxMeanBackground, StringFormat=F1}" />
 
-                    <TextBlock FontWeight="SemiBold" Margin="0,6,0,4" Text="Imaging setup" />
-                    <TextBlock Text="{Binding SessionFocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
-                    <TextBlock Margin="0,0,0,8" Text="{Binding SessionPixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
+                            <TextBlock Text="Min Stars" />
+                            <Slider Minimum="0" Maximum="1000" Value="{Binding MinStars, UpdateSourceTrigger=PropertyChanged}" TickFrequency="5" IsSnapToTickEnabled="False" />
+                            <TextBlock Text="{Binding MinStars, StringFormat=F0}" />
+                        </StackPanel>
+                    </Border>
 
-                    <TextBlock FontWeight="SemiBold" Margin="0,6,0,4" Text="ROI" />
-                    <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,0,0,8" />
-
-                    <CheckBox Content="Reject possible satellite trails" IsChecked="{Binding RejectSatelliteTrail}" Margin="0,6,0,12" />
-
-                    <Button Padding="12,5" Content="One-click move rejected subframes" Command="{Binding MoveRejectedCommand}" />
+                    <Border Padding="10" Background="#08000000" BorderBrush="#22000000" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Actions" />
+                            <Button Padding="12,5" Content="One-click move rejected subframes" Command="{Binding MoveRejectedCommand}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
 

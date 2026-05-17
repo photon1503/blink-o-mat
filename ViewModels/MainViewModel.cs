@@ -30,6 +30,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly RustafitsService _rustafits = new();
     private readonly FrameRejectionService _rejection = new();
     private readonly FrameMoveService _move = new();
+    private readonly AppSettingsService _settings = new();
 
     private string? _inputFolder;
     private string? _rejectedFolder;
@@ -69,6 +70,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (_inputFolder == value) return;
             _inputFolder = value;
             OnPropertyChanged();
+            SaveFolderSettings();
             ((RelayCommand)LoadFramesCommand).RaiseCanExecuteChanged();
         }
     }
@@ -106,6 +108,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (_rejectedFolder == value) return;
             _rejectedFolder = value;
             OnPropertyChanged();
+            SaveFolderSettings();
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
         }
     }
@@ -304,6 +307,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         LoadFramesCommand = new RelayCommand(async _ => await LoadFramesAsync(), _ => !IsBusy && !string.IsNullOrWhiteSpace(InputFolder));
         MoveRejectedCommand = new RelayCommand(_ => MoveRejected(), _ => !IsBusy && Frames.Any(f => f.IsRejected) && !string.IsNullOrWhiteSpace(RejectedFolder));
         OpenPreviewCommand = new RelayCommand(async p => await OpenPreviewAsync(p as FrameItem));
+
+        var settings = _settings.Load();
+        InputFolder = settings.InputFolder;
+        RejectedFolder = settings.RejectedFolder;
     }
 
     private void BrowseInput()
@@ -324,6 +331,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             RejectedFolder = dialog.SelectedPath;
         }
+    }
+
+    private void SaveFolderSettings()
+    {
+        _settings.Save(new AppSettings
+        {
+            InputFolder = InputFolder,
+            RejectedFolder = RejectedFolder
+        });
     }
 
     private async Task LoadFramesAsync()
