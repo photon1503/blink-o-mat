@@ -7,6 +7,19 @@
              d:DesignHeight="180"
              d:DesignWidth="900">
     <Border BorderBrush="{StaticResource PanelBorderBrush}" Background="{StaticResource PanelBackgroundAltBrush}" BorderThickness="1" Padding="6" Margin="0,0,0,6">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Background" Value="{StaticResource PanelBackgroundAltBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsPreviewActive}" Value="True">
+                        <Setter Property="BorderBrush" Value="Gold" />
+                        <Setter Property="BorderThickness" Value="2" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="340" />

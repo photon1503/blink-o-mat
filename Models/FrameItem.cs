@@ -9,6 +9,7 @@ namespace blink_o_mat.Models;
 public sealed class FrameItem : INotifyPropertyChanged
 {
     private bool _isRejected;
+    private bool _isPreviewActive;
     private BitmapSource? _thumbnailImage;
     private BitmapSource? _roiImage;
     private WpfBrush _fwhmIndicatorBrush = WpfBrushes.Goldenrod;
@@ -37,6 +38,21 @@ public sealed class FrameItem : INotifyPropertyChanged
             }
 
             _thumbnailImage = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsPreviewActive
+    {
+        get => _isPreviewActive;
+        set
+        {
+            if (_isPreviewActive == value)
+            {
+                return;
+            }
+
+            _isPreviewActive = value;
             OnPropertyChanged();
         }
     }

@@ -1,5 +1,8 @@
+using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using blink_o_mat.ViewModels;
@@ -17,11 +20,19 @@ public partial class PreviewWindow : Window
         InitializeComponent();
         _vm = vm;
         DataContext = _vm;
+        _vm.PropertyChanged += Vm_PropertyChanged;
         Loaded += (_, _) =>
         {
             FitToView();
+            RedrawCacheIndicators();
             _hasInitializedView = true;
         };
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _vm.PropertyChanged -= Vm_PropertyChanged;
+        base.OnClosed(e);
     }
 
     public void RefreshImage(BitmapSource image)
@@ -166,6 +177,70 @@ public partial class PreviewWindow : Window
             point.Y / PreviewImage.ActualHeight);
 
         _vm.SetManualRoi(normalized);
+    }
+
+    private void FrameSlider_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        RedrawCacheIndicators();
+    }
+
+    private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(FramePreviewViewModel.FrameSliderValue)
+            or nameof(FramePreviewViewModel.FrameCount)
+            or nameof(FramePreviewViewModel.CachedFrameIndices))
+        {
+            RedrawCacheIndicators();
+        }
+    }
+
+    private void RedrawCacheIndicators()
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        CacheIndicatorCanvas.Children.Clear();
+
+        var frameCount = _vm.FrameCount;
+        var height = Math.Max(0.0, FrameSlider.ActualHeight - 8.0);
+        if (frameCount <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        CacheIndicatorCanvas.Height = height;
+        var currentIndex = Math.Clamp((int)Math.Round(_vm.FrameSliderValue), 0, Math.Max(0, frameCount - 1));
+        var span = Math.Max(1.0, height - 2.0);
+        var markerHeight = Math.Clamp(height / Math.Max(1, frameCount), 2.0, 6.0);
+
+        foreach (var cachedIndex in _vm.CachedFrameIndices)
+        {
+            if (cachedIndex < 0 || cachedIndex >= frameCount)
+            {
+                continue;
+            }
+
+            var y = frameCount == 1
+                ? span * 0.5
+                : (cachedIndex / (double)(frameCount - 1)) * span;
+
+            var marker = new System.Windows.Shapes.Rectangle
+            {
+                Width = cachedIndex == currentIndex ? 8 : 6,
+                Height = markerHeight,
+                RadiusX = 1,
+                RadiusY = 1,
+                Fill = cachedIndex == currentIndex
+                    ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xD7, 0x00))
+                    : new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x39, 0xD3, 0x53))
+            };
+
+            Canvas.SetTop(marker, Math.Clamp(y - (markerHeight / 2.0), 0.0, Math.Max(0.0, height - markerHeight)));
+            Canvas.SetLeft(marker, cachedIndex == currentIndex ? 0.0 : 1.0);
+            CacheIndicatorCanvas.Children.Add(marker);
+        }
     }
 
     protected override async void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)

@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Media.Imaging;
@@ -30,6 +31,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private double _frameSliderValue;
     private int _frameCount;
     private bool _isSynchronizingFrameSlider;
+    private string? _previewStatusMessage;
 
     public FrameItem Item
     {
@@ -159,6 +161,10 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 
     public double FrameSliderMaximum => Math.Max(0, _frameCount - 1);
 
+    public int FrameCount => _frameCount;
+
+    public ObservableCollection<int> CachedFrameIndices { get; } = [];
+
     public string FramePositionText
     {
         get
@@ -172,6 +178,20 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
             return $"{current} / {_frameCount}";
         }
     }
+
+    public string? PreviewStatusMessage
+    {
+        get => _previewStatusMessage;
+        private set
+        {
+            if (string.Equals(_previewStatusMessage, value, StringComparison.Ordinal)) return;
+            _previewStatusMessage = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsPreviewStatusVisible));
+        }
+    }
+
+    public bool IsPreviewStatusVisible => !string.IsNullOrWhiteSpace(PreviewStatusMessage);
 
     public FramePreviewViewModel(
         FrameItem item,
@@ -237,10 +257,27 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _isSynchronizingFrameSlider = true;
         _frameCount = Math.Max(0, frameCount);
         _frameSliderValue = Math.Clamp(currentIndex, 0, Math.Max(0, _frameCount - 1));
+        OnPropertyChanged(nameof(FrameCount));
         OnPropertyChanged(nameof(FrameSliderMaximum));
         OnPropertyChanged(nameof(FrameSliderValue));
         OnPropertyChanged(nameof(FramePositionText));
         _isSynchronizingFrameSlider = false;
+    }
+
+    public void UpdateCachedFrameIndices(IEnumerable<int> cachedIndices)
+    {
+        CachedFrameIndices.Clear();
+        foreach (var index in cachedIndices)
+        {
+            CachedFrameIndices.Add(index);
+        }
+
+        OnPropertyChanged(nameof(CachedFrameIndices));
+    }
+
+    public void SetPreviewStatus(string? message)
+    {
+        PreviewStatusMessage = string.IsNullOrWhiteSpace(message) ? null : message;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

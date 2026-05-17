@@ -49,20 +49,48 @@
 
                 <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Text="Frames" />
                 <TextBlock Grid.Row="1" Margin="0,4,0,8" HorizontalAlignment="Center" Text="{Binding FramePositionText}" />
-                <Slider Grid.Row="2"
-                        Width="36"
-                        Margin="0,0,0,8"
-                        VerticalAlignment="Stretch"
-                        HorizontalAlignment="Center"
-                        Orientation="Vertical"
-                        Minimum="0"
-                        Maximum="{Binding FrameSliderMaximum}"
-                        Value="{Binding FrameSliderValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        TickFrequency="1"
-                        TickPlacement="Both"
-                        IsSnapToTickEnabled="True"
-                        IsMoveToPointEnabled="True"
-                        IsDirectionReversed="True" />
+                <Grid Grid.Row="2" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="120" />
+                    </Grid.ColumnDefinitions>
+                    <Canvas x:Name="CacheIndicatorCanvas" Grid.Column="0" Width="8" Margin="0,4,0,4" IsHitTestVisible="False" />
+                    <Slider x:Name="FrameSlider"
+                            Grid.Column="1"
+                            Width="36"
+                            VerticalAlignment="Stretch"
+                            HorizontalAlignment="Center"
+                            Orientation="Vertical"
+                            Minimum="0"
+                            Maximum="{Binding FrameSliderMaximum}"
+                            Value="{Binding FrameSliderValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            TickFrequency="1"
+                            TickPlacement="Both"
+                            IsSnapToTickEnabled="True"
+                            IsMoveToPointEnabled="True"
+                            IsDirectionReversed="True"
+                            SizeChanged="FrameSlider_SizeChanged" />
+                    <TextBlock Grid.Column="2"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Left"
+                               Foreground="Orange"
+                               TextWrapping="Wrap"
+                               TextAlignment="Left"
+                               Text="{Binding PreviewStatusMessage}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPreviewStatusVisible}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
                 <TextBlock Grid.Row="3" HorizontalAlignment="Center" Text="{Binding FrameCount, StringFormat=Total: {0}}" />
             </Grid>
         </Border>

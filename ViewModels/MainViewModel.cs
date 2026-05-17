@@ -16,6 +16,13 @@ namespace blink_o_mat.ViewModels;
 
 public sealed class MainViewModel : INotifyPropertyChanged
 {
+    private const int MinimumPreviewCacheAhead = 4;
+    private const int MinimumPreviewCacheBehind = 6;
+    private const int MaximumPreviewCacheAhead = 24;
+    private const int MaximumPreviewCacheBehind = 32;
+    private const long PreviewCacheReservedBytes = 256L * 1024 * 1024;
+    private const long PreviewCacheHardCapBytes = 1024L * 1024 * 1024;
+
     private sealed record LoadedFrameContext(
         FrameItem Item,
         float[] Pixels,
@@ -56,6 +63,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private StretchMode _stretchMode = StretchMode.Default;
     private bool _hasManualRoi;
     private bool _skipRejectedInPreview;
+    private FrameItem? _selectedFrame;
 
     private readonly List<LoadedFrameContext> _loadedFrames = [];
     private PreviewWindow? _previewWindow;
@@ -144,6 +152,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             SaveFolderSettings();
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
+        }
+    }
+
+    public FrameItem? SelectedFrame
+    {
+        get => _selectedFrame;
+        set
+        {
+            if (ReferenceEquals(_selectedFrame, value)) return;
+            _selectedFrame = value;
+            OnPropertyChanged();
         }
     }
 
@@ -389,6 +408,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Status = "Scanning folder...";
         Frames.Clear();
         _loadedFrames.Clear();
+        SelectedFrame = null;
         _globalRoiCenter = null;
         _hasManualRoi = false;
         SessionFocalLengthMm = null;
@@ -700,18 +720,34 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (_previewWindow is not null)
         {
+            var cacheMiss = _loadedFrames[currentIndex].FullImage is null;
+            if (cacheMiss)
+            {
+                var loadMessage = $"Loading frame {currentIndex + 1}/{_loadedFrames.Count} from disk...";
+                _previewVm?.SetPreviewStatus(loadMessage);
+                Status = loadMessage;
+            }
+
             _previewItem = item;
+            SyncPreviewSelection(item);
             var existingImage = await GetOrCreateFullImageAsync(item);
             _previewVm?.SetItem(item);
             _previewVm?.UpdateFramePosition(currentIndex, _loadedFrames.Count);
+            PublishPreviewCacheState();
             _previewWindow.RefreshImage(existingImage);
-            StartPreviewCaching(item, ahead: 2, behind: 4);
+            StartAdaptivePreviewCaching(item);
+            if (cacheMiss)
+            {
+                _previewVm?.SetPreviewStatus($"Frame {currentIndex + 1}/{_loadedFrames.Count} loaded from disk.");
+                Status = $"Frame {currentIndex + 1}/{_loadedFrames.Count} loaded from disk.";
+            }
             _previewWindow.Activate();
             await Task.CompletedTask;
             return;
         }
 
         _previewItem = item;
+        SyncPreviewSelection(item);
         var vm = new FramePreviewViewModel(
             item,
             () => StretchStrength,
@@ -731,15 +767,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
             () => SkipRejectedInPreview,
             value => SkipRejectedInPreview = value);
         vm.UpdateFramePosition(currentIndex, _loadedFrames.Count);
+        PublishPreviewCacheState(vm);
         _previewVm = vm;
         _previewWindow = new PreviewWindow(vm);
         var current = await GetOrCreateFullImageAsync(item);
+        PublishPreviewCacheState();
         _previewWindow.RefreshImage(current);
-        StartPreviewCaching(item, ahead: 2, behind: 4);
+        StartAdaptivePreviewCaching(item);
         _previewWindow.Closed += (_, _) =>
         {
             _previewCacheCts?.Cancel();
             ClearAllFullImageCaches();
+            SyncPreviewSelection(null);
             _previewWindow = null;
             _previewVm = null;
             _previewItem = null;
@@ -840,6 +879,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, ActiveTargetBackground, CancellationToken.None);
         _loadedFrames[index] = loaded with { FullImage = fullImage };
+        PublishPreviewCacheState();
         return fullImage;
     }
 
@@ -848,6 +888,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _previewCacheCts?.Cancel();
         _previewCacheCts = new CancellationTokenSource();
         _ = PrecacheAroundPreviewAsync(centerItem, ahead, behind, _previewCacheCts.Token);
+    }
+
+    private void StartAdaptivePreviewCaching(FrameItem centerItem)
+    {
+        var (ahead, behind) = CalculateAdaptivePreviewCacheWindow(centerItem);
+        StartPreviewCaching(centerItem, ahead, behind);
     }
 
     private async Task PrecacheAroundPreviewAsync(FrameItem centerItem, int ahead, int behind, CancellationToken cancellationToken)
@@ -859,29 +905,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         TrimFullImageCache(centerIndex, ahead, behind);
+        PublishPreviewCacheState();
 
-        for (var i = 1; i <= ahead; i++)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var idx = centerIndex + i;
-            if (idx >= _loadedFrames.Count)
+            for (var i = 1; i <= ahead; i++)
             {
-                break;
+                cancellationToken.ThrowIfCancellationRequested();
+                var idx = centerIndex + i;
+                if (idx >= _loadedFrames.Count)
+                {
+                    break;
+                }
+
+                await EnsureFullImageCachedAsync(idx, cancellationToken);
             }
 
-            await EnsureFullImageCachedAsync(idx, cancellationToken);
+            for (var i = 1; i <= behind; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var idx = centerIndex - i;
+                if (idx < 0)
+                {
+                    break;
+                }
+
+                await EnsureFullImageCachedAsync(idx, cancellationToken);
+            }
         }
-
-        for (var i = 1; i <= behind; i++)
+        catch (OperationCanceledException)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var idx = centerIndex - i;
-            if (idx < 0)
-            {
-                break;
-            }
-
-            await EnsureFullImageCachedAsync(idx, cancellationToken);
         }
     }
 
@@ -895,6 +948,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         var full = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, ActiveTargetBackground, cancellationToken);
         _loadedFrames[index] = loaded with { FullImage = full };
+        PublishPreviewCacheState();
     }
 
     private void ApplyThresholds()
@@ -973,6 +1027,64 @@ public sealed class MainViewModel : INotifyPropertyChanged
             context.FilterName);
     }
 
+    private (int Ahead, int Behind) CalculateAdaptivePreviewCacheWindow(FrameItem centerItem)
+    {
+        var centerIndex = _loadedFrames.FindIndex(f => f.Item == centerItem);
+        if (centerIndex < 0 || _loadedFrames.Count == 0)
+        {
+            return (MinimumPreviewCacheAhead, MinimumPreviewCacheBehind);
+        }
+
+        var maxAheadAvailable = Math.Max(0, _loadedFrames.Count - 1 - centerIndex);
+        var maxBehindAvailable = Math.Max(0, centerIndex);
+
+        var estimatedFrameBytes = EstimatePreviewFrameBytes(_loadedFrames[centerIndex]);
+        var availableCacheBytes = EstimateAvailablePreviewCacheBytes();
+        var budgetedFrames = (int)Math.Clamp(availableCacheBytes / Math.Max(1L, estimatedFrameBytes), 1L, 1L + MaximumPreviewCacheAhead + MaximumPreviewCacheBehind);
+        var extraFrames = Math.Max(0, budgetedFrames - 1);
+
+        var desiredAhead = Math.Min(MaximumPreviewCacheAhead, MinimumPreviewCacheAhead + (extraFrames / 2));
+        var desiredBehind = Math.Min(MaximumPreviewCacheBehind, MinimumPreviewCacheBehind + extraFrames);
+
+        var ahead = Math.Clamp(desiredAhead, Math.Min(MinimumPreviewCacheAhead, maxAheadAvailable), maxAheadAvailable);
+        var behind = Math.Clamp(desiredBehind, Math.Min(MinimumPreviewCacheBehind, maxBehindAvailable), maxBehindAvailable);
+
+        if (centerIndex < MinimumPreviewCacheBehind)
+        {
+            ahead = Math.Min(MaximumPreviewCacheAhead, ahead + (MinimumPreviewCacheBehind - centerIndex));
+        }
+
+        if (maxAheadAvailable < MinimumPreviewCacheAhead)
+        {
+            behind = Math.Min(MaximumPreviewCacheBehind, behind + (MinimumPreviewCacheAhead - maxAheadAvailable));
+        }
+
+        ahead = Math.Min(ahead, maxAheadAvailable);
+        behind = Math.Min(behind, maxBehindAvailable);
+
+        return (ahead, behind);
+    }
+
+    private static long EstimatePreviewFrameBytes(LoadedFrameContext frame)
+    {
+        var pixelBytes = (long)frame.Width * frame.Height * 4L;
+        return Math.Max(8L * 1024 * 1024, pixelBytes + (pixelBytes / 8));
+    }
+
+    private static long EstimateAvailablePreviewCacheBytes()
+    {
+        var gcInfo = GC.GetGCMemoryInfo();
+        var totalAvailable = gcInfo.TotalAvailableMemoryBytes;
+        if (totalAvailable <= 0)
+        {
+            return 128L * 1024 * 1024;
+        }
+
+        var memoryLoadBytes = totalAvailable * gcInfo.MemoryLoadBytes / Math.Max(1L, gcInfo.HighMemoryLoadThresholdBytes);
+        var freeBytes = Math.Max(0L, totalAvailable - memoryLoadBytes - PreviewCacheReservedBytes);
+        return Math.Clamp(freeBytes, 64L * 1024 * 1024, PreviewCacheHardCapBytes);
+    }
+
     private void TrimFullImageCache(int centerIndex, int ahead, int behind)
     {
         for (var i = 0; i < _loadedFrames.Count; i++)
@@ -999,6 +1111,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 _loadedFrames[i] = _loadedFrames[i] with { FullImage = null };
             }
+        }
+
+        PublishPreviewCacheState();
+    }
+
+    private void PublishPreviewCacheState(FramePreviewViewModel? targetVm = null)
+    {
+        var vm = targetVm ?? _previewVm;
+        if (vm is null)
+        {
+            return;
+        }
+
+        var cachedIndices = new List<int>();
+        for (var i = 0; i < _loadedFrames.Count; i++)
+        {
+            if (_loadedFrames[i].FullImage is not null)
+            {
+                cachedIndices.Add(i);
+            }
+        }
+
+        vm.UpdateCachedFrameIndices(cachedIndices);
+    }
+
+    private void SyncPreviewSelection(FrameItem? activeItem)
+    {
+        SelectedFrame = activeItem;
+
+        foreach (var frame in Frames)
+        {
+            frame.IsPreviewActive = ReferenceEquals(frame, activeItem);
         }
     }
 
