@@ -4,8 +4,10 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
+         Background="{StaticResource WindowBackgroundBrush}"
+         Foreground="{StaticResource TextBrush}"
         Title="blink-o-mat" Height="820" Width="1200">
-    <Grid Margin="12">
+    <Grid Margin="12" Background="{StaticResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -69,7 +71,7 @@
 
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,8,0">
                 <StackPanel>
-                    <Border Padding="10" Margin="0,0,0,10" Background="#08000000" BorderBrush="#22000000" BorderThickness="1">
+                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Session" />
                             <TextBlock Text="{Binding SessionFocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
@@ -77,7 +79,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Padding="10" Margin="0,0,0,10" Background="#08000000" BorderBrush="#22000000" BorderThickness="1">
+                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Preview and ROI" />
                             <TextBlock Text="Stretch mode" />
@@ -90,7 +92,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Padding="10" Margin="0,0,0,10" Background="#08000000" BorderBrush="#22000000" BorderThickness="1">
+                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Automatic rejection" />
                             <CheckBox Content="Reject possible satellite trails" IsChecked="{Binding RejectSatelliteTrail}" Margin="0,0,0,10" />
@@ -117,7 +119,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Padding="10" Background="#08000000" BorderBrush="#22000000" BorderThickness="1">
+                    <Border Padding="10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Actions" />
                             <Button Padding="12,5" Content="One-click move rejected subframes" Command="{Binding MoveRejectedCommand}" />
@@ -141,7 +143,7 @@
                 </ListView.ItemsPanel>
                 <ListView.ItemTemplate>
                     <DataTemplate>
-                        <Border BorderBrush="#22000000" BorderThickness="1" Padding="6" Margin="0,0,0,6">
+                        <Border BorderBrush="{StaticResource PanelBorderBrush}" Background="{StaticResource PanelBackgroundAltBrush}" BorderThickness="1" Padding="6" Margin="0,0,0,6">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="340" />
@@ -149,13 +151,13 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                    <Border Width="160" Height="160" BorderBrush="#22000000" BorderThickness="1" Margin="0,0,6,0">
+                                    <Border Width="160" Height="160" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Margin="0,0,6,0">
                                         <Border.InputBindings>
                                             <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
                                         </Border.InputBindings>
                                         <Image Stretch="Uniform" Source="{Binding ThumbnailImage}" ToolTip="Click to open preview" />
                                     </Border>
-                                    <Border Width="160" Height="160" BorderBrush="#22000000" BorderThickness="1">
+                                    <Border Width="160" Height="160" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                                         <Border.InputBindings>
                                             <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
                                         </Border.InputBindings>
