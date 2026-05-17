@@ -103,7 +103,19 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <ListView Grid.Column="1" ItemsSource="{Binding Frames}">
+            <ListView Grid.Column="1"
+                      ItemsSource="{Binding Frames}"
+                      ScrollViewer.CanContentScroll="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      VirtualizingPanel.ScrollUnit="Pixel"
+                      VirtualizingPanel.CacheLengthUnit="Item"
+                      VirtualizingPanel.CacheLength="1">
+                <ListView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ListView.ItemsPanel>
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <Border BorderBrush="#22000000" BorderThickness="1" Padding="6" Margin="0,0,0,6">

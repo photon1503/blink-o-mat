@@ -49,8 +49,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private FramePreviewViewModel? _previewVm;
     private FrameItem? _previewItem;
     private (double X, double Y)? _globalRoiCenter;
+    private CancellationTokenSource? _previewCacheCts;
 
-    public ObservableCollection<FrameItem> Frames { get; } = [];
+    public RangeObservableCollection<FrameItem> Frames { get; } = [];
 
     public string? InputFolder
     {
@@ -339,6 +340,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             var files = _discovery.Discover(InputFolder);
             ProgressMaximum = Math.Max(1, files.Count);
+            var loadedItems = new List<FrameItem>(files.Count);
+            var loadedContexts = new List<LoadedFrameContext>(files.Count);
 
             var firstSuccessfulIndex = -1;
             for (var i = 0; i < files.Count; i++)
@@ -365,8 +368,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         Metrics = metrics
                     };
 
-                    Frames.Add(item);
-                    _loadedFrames.Add(new LoadedFrameContext(item, raw, null));
+                    loadedItems.Add(item);
+                    loadedContexts.Add(new LoadedFrameContext(item, raw, null));
                     SessionFocalLengthMm ??= raw.FocalLengthMm;
                     SessionPixelSizeUm ??= raw.PixelSizeUm;
                     firstSuccessfulIndex = i;
@@ -383,7 +386,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (firstSuccessfulIndex >= 0)
             {
                 var filesToProcess = files.Skip(firstSuccessfulIndex + 1).ToList();
-                var orientationReference = _loadedFrames[0].FrameData;
+                var orientationReference = loadedContexts[0].FrameData;
                 var maxParallelism = Math.Clamp(Environment.ProcessorCount - 1, 2, 8);
                 using var gate = new SemaphoreSlim(maxParallelism);
 
@@ -429,8 +432,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                     if (result.Item is not null && result.Frame is not null)
                     {
-                        Frames.Add(result.Item);
-                        _loadedFrames.Add(new LoadedFrameContext(result.Item, result.Frame, null));
+                        loadedItems.Add(result.Item);
+                        loadedContexts.Add(new LoadedFrameContext(result.Item, result.Frame, null));
                         SessionFocalLengthMm ??= result.Frame.FocalLengthMm;
                         SessionPixelSizeUm ??= result.Frame.PixelSizeUm;
                         Status = $"Loaded {result.Item.FileName}";
@@ -443,6 +446,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     ProgressValue += 1;
                 }
             }
+
+            _loadedFrames.Clear();
+            _loadedFrames.AddRange(loadedContexts);
+            Frames.ReplaceAll(loadedItems);
 
             ApplyThresholds();
             Status = $"Loaded {Frames.Count} frame(s).";
@@ -467,6 +474,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         UpdateAutoRoiCenter();
+
+        _previewCacheCts?.Cancel();
 
         IsBusy = true;
         IsProgressVisible = true;
@@ -522,7 +531,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var existingImage = await GetOrCreateFullImageAsync(item);
             _previewVm?.SetItem(item);
             _previewWindow.RefreshImage(existingImage);
-            _ = PrecacheAroundPreviewAsync(item, ahead: 3, behind: 8);
+            StartPreviewCaching(item, ahead: 2, behind: 4);
             _previewWindow.Activate();
             await Task.CompletedTask;
             return;
@@ -546,9 +555,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _previewWindow = new PreviewWindow(vm);
         var current = await GetOrCreateFullImageAsync(item);
         _previewWindow.RefreshImage(current);
-        _ = PrecacheAroundPreviewAsync(item, ahead: 3, behind: 8);
+        StartPreviewCaching(item, ahead: 2, behind: 4);
         _previewWindow.Closed += (_, _) =>
         {
+            _previewCacheCts?.Cancel();
             _previewWindow = null;
             _previewVm = null;
             _previewItem = null;
@@ -635,7 +645,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return fullImage;
     }
 
-    private async Task PrecacheAroundPreviewAsync(FrameItem centerItem, int ahead, int behind)
+    private void StartPreviewCaching(FrameItem centerItem, int ahead, int behind)
+    {
+        _previewCacheCts?.Cancel();
+        _previewCacheCts = new CancellationTokenSource();
+        _ = PrecacheAroundPreviewAsync(centerItem, ahead, behind, _previewCacheCts.Token);
+    }
+
+    private async Task PrecacheAroundPreviewAsync(FrameItem centerItem, int ahead, int behind, CancellationToken cancellationToken)
     {
         var centerIndex = _loadedFrames.FindIndex(f => f.Item == centerItem);
         if (centerIndex < 0)
@@ -645,28 +662,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         for (var i = 1; i <= ahead; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var idx = centerIndex + i;
             if (idx >= _loadedFrames.Count)
             {
                 break;
             }
 
-            await EnsureFullImageCachedAsync(idx);
+            await EnsureFullImageCachedAsync(idx, cancellationToken);
         }
 
         for (var i = 1; i <= behind; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var idx = centerIndex - i;
             if (idx < 0)
             {
                 break;
             }
 
-            await EnsureFullImageCachedAsync(idx);
+            await EnsureFullImageCachedAsync(idx, cancellationToken);
         }
     }
 
-    private async Task EnsureFullImageCachedAsync(int index)
+    private async Task EnsureFullImageCachedAsync(int index, CancellationToken cancellationToken)
     {
         var loaded = _loadedFrames[index];
         if (loaded.FullImage is not null)
@@ -674,7 +693,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var full = await _rustafits.RenderFullBitmapAsync(loaded.FrameData, StretchStrength, StretchMode, CancellationToken.None);
+        var full = await _rustafits.RenderFullBitmapAsync(loaded.FrameData, StretchStrength, StretchMode, cancellationToken);
         _loadedFrames[index] = loaded with { FullImage = full };
     }
 

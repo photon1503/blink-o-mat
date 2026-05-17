@@ -918,7 +918,6 @@ public sealed class RustafitsService
         {
             DrawTrailOverlay(sample, targetWidth, targetHeight, metrics);
         }
-        Debug.WriteLine($"CreateThumbnailBitmap stretch={stretchStrength:F2} min={sample.Min()} max={sample.Max()} avg={sample.Select(v => (int)v).Average():F2}");
         var stride = targetWidth * 3;
 
         var bitmap = BitmapSource.Create(targetWidth, targetHeight, 96, 96, PixelFormats.Rgb24, null, sample, stride);
@@ -1011,7 +1010,6 @@ public sealed class RustafitsService
         }
 
         var sample = DownsampleAndStretch(crop, actualWidth, actualHeight, roiSize, roiSize, stretchStrength, stretchMode);
-        Debug.WriteLine($"CreateRoiBitmap stretch={stretchStrength:F2} min={sample.Min()} max={sample.Max()} avg={sample.Select(v => (int)v).Average():F2}");
         var stride = roiSize * 3;
         var bitmap = BitmapSource.Create(roiSize, roiSize, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
@@ -1236,8 +1234,6 @@ public sealed class RustafitsService
             midtones = 0.25;
         }
         midtones = Math.Clamp(midtones, 0.02, 0.98);
-        Debug.WriteLine($"StretchStats low={low:F6} high={high:F6} median={median:F6} mad={mad:F6} c0={c0:F6} m={midtones:F6}");
-
         var data = new byte[targetWidth * targetHeight * 3];
         for (var y = 0; y < targetHeight; y++)
         {
