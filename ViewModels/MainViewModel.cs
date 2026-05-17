@@ -41,6 +41,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double? _sessionPixelSizeUm;
     private RoiBias _roiBias = RoiBias.Galaxy;
     private bool _hasManualRoi;
+    private bool _skipRejectedInPreview;
 
     private readonly List<LoadedFrameContext> _loadedFrames = [];
     private PreviewWindow? _previewWindow;
@@ -59,6 +60,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _inputFolder = value;
             OnPropertyChanged();
             ((RelayCommand)LoadFramesCommand).RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool SkipRejectedInPreview
+    {
+        get => _skipRejectedInPreview;
+        set
+        {
+            if (_skipRejectedInPreview == value) return;
+            _skipRejectedInPreview = value;
+            OnPropertyChanged();
         }
     }
 
@@ -495,6 +507,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var existingImage = await GetOrCreateFullImageAsync(item);
             _previewVm?.SetItem(item);
             _previewWindow.RefreshImage(existingImage);
+            _ = PrecacheAroundPreviewAsync(item, ahead: 3, behind: 8);
             _previewWindow.Activate();
             await Task.CompletedTask;
             return;
@@ -509,11 +522,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
             value => RoiBias = value,
             SetManualRoi,
             NavigatePreviewAsync,
-            TogglePreviewReject);
+            TogglePreviewReject,
+            () => SkipRejectedInPreview,
+            value => SkipRejectedInPreview = value);
         _previewVm = vm;
         _previewWindow = new PreviewWindow(vm);
         var current = await GetOrCreateFullImageAsync(item);
         _previewWindow.RefreshImage(current);
+        _ = PrecacheAroundPreviewAsync(item, ahead: 3, behind: 8);
         _previewWindow.Closed += (_, _) =>
         {
             _previewWindow = null;
@@ -548,7 +564,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var nextIndex = Math.Clamp(currentIndex + direction, 0, _loadedFrames.Count - 1);
+        var nextIndex = currentIndex;
+        do
+        {
+            nextIndex = Math.Clamp(nextIndex + direction, 0, _loadedFrames.Count - 1);
+            if (nextIndex == currentIndex)
+            {
+                return;
+            }
+
+            if (!SkipRejectedInPreview || !_loadedFrames[nextIndex].Item.IsRejected)
+            {
+                break;
+            }
+        } while (true);
+
         if (nextIndex == currentIndex)
         {
             return;
@@ -586,6 +616,49 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var fullImage = await _rustafits.RenderFullBitmapAsync(loaded.FrameData, StretchStrength, CancellationToken.None);
         _loadedFrames[index] = loaded with { FullImage = fullImage };
         return fullImage;
+    }
+
+    private async Task PrecacheAroundPreviewAsync(FrameItem centerItem, int ahead, int behind)
+    {
+        var centerIndex = _loadedFrames.FindIndex(f => f.Item == centerItem);
+        if (centerIndex < 0)
+        {
+            return;
+        }
+
+        for (var i = 1; i <= ahead; i++)
+        {
+            var idx = centerIndex + i;
+            if (idx >= _loadedFrames.Count)
+            {
+                break;
+            }
+
+            await EnsureFullImageCachedAsync(idx);
+        }
+
+        for (var i = 1; i <= behind; i++)
+        {
+            var idx = centerIndex - i;
+            if (idx < 0)
+            {
+                break;
+            }
+
+            await EnsureFullImageCachedAsync(idx);
+        }
+    }
+
+    private async Task EnsureFullImageCachedAsync(int index)
+    {
+        var loaded = _loadedFrames[index];
+        if (loaded.FullImage is not null)
+        {
+            return;
+        }
+
+        var full = await _rustafits.RenderFullBitmapAsync(loaded.FrameData, StretchStrength, CancellationToken.None);
+        _loadedFrames[index] = loaded with { FullImage = full };
     }
 
     private void ApplyThresholds()

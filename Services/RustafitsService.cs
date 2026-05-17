@@ -1274,7 +1274,7 @@ public sealed class RustafitsService
         var fwhm = Median(orderedStars.Select(s => s.Fwhm));
         var hfr = Median(orderedStars.Select(s => s.Hfr));
         var eccentricity = Median(orderedStars.Select(s => s.Eccentricity));
-        var possibleTrail = DetectTrail(pixels, width, height, background, sigma);
+        var trail = DetectTrail(pixels, width, height, background, sigma);
         var starCount = orderedStars.Count;
 
         double? fwhmArcsec = null;
@@ -1294,7 +1294,11 @@ public sealed class RustafitsService
             MeanBackground = background,
             FocalLengthMm = frame.FocalLengthMm,
             PixelSizeUm = frame.PixelSizeUm,
-            PossibleSatelliteTrail = possibleTrail
+            PossibleSatelliteTrail = trail.Detected,
+            TrailX1 = trail.Detected ? trail.X1 : null,
+            TrailY1 = trail.Detected ? trail.Y1 : null,
+            TrailX2 = trail.Detected ? trail.X2 : null,
+            TrailY2 = trail.Detected ? trail.Y2 : null
         };
     }
 
@@ -1594,55 +1598,132 @@ public sealed class RustafitsService
         return 0;
     }
 
-    private static bool DetectTrail(float[] pixels, int width, int height, double background, double sigma)
+    private static TrailDetectionResult DetectTrail(float[] pixels, int width, int height, double background, double sigma)
     {
-        var threshold = background + (6 * sigma);
-        double w = 0;
-        double sx = 0;
-        double sy = 0;
-        double sxx = 0;
-        double syy = 0;
-        double sxy = 0;
-
-        for (var y = 0; y < height; y++)
+        var threshold = background + (4.0 * sigma);
+        if (threshold <= background)
         {
-            for (var x = 0; x < width; x++)
+            threshold = background + 1e-6;
+        }
+
+        const int binCount = 180;
+        var hist = new int[binCount];
+        var points = new List<(int X, int Y)>(Math.Min(50000, width * height / 8));
+        var cx = (width - 1) * 0.5;
+        var cy = (height - 1) * 0.5;
+
+        for (var y = 1; y < height - 1; y++)
+        {
+            var row = y * width;
+            for (var x = 1; x < width - 1; x++)
             {
-                var v = pixels[(y * width) + x];
-                if (v < threshold)
+                var v = pixels[row + x];
+                if (v <= threshold)
                 {
                     continue;
                 }
 
-                var weight = v - background;
-                w += weight;
-                sx += weight * x;
-                sy += weight * y;
-                sxx += weight * x * x;
-                syy += weight * y * y;
-                sxy += weight * x * y;
+                var localMedian = Median9(pixels, width, x, y);
+                if (v - localMedian < (2.5 * sigma))
+                {
+                    continue;
+                }
+
+                points.Add((x, y));
+
+                var angle = Math.Atan2(y - cy, x - cx);
+                if (angle < 0) angle += Math.PI;
+                var bin = Math.Clamp((int)Math.Round((angle / Math.PI) * (binCount - 1)), 0, binCount - 1);
+                hist[bin]++;
             }
         }
 
-        if (w <= 0)
+        if (points.Count < 60)
         {
-            return false;
+            return new TrailDetectionResult(false, 0, 0, 0, 0);
         }
 
-        var mx = sx / w;
-        var my = sy / w;
-        var cxx = (sxx / w) - (mx * mx);
-        var cyy = (syy / w) - (my * my);
-        var cxy = (sxy / w) - (mx * my);
+        var peakBin = 0;
+        var peakVotes = 0;
+        var totalVotes = 0;
+        for (var i = 0; i < hist.Length; i++)
+        {
+            var v = hist[i];
+            totalVotes += v;
+            if (v > peakVotes)
+            {
+                peakVotes = v;
+                peakBin = i;
+            }
+        }
 
-        var trace = cxx + cyy;
-        var det = (cxx * cyy) - (cxy * cxy);
-        var disc = Math.Max(0, (trace * trace) - (4 * det));
-        var major = Math.Max(1e-6, (trace + Math.Sqrt(disc)) / 2.0);
-        var minor = Math.Max(1e-6, (trace - Math.Sqrt(disc)) / 2.0);
-        var elongation = major / minor;
+        if (totalVotes <= 0 || peakVotes < 40 || peakVotes < (int)(totalVotes * 0.22))
+        {
+            return new TrailDetectionResult(false, 0, 0, 0, 0);
+        }
 
-        return elongation > 25;
+        var theta = (peakBin / (double)(binCount - 1)) * Math.PI;
+        var dirX = Math.Cos(theta);
+        var dirY = Math.Sin(theta);
+        var perpX = -dirY;
+        var perpY = dirX;
+
+        const double maxDistance = 4.0;
+        double minT = double.PositiveInfinity;
+        double maxT = double.NegativeInfinity;
+        var inlierCount = 0;
+
+        foreach (var p in points)
+        {
+            var dx = p.X - cx;
+            var dy = p.Y - cy;
+            var dist = Math.Abs((dx * perpX) + (dy * perpY));
+            if (dist > maxDistance)
+            {
+                continue;
+            }
+
+            var t = (dx * dirX) + (dy * dirY);
+            if (t < minT) minT = t;
+            if (t > maxT) maxT = t;
+            inlierCount++;
+        }
+
+        var span = maxT - minT;
+        var minRequiredSpan = 0.35 * Math.Min(width, height);
+        if (inlierCount < 50 || span < minRequiredSpan)
+        {
+            return new TrailDetectionResult(false, 0, 0, 0, 0);
+        }
+
+        var x1 = cx + (minT * dirX);
+        var y1 = cy + (minT * dirY);
+        var x2 = cx + (maxT * dirX);
+        var y2 = cy + (maxT * dirY);
+
+        return new TrailDetectionResult(
+            true,
+            width <= 1 ? 0.5 : Math.Clamp(x1 / (width - 1), 0.0, 1.0),
+            height <= 1 ? 0.5 : Math.Clamp(y1 / (height - 1), 0.0, 1.0),
+            width <= 1 ? 0.5 : Math.Clamp(x2 / (width - 1), 0.0, 1.0),
+            height <= 1 ? 0.5 : Math.Clamp(y2 / (height - 1), 0.0, 1.0));
+    }
+
+    private static double Median9(float[] pixels, int width, int x, int y)
+    {
+        Span<float> w = stackalloc float[9];
+        var k = 0;
+        for (var oy = -1; oy <= 1; oy++)
+        {
+            var row = (y + oy) * width;
+            for (var ox = -1; ox <= 1; ox++)
+            {
+                w[k++] = pixels[row + x + ox];
+            }
+        }
+
+        w.Sort();
+        return w[4];
     }
 
     private static double ComputeSigma(float[] values, double mean)

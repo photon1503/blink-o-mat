@@ -15,6 +15,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Action<RoiBias> _setRoiBias;
     private readonly Func<int, Task> _navigate;
     private readonly Action _toggleReject;
+    private readonly Func<bool> _getSkipRejected;
+    private readonly Action<bool> _setSkipRejected;
     private FrameItem _item;
     private BitmapSource? _image;
     private double _zoom = 1.0;
@@ -78,6 +80,17 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 
     public Array RoiBiasOptions { get; } = Enum.GetValues(typeof(RoiBias));
 
+    public bool SkipRejectedInPreview
+    {
+        get => _getSkipRejected();
+        set
+        {
+            if (_getSkipRejected() == value) return;
+            _setSkipRejected(value);
+            OnPropertyChanged();
+        }
+    }
+
     public FramePreviewViewModel(
         FrameItem item,
         Func<double> getStretch,
@@ -86,7 +99,9 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Action<RoiBias> setRoiBias,
         Action<WpfPoint> setManualRoi,
         Func<int, Task> navigate,
-        Action toggleReject)
+        Action toggleReject,
+        Func<bool> getSkipRejected,
+        Action<bool> setSkipRejected)
     {
         _item = item;
         _getStretch = getStretch;
@@ -96,6 +111,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _setManualRoi = setManualRoi;
         _navigate = navigate;
         _toggleReject = toggleReject;
+        _getSkipRejected = getSkipRejected;
+        _setSkipRejected = setSkipRejected;
         _image = null;
     }
 

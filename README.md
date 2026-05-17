@@ -9,15 +9,32 @@ Blinker and subframe quality sorter for astronomical RAW/FITS/XISF images.
 - Async + multithreaded frame loading with progress bar
 - Stretched preview rendering with global stretch control (`0.25` to `5.0`)
 - Dedicated preview window with zoom controls and per-frame inspection
+  - Default zoom-to-fit
+  - Prev/Next buttons + keyboard navigation (`Left` / `Right`)
+  - Reject toggle via keyboard (`R`)
+  - Optional "skip rejected when blinking"
 - ROI preview + full-frame preview for each subframe
+- ROI controls:
+  - ROI bias modes: `Galaxy`, `Core`, `Starfield`
+  - Manual ROI override with `Ctrl+Click` in preview (persists for loaded set)
 - Automatic orientation normalization (meridian-flip / 180° alignment)
 - Per-frame quality metrics:
-  - FWHM
+	- FWHM (px)
+  - FWHM (arcsec, when focal length and pixel size are available)
   - HFR
+	- Star count
   - Eccentricity
   - Mean background
   - Possible satellite trail flag
+- FITS metadata extraction and display:
+  - Focal length
+  - Pixel size
+  - Exposure date/time
+  - Exposure length
+  - Filter
+- Satellite trail detection with green line overlay on thumbnails when detected
 - Auto-reject bad subframes using slider thresholds
+  - Includes `Min Stars` threshold
 - One-click move rejected frames to another folder
 - Headless CLI mode for automation/pipelines
 
@@ -66,5 +83,5 @@ dotnet run --project .\blink-o-mat.csproj -- --headless --input "D:\lights" --re
 ## Notes
 
 - FITS reading uses a native parser in `RustafitsService`; XISF reading uses `XisfSharp`.
-- Metrics, trail detection, and orientation normalization are heuristic and intended for fast subframe sorting.
+- Metrics, trail detection, ROI selection, and orientation normalization are heuristic and intended for fast subframe sorting.
 - Rejected-frame move operation renames on collision to avoid overwrite.
