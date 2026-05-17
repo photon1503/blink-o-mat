@@ -15,7 +15,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     private sealed record LoadedFrameContext(
         FrameItem Item,
-        RustafitsService.LoadedFrame FrameData,
+        Half[] Pixels,
+        int Width,
+        int Height,
+        double? FocalLengthMm,
+        double? PixelSizeUm,
+        DateTimeOffset? ExposureDateTime,
+        double? ExposureSeconds,
+        string? FilterName,
         BitmapSource? FullImage);
 
     private readonly FrameDiscoveryService _discovery = new();
@@ -369,7 +376,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     };
 
                     loadedItems.Add(item);
-                    loadedContexts.Add(new LoadedFrameContext(item, raw, null));
+                    loadedContexts.Add(CreateLoadedFrameContext(item, raw));
                     SessionFocalLengthMm ??= raw.FocalLengthMm;
                     SessionPixelSizeUm ??= raw.PixelSizeUm;
                     firstSuccessfulIndex = i;
@@ -386,7 +393,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (firstSuccessfulIndex >= 0)
             {
                 var filesToProcess = files.Skip(firstSuccessfulIndex + 1).ToList();
-                var orientationReference = loadedContexts[0].FrameData;
+                var orientationReference = ExpandFrame(loadedContexts[0]);
                 var maxParallelism = Math.Clamp(Environment.ProcessorCount - 1, 2, 8);
                 using var gate = new SemaphoreSlim(maxParallelism);
 
@@ -433,7 +440,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     if (result.Item is not null && result.Frame is not null)
                     {
                         loadedItems.Add(result.Item);
-                        loadedContexts.Add(new LoadedFrameContext(result.Item, result.Frame, null));
+                        loadedContexts.Add(CreateLoadedFrameContext(result.Item, result.Frame));
                         SessionFocalLengthMm ??= result.Frame.FocalLengthMm;
                         SessionPixelSizeUm ??= result.Frame.PixelSizeUm;
                         Status = $"Loaded {result.Item.FileName}";
@@ -489,14 +496,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 var loaded = _loadedFrames[i];
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
-                var previews = await _rustafits.RenderPreviewBitmapsAsync(loaded.FrameData, StretchStrength, StretchMode, _globalRoiCenter, loaded.Item.Metrics, CancellationToken.None);
+                var frameData = ExpandFrame(loaded);
+                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, StretchStrength, StretchMode, _globalRoiCenter, loaded.Item.Metrics, CancellationToken.None);
 
                 loaded.Item.ThumbnailImage = previews.Full;
                 loaded.Item.RoiImage = previews.Roi;
 
                 if (_previewItem == loaded.Item)
                 {
-                    var fullImage = await _rustafits.RenderFullBitmapAsync(loaded.FrameData, StretchStrength, StretchMode, CancellationToken.None);
+                    var fullImage = await _rustafits.RenderFullBitmapAsync(frameData, StretchStrength, StretchMode, CancellationToken.None);
                     _previewWindow?.RefreshImage(fullImage);
                     _loadedFrames[i] = loaded with { FullImage = fullImage };
                 }
@@ -559,6 +567,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _previewWindow.Closed += (_, _) =>
         {
             _previewCacheCts?.Cancel();
+            ClearAllFullImageCaches();
             _previewWindow = null;
             _previewVm = null;
             _previewItem = null;
@@ -640,7 +649,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return loaded.FullImage;
         }
 
-        var fullImage = await _rustafits.RenderFullBitmapAsync(loaded.FrameData, StretchStrength, StretchMode, CancellationToken.None);
+        var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, CancellationToken.None);
         _loadedFrames[index] = loaded with { FullImage = fullImage };
         return fullImage;
     }
@@ -659,6 +668,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             return;
         }
+
+        TrimFullImageCache(centerIndex, ahead, behind);
 
         for (var i = 1; i <= ahead; i++)
         {
@@ -693,7 +704,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var full = await _rustafits.RenderFullBitmapAsync(loaded.FrameData, StretchStrength, StretchMode, cancellationToken);
+        var full = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, cancellationToken);
         _loadedFrames[index] = loaded with { FullImage = full };
     }
 
@@ -742,7 +753,81 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(_loadedFrames[0].FrameData, RoiBias);
+        _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(ExpandFrame(_loadedFrames[0]), RoiBias);
+    }
+
+    private static LoadedFrameContext CreateLoadedFrameContext(FrameItem item, RustafitsService.LoadedFrame frame)
+    {
+        return new LoadedFrameContext(
+            item,
+            CompressPixels(frame.Pixels),
+            frame.Width,
+            frame.Height,
+            frame.FocalLengthMm,
+            frame.PixelSizeUm,
+            frame.ExposureDateTime,
+            frame.ExposureSeconds,
+            frame.FilterName,
+            null);
+    }
+
+    private static Half[] CompressPixels(float[] pixels)
+    {
+        var compressed = new Half[pixels.Length];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            compressed[i] = (Half)pixels[i];
+        }
+
+        return compressed;
+    }
+
+    private static RustafitsService.LoadedFrame ExpandFrame(LoadedFrameContext context)
+    {
+        var pixels = new float[context.Pixels.Length];
+        for (var i = 0; i < context.Pixels.Length; i++)
+        {
+            pixels[i] = (float)context.Pixels[i];
+        }
+
+        return new RustafitsService.LoadedFrame(
+            pixels,
+            context.Width,
+            context.Height,
+            context.FocalLengthMm,
+            context.PixelSizeUm,
+            context.ExposureDateTime,
+            context.ExposureSeconds,
+            context.FilterName);
+    }
+
+    private void TrimFullImageCache(int centerIndex, int ahead, int behind)
+    {
+        for (var i = 0; i < _loadedFrames.Count; i++)
+        {
+            if (i >= centerIndex - behind && i <= centerIndex + ahead)
+            {
+                continue;
+            }
+
+            if (_loadedFrames[i].FullImage is null)
+            {
+                continue;
+            }
+
+            _loadedFrames[i] = _loadedFrames[i] with { FullImage = null };
+        }
+    }
+
+    private void ClearAllFullImageCaches()
+    {
+        for (var i = 0; i < _loadedFrames.Count; i++)
+        {
+            if (_loadedFrames[i].FullImage is not null)
+            {
+                _loadedFrames[i] = _loadedFrames[i] with { FullImage = null };
+            }
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
