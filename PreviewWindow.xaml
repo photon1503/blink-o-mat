@@ -62,6 +62,10 @@
                         <TextBlock FontWeight="SemiBold" Text="Stretch" />
                         <Slider Minimum="0.25" Maximum="5.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
                         <TextBlock Text="{Binding Stretch, StringFormat=F2}" Margin="0,0,0,8" />
+                        <CheckBox Content="Use same target background for all frames" IsChecked="{Binding UseGlobalTargetBackground}" Margin="0,0,0,6" />
+                        <TextBlock FontWeight="SemiBold" Text="Target background" />
+                        <Slider Minimum="0.05" Maximum="0.75" Value="{Binding TargetBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
+                        <TextBlock Text="{Binding TargetBackground, StringFormat=F2}" Margin="0,0,0,8" />
                         <CheckBox Content="Reject frame" IsChecked="{Binding Item.IsRejected, Mode=TwoWay}" />
                     </StackPanel>
                 </Border>

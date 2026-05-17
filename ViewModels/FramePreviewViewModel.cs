@@ -15,6 +15,10 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Action<RoiBias> _setRoiBias;
     private readonly Func<StretchMode> _getStretchMode;
     private readonly Action<StretchMode> _setStretchMode;
+    private readonly Func<bool> _getUseGlobalTargetBackground;
+    private readonly Action<bool> _setUseGlobalTargetBackground;
+    private readonly Func<double> _getTargetBackground;
+    private readonly Action<double> _setTargetBackground;
     private readonly Func<int, Task> _navigate;
     private readonly Action _toggleReject;
     private readonly Func<bool> _getSkipRejected;
@@ -95,6 +99,29 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 
     public Array StretchModeOptions { get; } = Enum.GetValues(typeof(StretchMode));
 
+    public bool UseGlobalTargetBackground
+    {
+        get => _getUseGlobalTargetBackground();
+        set
+        {
+            if (_getUseGlobalTargetBackground() == value) return;
+            _setUseGlobalTargetBackground(value);
+            OnPropertyChanged();
+        }
+    }
+
+    public double TargetBackground
+    {
+        get => _getTargetBackground();
+        set
+        {
+            var clamped = Math.Clamp(value, 0.05, 0.75);
+            if (Math.Abs(_getTargetBackground() - clamped) < 0.0001) return;
+            _setTargetBackground(clamped);
+            OnPropertyChanged();
+        }
+    }
+
     public bool SkipRejectedInPreview
     {
         get => _getSkipRejected();
@@ -114,6 +141,10 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Action<RoiBias> setRoiBias,
         Func<StretchMode> getStretchMode,
         Action<StretchMode> setStretchMode,
+        Func<bool> getUseGlobalTargetBackground,
+        Action<bool> setUseGlobalTargetBackground,
+        Func<double> getTargetBackground,
+        Action<double> setTargetBackground,
         Action<WpfPoint> setManualRoi,
         Func<int, Task> navigate,
         Action toggleReject,
@@ -127,6 +158,10 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _setRoiBias = setRoiBias;
         _getStretchMode = getStretchMode;
         _setStretchMode = setStretchMode;
+        _getUseGlobalTargetBackground = getUseGlobalTargetBackground;
+        _setUseGlobalTargetBackground = setUseGlobalTargetBackground;
+        _getTargetBackground = getTargetBackground;
+        _setTargetBackground = setTargetBackground;
         _setManualRoi = setManualRoi;
         _navigate = navigate;
         _toggleReject = toggleReject;

@@ -48,6 +48,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _minStars;
     private bool _rejectSatelliteTrail = true;
     private double _stretchStrength = 1.0;
+    private bool _useGlobalTargetBackground;
+    private double _targetBackground = 0.22;
     private double? _sessionFocalLengthMm;
     private double? _sessionPixelSizeUm;
     private RoiBias _roiBias = RoiBias.Galaxy;
@@ -76,6 +78,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ((RelayCommand)LoadFramesCommand).RaiseCanExecuteChanged();
         }
     }
+
+    public bool UseGlobalTargetBackground
+    {
+        get => _useGlobalTargetBackground;
+        set
+        {
+            if (_useGlobalTargetBackground == value) return;
+            _useGlobalTargetBackground = value;
+            OnPropertyChanged();
+            _ = RebuildThumbnailsAsync();
+        }
+    }
+
+    public double TargetBackground
+    {
+        get => _targetBackground;
+        set
+        {
+            var clamped = Math.Clamp(value, 0.05, 0.75);
+            if (Math.Abs(_targetBackground - clamped) < 0.0001) return;
+            _targetBackground = clamped;
+            OnPropertyChanged();
+            if (UseGlobalTargetBackground)
+            {
+                _ = RebuildThumbnailsAsync();
+            }
+        }
+    }
+
+    private double? ActiveTargetBackground => UseGlobalTargetBackground ? TargetBackground : null;
 
     public StretchMode StretchMode
     {
@@ -387,7 +419,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
                     var metrics = _rustafits.AnalyzeFrame(raw);
                     _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(raw, RoiBias);
-                    var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, StretchStrength, StretchMode, _globalRoiCenter, metrics, CancellationToken.None);
+                    var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, StretchStrength, StretchMode, ActiveTargetBackground, _globalRoiCenter, metrics, CancellationToken.None);
 
                     var item = new FrameItem
                     {
@@ -434,7 +466,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         var raw = await _rustafits.LoadRawFrameAsync(entry.File, CancellationToken.None);
                         var oriented = _rustafits.NormalizeOrientation(raw, orientationReference);
                         var metrics = _rustafits.AnalyzeFrame(oriented);
-                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, StretchStrength, StretchMode, _globalRoiCenter, metrics, CancellationToken.None);
+                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, StretchStrength, StretchMode, ActiveTargetBackground, _globalRoiCenter, metrics, CancellationToken.None);
 
                         var item = new FrameItem
                         {
@@ -624,14 +656,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
                 var frameData = ExpandFrame(loaded);
-                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, StretchStrength, StretchMode, _globalRoiCenter, loaded.Item.Metrics, CancellationToken.None);
+                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, StretchStrength, StretchMode, ActiveTargetBackground, _globalRoiCenter, loaded.Item.Metrics, CancellationToken.None);
 
                 loaded.Item.ThumbnailImage = previews.Full;
                 loaded.Item.RoiImage = previews.Roi;
 
                 if (_previewItem == loaded.Item)
                 {
-                    var fullImage = await _rustafits.RenderFullBitmapAsync(frameData, StretchStrength, StretchMode, CancellationToken.None);
+                    var fullImage = await _rustafits.RenderFullBitmapAsync(frameData, StretchStrength, StretchMode, ActiveTargetBackground, CancellationToken.None);
                     _previewWindow?.RefreshImage(fullImage);
                     _loadedFrames[i] = loaded with { FullImage = fullImage };
                 }
@@ -681,6 +713,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             value => RoiBias = value,
             () => StretchMode,
             value => StretchMode = value,
+            () => UseGlobalTargetBackground,
+            value => UseGlobalTargetBackground = value,
+            () => TargetBackground,
+            value => TargetBackground = value,
             SetManualRoi,
             NavigatePreviewAsync,
             TogglePreviewReject,
@@ -776,7 +812,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return loaded.FullImage;
         }
 
-        var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, CancellationToken.None);
+        var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, ActiveTargetBackground, CancellationToken.None);
         _loadedFrames[index] = loaded with { FullImage = fullImage };
         return fullImage;
     }
@@ -831,7 +867,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var full = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, cancellationToken);
+        var full = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, ActiveTargetBackground, cancellationToken);
         _loadedFrames[index] = loaded with { FullImage = full };
     }
 
