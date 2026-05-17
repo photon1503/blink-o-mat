@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Diagnostics;
 using blink_o_mat.Models;
 using nom.tam.fits;
 using XisfSharp;
@@ -44,6 +45,7 @@ public sealed class RustafitsService
         return Task.Run(async () =>
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
+            NormalizeInPlace(frame.Pixels);
             return new LoadedFrame(frame.Pixels, frame.Width, frame.Height);
         }, cancellationToken);
     }
@@ -152,6 +154,47 @@ public sealed class RustafitsService
         }
     }
 
+    private static void NormalizeInPlace(float[] pixels)
+    {
+        if (pixels.Length == 0)
+        {
+            return;
+        }
+
+        var min = float.PositiveInfinity;
+        var max = float.NegativeInfinity;
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            var v = pixels[i];
+            if (float.IsNaN(v) || float.IsInfinity(v))
+            {
+                continue;
+            }
+
+            if (v < min) min = v;
+            if (v > max) max = v;
+        }
+
+        if (!float.IsFinite(min) || !float.IsFinite(max) || max - min < 1e-20f)
+        {
+            Array.Fill(pixels, 0f);
+            return;
+        }
+
+        var scale = 1.0f / (max - min);
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            var v = pixels[i];
+            if (float.IsNaN(v) || float.IsInfinity(v))
+            {
+                pixels[i] = 0;
+                continue;
+            }
+
+            pixels[i] = (v - min) * scale;
+        }
+    }
+
     private static async Task<(float[] Pixels, int Width, int Height)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
     {
         var image = await XisfImage.LoadAsync(filePath, cancellationToken);
@@ -239,12 +282,19 @@ public sealed class RustafitsService
 
     private static void SaveThumbnail(float[] pixels, int width, int height, string outputPath, double stretchStrength)
     {
+        var directory = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
         const int targetMax = 320;
         var scale = Math.Max(width, height) > targetMax ? targetMax / (double)Math.Max(width, height) : 1.0;
         var targetWidth = Math.Max(1, (int)Math.Round(width * scale));
         var targetHeight = Math.Max(1, (int)Math.Round(height * scale));
 
         var sample = DownsampleAndStretch(pixels, width, height, targetWidth, targetHeight, stretchStrength);
+        Debug.WriteLine($"SaveThumbnail {Path.GetFileName(outputPath)} stretch={stretchStrength:F2} min={sample.Min()} max={sample.Max()} avg={sample.Select(v => (int)v).Average():F2}");
         var stride = targetWidth * 3;
 
         var bitmap = BitmapSource.Create(targetWidth, targetHeight, 96, 96, PixelFormats.Rgb24, null, sample, stride);
@@ -257,6 +307,12 @@ public sealed class RustafitsService
 
     private static void SaveRoiThumbnail(float[] pixels, int width, int height, string outputPath, double stretchStrength)
     {
+        var directory = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
         const int roiSize = 220;
         var (cx, cy) = DetectRoiCenter(pixels, width, height);
 
@@ -275,6 +331,7 @@ public sealed class RustafitsService
         }
 
         var sample = DownsampleAndStretch(crop, actualWidth, actualHeight, roiSize, roiSize, stretchStrength);
+        Debug.WriteLine($"SaveRoiThumbnail {Path.GetFileName(outputPath)} stretch={stretchStrength:F2} min={sample.Min()} max={sample.Max()} avg={sample.Select(v => (int)v).Average():F2}");
         var stride = roiSize * 3;
         var bitmap = BitmapSource.Create(roiSize, roiSize, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         var encoder = new JpegBitmapEncoder { QualityLevel = 90 };
@@ -327,25 +384,38 @@ public sealed class RustafitsService
         }
 
         Array.Sort(sampled);
-        var median = PercentileFromSorted(sampled, 0.5);
-        var mad = MedianAbsoluteDeviation(sampled, median, alreadySorted: true);
-        var sigma = Math.Max(1e-6, mad * 1.4826);
-
-        var normalizedStrength = Math.Clamp(stretchStrength, 0.25, 3.0);
-        var low = median - ((1.4 + (1.4 * normalizedStrength)) * sigma);
-        var high = PercentileFromSorted(sampled, 0.9995);
-        if (high <= low)
+        double low = sampled[0];
+        double high = sampled[^1];
+        if (high - low < 1e-12)
         {
             low = PercentileFromSorted(sampled, 0.01);
             high = PercentileFromSorted(sampled, 0.999);
-            if (high <= low)
+            if (high - low < 1e-12)
             {
                 high = low + 1;
             }
         }
 
-        var clippedMedian = Math.Clamp((median - low) / (high - low), 0.0001, 0.9999);
-        var midtones = Math.Clamp((0.25 * (1.0 - clippedMedian)) / normalizedStrength, 0.02, 0.40);
+        var range = high - low;
+        var median = PercentileFromSorted(sampled, 0.5);
+        var mad = MedianAbsoluteDeviation(sampled, median, alreadySorted: true);
+
+        var medianN = Math.Clamp((median - low) / range, 0.0, 1.0);
+        var madN = mad / range;
+
+        var normalizedStrength = Math.Clamp(stretchStrength, 0.25, 3.0);
+        var shadowsClipping = Math.Clamp(-2.8 * normalizedStrength, -8.0, -0.5);
+        var c0 = Math.Clamp(medianN + (shadowsClipping * 1.4826 * madN), 0.0, 0.99);
+
+        var medianPostClip = Math.Clamp((medianN - c0) / (1.0 - c0), 0.0, 1.0);
+        var targetBackground = Math.Clamp(0.22 - (0.06 * (normalizedStrength - 1.0)), 0.08, 0.30);
+        var midtones = InverseMidtonesTransfer(targetBackground, medianPostClip);
+        if (double.IsNaN(midtones) || double.IsInfinity(midtones))
+        {
+            midtones = 0.25;
+        }
+        midtones = Math.Clamp(midtones, 0.02, 0.98);
+        Debug.WriteLine($"StretchStats low={low:F6} high={high:F6} median={median:F6} mad={mad:F6} c0={c0:F6} m={midtones:F6}");
 
         var data = new byte[targetWidth * targetHeight * 3];
         for (var y = 0; y < targetHeight; y++)
@@ -355,8 +425,9 @@ public sealed class RustafitsService
             {
                 var sourceX = Math.Min(width - 1, (int)((x / (double)Math.Max(1, targetWidth - 1)) * (width - 1)));
                 var value = pixels[(sourceY * width) + sourceX];
-                var normalized = Math.Clamp((value - low) / (high - low), 0.0, 1.0);
-                var stretched = MidtonesTransfer(normalized, midtones);
+                var normalized = Math.Clamp((value - low) / range, 0.0, 1.0);
+                normalized = Math.Clamp((normalized - c0) / (1.0 - c0), 0.0, 1.0);
+                var stretched = Math.Clamp(MidtonesTransfer(normalized, midtones), 0.0, 1.0);
                 var b = (byte)Math.Clamp((int)Math.Round(stretched * 255.0), 0, 255);
 
                 var index = ((y * targetWidth) + x) * 3;
@@ -642,7 +713,48 @@ public sealed class RustafitsService
     {
         x = Math.Clamp(x, 0.0, 1.0);
         m = Math.Clamp(m, 1e-6, 1.0 - 1e-6);
-        return ((m - 1.0) * x) / (((2.0 * m) - 1.0) * x - m);
+
+        if (x <= 0)
+        {
+            return 0;
+        }
+
+        if (x >= 1)
+        {
+            return 1;
+        }
+
+        var denominator = (((2.0 * m) - 1.0) * x) - m;
+        if (Math.Abs(denominator) < 1e-9)
+        {
+            return x;
+        }
+
+        return ((m - 1.0) * x) / denominator;
+    }
+
+    private static double InverseMidtonesTransfer(double y, double x)
+    {
+        y = Math.Clamp(y, 0.0, 1.0);
+        x = Math.Clamp(x, 0.0, 1.0);
+
+        if (x <= 0)
+        {
+            return 0;
+        }
+
+        if (x >= 1)
+        {
+            return 1;
+        }
+
+        var denominator = x + y - (2.0 * x * y);
+        if (Math.Abs(denominator) < 1e-9)
+        {
+            return 0.5;
+        }
+
+        return (x * (1.0 - y)) / denominator;
     }
 
     private static double Median(IEnumerable<double> values)

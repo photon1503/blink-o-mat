@@ -262,8 +262,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     {
                         FilePath = file,
                         FileName = Path.GetFileName(file),
-                        ThumbnailPath = AppendCacheBuster(thumbFile),
-                        RoiThumbnailPath = AppendCacheBuster(roiFile),
+                        ThumbnailPath = Path.GetFullPath(thumbFile),
+                        RoiThumbnailPath = Path.GetFullPath(roiFile),
                         Metrics = metrics
                     };
 
@@ -313,8 +313,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
                 await _rustafits.RenderThumbnailsAsync(loaded.FrameData, loaded.ThumbnailFilePath, loaded.RoiThumbnailFilePath, StretchStrength, CancellationToken.None);
-                loaded.Item.ThumbnailPath = AppendCacheBuster(loaded.ThumbnailFilePath);
-                loaded.Item.RoiThumbnailPath = AppendCacheBuster(loaded.RoiThumbnailFilePath);
+                loaded.Item.ThumbnailPath = string.Empty;
+                loaded.Item.RoiThumbnailPath = string.Empty;
+                loaded.Item.ThumbnailPath = Path.GetFullPath(loaded.ThumbnailFilePath);
+                loaded.Item.RoiThumbnailPath = Path.GetFullPath(loaded.RoiThumbnailFilePath);
 
                 ProgressValue = i + 1;
             }
@@ -331,11 +333,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             IsProgressVisible = false;
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
         }
-    }
-
-    private static string AppendCacheBuster(string path)
-    {
-        return $"{Path.GetFullPath(path)}?v={DateTime.UtcNow.Ticks}";
     }
 
     private void ApplyThresholds()
