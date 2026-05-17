@@ -1301,6 +1301,26 @@ public sealed class RustafitsService
         return data;
     }
 
+    private static float[] CreateAnalysisPixels(float[] pixels, int width, int height, int maxDimension, out int analysisWidth, out int analysisHeight, out double xScale, out double yScale)
+    {
+        var longest = Math.Max(width, height);
+        if (longest <= maxDimension)
+        {
+            analysisWidth = width;
+            analysisHeight = height;
+            xScale = 1.0;
+            yScale = 1.0;
+            return pixels;
+        }
+
+        var scale = maxDimension / (double)longest;
+        analysisWidth = Math.Max(256, (int)Math.Round(width * scale));
+        analysisHeight = Math.Max(256, (int)Math.Round(height * scale));
+        xScale = width / (double)analysisWidth;
+        yScale = height / (double)analysisHeight;
+        return ResampleNearest(pixels, width, height, analysisWidth, analysisHeight);
+    }
+
     private static AstroMetrics ComputeMetrics(LoadedFrame frame)
     {
         var pixels = frame.Pixels;
@@ -1308,15 +1328,18 @@ public sealed class RustafitsService
         var height = frame.Height;
         var background = Percentile(pixels, 0.5);
         var sigma = ComputeSigma(pixels, background);
-        var threshold = background + (5 * sigma);
+        var analysisPixels = CreateAnalysisPixels(pixels, width, height, 1536, out var analysisWidth, out var analysisHeight, out var xScale, out var yScale);
+        var analysisBackground = analysisPixels == pixels ? background : Percentile(analysisPixels, 0.5);
+        var analysisSigma = analysisPixels == pixels ? sigma : ComputeSigma(analysisPixels, analysisBackground);
 
-        var stars = DetectStars(pixels, width, height, threshold, background, sigma);
+        var stars = DetectStars(pixels, width, height, analysisPixels, analysisWidth, analysisHeight, analysisBackground, analysisSigma, xScale, yScale);
         var orderedStars = stars.OrderByDescending(s => s.Peak).Take(300).ToList();
 
         var fwhm = Median(orderedStars.Select(s => s.Fwhm));
         var hfr = Median(orderedStars.Select(s => s.Hfr));
         var eccentricity = Median(orderedStars.Select(s => s.Eccentricity));
-        var trail = DetectTrail(pixels, width, height, background, sigma);
+        var trailPixels = CreateAnalysisPixels(pixels, width, height, 768, out var trailWidth, out var trailHeight, out _, out _);
+        var trail = DetectTrail(trailPixels, trailWidth, trailHeight);
         var starCount = orderedStars.Count;
 
         double? fwhmArcsec = null;
@@ -1344,45 +1367,38 @@ public sealed class RustafitsService
         };
     }
 
-    private static List<(double Peak, double Fwhm, double Hfr, double Eccentricity)> DetectStars(float[] pixels, int width, int height, double threshold, double background, double sigma)
+    private static List<(double Peak, double Fwhm, double Hfr, double Eccentricity)> DetectStars(float[] pixels, int width, int height, float[] analysisPixels, int analysisWidth, int analysisHeight, double background, double sigma, double xScale, double yScale)
     {
-        var result = new List<(double Peak, double Fwhm, double Hfr, double Eccentricity)>();
-        var filtered = MedianFilter3x3(pixels, width, height);
+        const int maxCandidates = 768;
+        const int maxMeasuredStars = 300;
+
+        var threshold = background + (5.0 * sigma);
         var minNeighborLevel = background + (2.0 * sigma);
-        for (var y = 3; y < height - 3; y++)
+        var candidates = new List<(double Peak, int X, int Y)>(Math.Min(maxCandidates * 2, 2048));
+
+        for (var y = 1; y < analysisHeight - 1; y++)
         {
-            for (var x = 3; x < width - 3; x++)
+            var row = y * analysisWidth;
+            for (var x = 1; x < analysisWidth - 1; x++)
             {
-                var center = filtered[(y * width) + x];
+                var center = analysisPixels[row + x];
                 if (center < threshold)
                 {
                     continue;
                 }
 
-                var isPeak = true;
-                for (var ny = -1; ny <= 1 && isPeak; ny++)
-                {
-                    for (var nx = -1; nx <= 1; nx++)
-                    {
-                        if (nx == 0 && ny == 0)
-                        {
-                            continue;
-                        }
-
-                        if (filtered[((y + ny) * width) + (x + nx)] > center)
-                        {
-                            isPeak = false;
-                            break;
-                        }
-                    }
-                }
-
-                if (!isPeak)
+                if (center < analysisPixels[row + x - 1] ||
+                    center < analysisPixels[row + x + 1] ||
+                    center < analysisPixels[row - analysisWidth + x] ||
+                    center < analysisPixels[row + analysisWidth + x] ||
+                    center < analysisPixels[row - analysisWidth + x - 1] ||
+                    center < analysisPixels[row - analysisWidth + x + 1] ||
+                    center < analysisPixels[row + analysisWidth + x - 1] ||
+                    center < analysisPixels[row + analysisWidth + x + 1])
                 {
                     continue;
                 }
 
-                // Reject isolated hot pixels: require supporting signal in immediate neighborhood.
                 var supportNeighbors = 0;
                 for (var ny = -1; ny <= 1; ny++)
                 {
@@ -1393,7 +1409,7 @@ public sealed class RustafitsService
                             continue;
                         }
 
-                        var neighbor = filtered[((y + ny) * width) + (x + nx)];
+                        var neighbor = analysisPixels[((y + ny) * analysisWidth) + (x + nx)];
                         if (neighbor >= minNeighborLevel)
                         {
                             supportNeighbors++;
@@ -1406,11 +1422,52 @@ public sealed class RustafitsService
                     continue;
                 }
 
-                var measurement = MeasureStar(pixels, width, height, x, y, background);
-                if (measurement.Fwhm > 0 && measurement.Hfr > 0)
+                var sourceX = Math.Clamp((int)Math.Round(((x + 0.5) * xScale) - 0.5), 3, width - 4);
+                var sourceY = Math.Clamp((int)Math.Round(((y + 0.5) * yScale) - 0.5), 3, height - 4);
+                candidates.Add((center, sourceX, sourceY));
+            }
+        }
+
+        var result = new List<(double Peak, double Fwhm, double Hfr, double Eccentricity)>(Math.Min(maxMeasuredStars, candidates.Count));
+        if (candidates.Count == 0)
+        {
+            return result;
+        }
+
+        var suppressionRadius = Math.Max(6.0, 4.0 * Math.Max(xScale, yScale));
+        var suppressionRadiusSq = suppressionRadius * suppressionRadius;
+        var selected = new List<(int X, int Y)>(maxMeasuredStars);
+
+        foreach (var candidate in candidates.OrderByDescending(c => c.Peak).Take(maxCandidates))
+        {
+            var tooClose = false;
+            foreach (var existing in selected)
+            {
+                var dx = existing.X - candidate.X;
+                var dy = existing.Y - candidate.Y;
+                if ((dx * dx) + (dy * dy) <= suppressionRadiusSq)
                 {
-                    result.Add((center, measurement.Fwhm, measurement.Hfr, measurement.Eccentricity));
+                    tooClose = true;
+                    break;
                 }
+            }
+
+            if (tooClose)
+            {
+                continue;
+            }
+
+            var measurement = MeasureStar(pixels, width, height, candidate.X, candidate.Y, background);
+            if (measurement.Fwhm <= 0 || measurement.Hfr <= 0)
+            {
+                continue;
+            }
+
+            selected.Add((candidate.X, candidate.Y));
+            result.Add((candidate.Peak, measurement.Fwhm, measurement.Hfr, measurement.Eccentricity));
+            if (result.Count >= maxMeasuredStars)
+            {
+                break;
             }
         }
 
@@ -1455,8 +1512,9 @@ public sealed class RustafitsService
         const int radius = 7;
         const int annulusInner = 8;
         const int annulusOuter = 12;
-        var points = new List<(double X, double Y, double R, double Flux)>();
-        var annulus = new List<float>();
+        var points = new List<(double X, double Y, double R, double Flux)>((radius * 2 + 1) * (radius * 2 + 1));
+        Span<float> annulus = stackalloc float[(annulusOuter * 2 + 1) * (annulusOuter * 2 + 1)];
+        var annulusCount = 0;
         double fluxSum = 0;
         double xSum = 0;
         double ySum = 0;
@@ -1481,18 +1539,19 @@ public sealed class RustafitsService
                     continue;
                 }
 
-                annulus.Add(pixels[(y * width) + x]);
+                annulus[annulusCount++] = pixels[(y * width) + x];
             }
         }
 
         var localBackground = background;
-        if (annulus.Count >= 16)
+        if (annulusCount >= 16)
         {
-            annulus.Sort();
-            var mid = annulus.Count / 2;
-            localBackground = annulus.Count % 2 == 0
-                ? (annulus[mid - 1] + annulus[mid]) * 0.5
-                : annulus[mid];
+            var annulusValues = annulus[..annulusCount];
+            annulusValues.Sort();
+            var mid = annulusCount / 2;
+            localBackground = annulusCount % 2 == 0
+                ? (annulusValues[mid - 1] + annulusValues[mid]) * 0.5
+                : annulusValues[mid];
         }
 
         for (var y = cy - radius; y <= cy + radius; y++)
@@ -1568,10 +1627,10 @@ public sealed class RustafitsService
 
     private static double ComputeHfr(List<(double X, double Y, double R, double Flux)> points, double totalFlux)
     {
-        var sorted = points.OrderBy(p => p.R).ToList();
+        points.Sort(static (a, b) => a.R.CompareTo(b.R));
         var half = totalFlux * 0.5;
         double accum = 0;
-        foreach (var p in sorted)
+        foreach (var p in points)
         {
             accum += p.Flux;
             if (accum >= half)
@@ -1580,7 +1639,7 @@ public sealed class RustafitsService
             }
         }
 
-        return sorted.Count == 0 ? 0 : sorted[^1].R;
+        return points.Count == 0 ? 0 : points[^1].R;
     }
 
     private static double EstimateFwhmHalfMaximum(List<(double X, double Y, double R, double Flux)> points)
@@ -1640,108 +1699,195 @@ public sealed class RustafitsService
         return 0;
     }
 
-    private static TrailDetectionResult DetectTrail(float[] pixels, int width, int height, double background, double sigma)
+    private static TrailDetectionResult DetectTrail(float[] pixels, int width, int height)
     {
-        var threshold = background + (4.0 * sigma);
-        if (threshold <= background)
+        if (width < 16 || height < 16)
         {
-            threshold = background + 1e-6;
+            return new TrailDetectionResult(false, 0, 0, 0, 0);
         }
 
-        const int binCount = 180;
-        var hist = new int[binCount];
-        var points = new List<(int X, int Y)>(Math.Min(50000, width * height / 8));
+        var blurred = BoxBlur(pixels, width, height, 2);
+        var enhanced = new float[pixels.Length];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            enhanced[i] = Math.Max(0f, pixels[i] - blurred[i]);
+        }
+
+        var sample = Sample(enhanced);
+        if (sample.Length == 0)
+        {
+            return new TrailDetectionResult(false, 0, 0, 0, 0);
+        }
+
+        Array.Sort(sample);
+        var threshold = Math.Max(1e-6, PercentileFromSorted(sample, 0.9975));
+
+        var points = new List<(int X, int Y, double Signal)>(2048);
         var cx = (width - 1) * 0.5;
         var cy = (height - 1) * 0.5;
 
-        for (var y = 1; y < height - 1; y++)
+        for (var y = 3; y < height - 3; y++)
         {
             var row = y * width;
-            for (var x = 1; x < width - 1; x++)
+            for (var x = 3; x < width - 3; x++)
             {
-                var v = pixels[row + x];
-                if (v <= threshold)
+                var center = enhanced[row + x];
+                if (center < threshold)
                 {
                     continue;
                 }
 
-                var localMedian = Median9(pixels, width, x, y);
-                if (v - localMedian < (2.5 * sigma))
+                var horizontal = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, 0);
+                var vertical = ComputeDirectionalTrailSupport(enhanced, width, x, y, 0, 1);
+                var diagonal1 = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, 1);
+                var diagonal2 = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, -1);
+
+                var bestSupport = horizontal;
+                var secondSupport = 0.0;
+                UpdateTopTwo(vertical, ref bestSupport, ref secondSupport);
+                UpdateTopTwo(diagonal1, ref bestSupport, ref secondSupport);
+                UpdateTopTwo(diagonal2, ref bestSupport, ref secondSupport);
+
+                var signal = bestSupport - (0.72 * secondSupport);
+                if (signal <= threshold * 2.0)
                 {
                     continue;
                 }
 
-                points.Add((x, y));
+                if (bestSupport <= secondSupport)
+                {
+                    continue;
+                }
 
-                var angle = Math.Atan2(y - cy, x - cx);
-                if (angle < 0) angle += Math.PI;
-                var bin = Math.Clamp((int)Math.Round((angle / Math.PI) * (binCount - 1)), 0, binCount - 1);
-                hist[bin]++;
+                points.Add((x, y, signal));
             }
         }
 
-        if (points.Count < 60)
+        if (points.Count < 8)
         {
             return new TrailDetectionResult(false, 0, 0, 0, 0);
         }
 
-        var peakBin = 0;
-        var peakVotes = 0;
-        var totalVotes = 0;
-        for (var i = 0; i < hist.Length; i++)
+        const int maxCandidates = 2500;
+        if (points.Count > maxCandidates)
         {
-            var v = hist[i];
-            totalVotes += v;
-            if (v > peakVotes)
-            {
-                peakVotes = v;
-                peakBin = i;
-            }
+            points = points.OrderByDescending(p => p.Signal).Take(maxCandidates).ToList();
         }
 
-        if (totalVotes <= 0 || peakVotes < 40 || peakVotes < (int)(totalVotes * 0.22))
+        const int angleBins = 120;
+        var maxRho = Math.Sqrt((cx * cx) + (cy * cy));
+        var rhoBinSize = Math.Max(2.0, Math.Min(5.0, Math.Min(width, height) / 180.0));
+        var rhoBins = Math.Max(180, (int)Math.Ceiling((2.0 * maxRho) / rhoBinSize) + 1);
+        var accumulator = new int[angleBins * rhoBins];
+        var cosTable = new double[angleBins];
+        var sinTable = new double[angleBins];
+
+        for (var a = 0; a < angleBins; a++)
         {
-            return new TrailDetectionResult(false, 0, 0, 0, 0);
+            var theta = (a / (double)angleBins) * Math.PI;
+            cosTable[a] = Math.Cos(theta);
+            sinTable[a] = Math.Sin(theta);
         }
-
-        var theta = (peakBin / (double)(binCount - 1)) * Math.PI;
-        var dirX = Math.Cos(theta);
-        var dirY = Math.Sin(theta);
-        var perpX = -dirY;
-        var perpY = dirX;
-
-        const double maxDistance = 4.0;
-        double minT = double.PositiveInfinity;
-        double maxT = double.NegativeInfinity;
-        var inlierCount = 0;
 
         foreach (var p in points)
         {
             var dx = p.X - cx;
             var dy = p.Y - cy;
-            var dist = Math.Abs((dx * perpX) + (dy * perpY));
-            if (dist > maxDistance)
-            {
-                continue;
-            }
+            var weight = 1 + Math.Clamp((int)Math.Round(p.Signal / Math.Max(1e-6, threshold * 2.5)), 0, 3);
 
-            var t = (dx * dirX) + (dy * dirY);
-            if (t < minT) minT = t;
-            if (t > maxT) maxT = t;
-            inlierCount++;
+            for (var a = 0; a < angleBins; a++)
+            {
+                var rho = (dx * cosTable[a]) + (dy * sinTable[a]);
+                var rhoIndex = (int)Math.Round((rho + maxRho) / rhoBinSize);
+                if ((uint)rhoIndex >= (uint)rhoBins)
+                {
+                    continue;
+                }
+
+                accumulator[(a * rhoBins) + rhoIndex] += weight;
+            }
         }
 
-        var span = maxT - minT;
-        var minRequiredSpan = 0.35 * Math.Min(width, height);
-        if (inlierCount < 50 || span < minRequiredSpan)
+        var bestAngleBin = -1;
+        var bestRhoBin = -1;
+        var bestVotes = 0;
+        for (var a = 0; a < angleBins; a++)
+        {
+            var row = a * rhoBins;
+            for (var r = 0; r < rhoBins; r++)
+            {
+                var votes = accumulator[row + r];
+                if (votes > bestVotes)
+                {
+                    bestVotes = votes;
+                    bestAngleBin = a;
+                    bestRhoBin = r;
+                }
+            }
+        }
+
+        if (bestAngleBin < 0 || bestVotes < Math.Max(10, points.Count / 120))
         {
             return new TrailDetectionResult(false, 0, 0, 0, 0);
         }
 
-        var x1 = cx + (minT * dirX);
-        var y1 = cy + (minT * dirY);
-        var x2 = cx + (maxT * dirX);
-        var y2 = cy + (maxT * dirY);
+        var normalX = cosTable[bestAngleBin];
+        var normalY = sinTable[bestAngleBin];
+        var dirX = -normalY;
+        var dirY = normalX;
+        var rhoCenter = (bestRhoBin * rhoBinSize) - maxRho;
+        var maxDistance = Math.Max(2.5, rhoBinSize * 1.5);
+
+        double refinedRhoSum = 0;
+        var refinedRhoCount = 0;
+        double minT = double.PositiveInfinity;
+        double maxT = double.NegativeInfinity;
+        var inlierCount = 0;
+        var spanBinSize = Math.Max(4.0, Math.Min(width, height) / 90.0);
+        HashSet<int> occupiedSpanBins = [];
+
+        foreach (var p in points)
+        {
+            var dx = p.X - cx;
+            var dy = p.Y - cy;
+            var rho = (dx * normalX) + (dy * normalY);
+            var distance = Math.Abs(rho - rhoCenter);
+            if (distance > maxDistance)
+            {
+                continue;
+            }
+
+            refinedRhoSum += rho;
+            refinedRhoCount++;
+
+            var t = (dx * dirX) + (dy * dirY);
+            if (t < minT) minT = t;
+            if (t > maxT) maxT = t;
+            occupiedSpanBins.Add((int)Math.Floor(t / spanBinSize));
+            inlierCount++;
+        }
+
+        if (inlierCount < 8 || refinedRhoCount == 0)
+        {
+            return new TrailDetectionResult(false, 0, 0, 0, 0);
+        }
+
+        rhoCenter = refinedRhoSum / refinedRhoCount;
+        var span = maxT - minT;
+        var minRequiredSpan = 0.18 * Math.Min(width, height);
+        var spanBinCount = Math.Max(1, (int)Math.Ceiling(span / spanBinSize));
+        var coverage = occupiedSpanBins.Count / (double)spanBinCount;
+        if (span < minRequiredSpan || coverage < 0.14)
+        {
+            return new TrailDetectionResult(false, 0, 0, 0, 0);
+        }
+
+        var baseX = cx + (rhoCenter * normalX);
+        var baseY = cy + (rhoCenter * normalY);
+        var x1 = baseX + (minT * dirX);
+        var y1 = baseY + (minT * dirY);
+        var x2 = baseX + (maxT * dirX);
+        var y2 = baseY + (maxT * dirY);
 
         return new TrailDetectionResult(
             true,
@@ -1749,6 +1895,54 @@ public sealed class RustafitsService
             height <= 1 ? 0.5 : Math.Clamp(y1 / (height - 1), 0.0, 1.0),
             width <= 1 ? 0.5 : Math.Clamp(x2 / (width - 1), 0.0, 1.0),
             height <= 1 ? 0.5 : Math.Clamp(y2 / (height - 1), 0.0, 1.0));
+    }
+
+    private static double ComputeDirectionalTrailSupport(float[] pixels, int width, int x, int y, int dx, int dy)
+    {
+        var center = pixels[(y * width) + x] * 1.25;
+        var sum = center;
+        var perpX = -dy;
+        var perpY = dx;
+
+        for (var step = 1; step <= 3; step++)
+        {
+            var weight = step switch
+            {
+                1 => 1.0,
+                2 => 0.8,
+                _ => 0.6
+            };
+            var forward = pixels[((y + (dy * step)) * width) + x + (dx * step)];
+            var backward = pixels[((y - (dy * step)) * width) + x - (dx * step)];
+            sum += weight * forward;
+            sum += weight * backward;
+        }
+
+        for (var step = 1; step <= 2; step++)
+        {
+            var weight = step == 1 ? 0.95 : 0.65;
+            var sideA = pixels[((y + (perpY * step)) * width) + x + (perpX * step)];
+            var sideB = pixels[((y - (perpY * step)) * width) + x - (perpX * step)];
+            sum -= weight * sideA;
+            sum -= weight * sideB;
+        }
+
+        return sum;
+    }
+
+    private static void UpdateTopTwo(double candidate, ref double best, ref double second)
+    {
+        if (candidate >= best)
+        {
+            second = best;
+            best = candidate;
+            return;
+        }
+
+        if (candidate > second)
+        {
+            second = candidate;
+        }
     }
 
     private static double Median9(float[] pixels, int width, int x, int y)

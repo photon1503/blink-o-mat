@@ -63,6 +63,16 @@
             <TextBlock Text="{Binding Item.Metrics.PossibleSatelliteTrail, StringFormat=Satellite trail: {0}}" Margin="0,0,0,12" />
 
             <CheckBox Content="Reject frame" IsChecked="{Binding Item.IsRejected, Mode=TwoWay}" />
+
+            <Border Margin="0,14,0,0" Padding="8" Background="#08000000" BorderBrush="#22000000" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock FontWeight="SemiBold" Text="Keyboard shortcuts" Margin="0,0,0,6" />
+                    <TextBlock Text="Left / Right: previous or next frame" TextWrapping="Wrap" FontSize="11" />
+                    <TextBlock Text="R: reject or unreject current frame" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
+                    <TextBlock Text="Ctrl + Mouse Wheel: zoom" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
+                    <TextBlock Text="Ctrl + Click: set manual ROI" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
+                </StackPanel>
+            </Border>
         </StackPanel>
     </Grid>
 </Window>

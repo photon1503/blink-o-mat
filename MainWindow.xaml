@@ -48,10 +48,17 @@
                     </Style.Triggers>
                 </Style>
             </Grid.Style>
-            <ProgressBar Height="16"
-                         Minimum="0"
-                         Maximum="{Binding ProgressMaximum, Mode=OneWay}"
-                         Value="{Binding ProgressValue, Mode=OneWay}" />
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <ProgressBar Height="16"
+                             Minimum="0"
+                             Maximum="{Binding ProgressMaximum, Mode=OneWay}"
+                             Value="{Binding ProgressValue, Mode=OneWay}" />
+                <TextBlock Grid.Row="1" Margin="0,6,0,0" Text="{Binding Status}" TextTrimming="CharacterEllipsis" />
+            </Grid>
         </Grid>
 
         <Grid Grid.Row="2" Margin="0,26,0,0">

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using blink_o_mat.ViewModels;
 using WpfPoint = System.Windows.Point;
 
@@ -9,20 +10,38 @@ namespace blink_o_mat;
 public partial class PreviewWindow : Window
 {
     private readonly FramePreviewViewModel _vm;
+    private bool _hasInitializedView;
 
     public PreviewWindow(FramePreviewViewModel vm)
     {
         InitializeComponent();
         _vm = vm;
         DataContext = _vm;
-        Loaded += (_, _) => FitToView();
+        Loaded += (_, _) =>
+        {
+            FitToView();
+            _hasInitializedView = true;
+        };
     }
 
     public void RefreshImage(BitmapSource image)
     {
+        var viewState = CaptureViewState();
         _vm.Image = null;
         _vm.Image = image;
-        FitToView();
+
+        if (!_hasInitializedView)
+        {
+            return;
+        }
+
+        if (viewState is null)
+        {
+            FitToView();
+            return;
+        }
+
+        Dispatcher.BeginInvoke(() => RestoreViewState(viewState), DispatcherPriority.Loaded);
     }
 
     private void Smaller_Click(object sender, RoutedEventArgs e)
@@ -51,7 +70,45 @@ public partial class PreviewWindow : Window
         var zx = ImageScrollViewer.ViewportWidth / source.Width;
         var zy = ImageScrollViewer.ViewportHeight / source.Height;
         _vm.Zoom = Math.Max(0.1, Math.Min(zx, zy));
+        ImageScrollViewer.ScrollToHorizontalOffset(0);
+        ImageScrollViewer.ScrollToVerticalOffset(0);
     }
+
+    private ViewState? CaptureViewState()
+    {
+        if (PreviewImage.Source is null || ImageScrollViewer.ViewportWidth <= 0 || ImageScrollViewer.ViewportHeight <= 0)
+        {
+            return null;
+        }
+
+        var extentWidth = ImageScrollViewer.ExtentWidth;
+        var extentHeight = ImageScrollViewer.ExtentHeight;
+        var centerX = ImageScrollViewer.HorizontalOffset + (ImageScrollViewer.ViewportWidth / 2.0);
+        var centerY = ImageScrollViewer.VerticalOffset + (ImageScrollViewer.ViewportHeight / 2.0);
+
+        return new ViewState(
+            _vm.Zoom,
+            extentWidth > 0 ? centerX / extentWidth : 0.5,
+            extentHeight > 0 ? centerY / extentHeight : 0.5);
+    }
+
+    private void RestoreViewState(ViewState viewState)
+    {
+        _vm.Zoom = viewState.Zoom;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            var targetCenterX = ImageScrollViewer.ExtentWidth * viewState.CenterXRatio;
+            var targetCenterY = ImageScrollViewer.ExtentHeight * viewState.CenterYRatio;
+            var horizontalOffset = Math.Max(0, targetCenterX - (ImageScrollViewer.ViewportWidth / 2.0));
+            var verticalOffset = Math.Max(0, targetCenterY - (ImageScrollViewer.ViewportHeight / 2.0));
+
+            ImageScrollViewer.ScrollToHorizontalOffset(horizontalOffset);
+            ImageScrollViewer.ScrollToVerticalOffset(verticalOffset);
+        }, DispatcherPriority.Background);
+    }
+
+    private sealed record ViewState(double Zoom, double CenterXRatio, double CenterYRatio);
 
     private async void Prev_Click(object sender, RoutedEventArgs e)
     {

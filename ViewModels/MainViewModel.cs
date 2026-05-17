@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -345,16 +346,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
+            var stopwatch = Stopwatch.StartNew();
             var files = _discovery.Discover(InputFolder);
             ProgressMaximum = Math.Max(1, files.Count);
-            var loadedItems = new List<FrameItem>(files.Count);
-            var loadedContexts = new List<LoadedFrameContext>(files.Count);
+            var loadedCount = 0;
+            var skippedCount = 0;
+
+            if (files.Count == 0)
+            {
+                Status = "No FITS/XISF frames found.";
+                return;
+            }
 
             var firstSuccessfulIndex = -1;
             for (var i = 0; i < files.Count; i++)
             {
                 var file = files[i];
-                Status = $"Processing {Path.GetFileName(file)} ({i + 1}/{files.Count})";
+                Status = $"Loading first frame {i + 1}/{files.Count}: {Path.GetFileName(file)}";
 
                 try
                 {
@@ -375,42 +383,45 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         Metrics = metrics
                     };
 
-                    loadedItems.Add(item);
-                    loadedContexts.Add(CreateLoadedFrameContext(item, raw));
+                    Frames.Add(item);
+                    _loadedFrames.Add(CreateLoadedFrameContext(item, raw));
                     SessionFocalLengthMm ??= raw.FocalLengthMm;
                     SessionPixelSizeUm ??= raw.PixelSizeUm;
+                    loadedCount++;
                     firstSuccessfulIndex = i;
                     ProgressValue = i + 1;
+                    Status = $"Loaded {loadedCount}/{files.Count}. Building previews and metrics in background...";
                     break;
                 }
                 catch (Exception ex)
                 {
-                    Status = $"Skipped {Path.GetFileName(file)}: {ex.Message}";
+                    skippedCount++;
+                    Status = $"Skipped {Path.GetFileName(file)} ({skippedCount} skipped): {ex.Message}";
                     ProgressValue = i + 1;
                 }
             }
 
             if (firstSuccessfulIndex >= 0)
             {
-                var filesToProcess = files.Skip(firstSuccessfulIndex + 1).ToList();
-                var orientationReference = ExpandFrame(loadedContexts[0]);
+                var filesToProcess = files.Skip(firstSuccessfulIndex + 1).Select((file, offset) => (File: file, SourceIndex: firstSuccessfulIndex + 1 + offset)).ToList();
+                var orientationReference = ExpandFrame(_loadedFrames[0]);
                 var maxParallelism = Math.Clamp(Environment.ProcessorCount - 1, 2, 8);
                 using var gate = new SemaphoreSlim(maxParallelism);
 
-                var pending = filesToProcess.Select(async file =>
+                var pending = filesToProcess.Select(async entry =>
                 {
                     await gate.WaitAsync(CancellationToken.None);
                     try
                     {
-                        var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
+                        var raw = await _rustafits.LoadRawFrameAsync(entry.File, CancellationToken.None);
                         var oriented = _rustafits.NormalizeOrientation(raw, orientationReference);
                         var metrics = _rustafits.AnalyzeFrame(oriented);
                         var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, StretchStrength, StretchMode, _globalRoiCenter, metrics, CancellationToken.None);
 
                         var item = new FrameItem
                         {
-                            FilePath = file,
-                            FileName = Path.GetFileName(file),
+                            FilePath = entry.File,
+                            FileName = Path.GetFileName(entry.File),
                             ExposureDateTime = oriented.ExposureDateTime,
                             ExposureSeconds = oriented.ExposureSeconds,
                             FilterName = oriented.FilterName,
@@ -419,11 +430,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                             Metrics = metrics
                         };
 
-                        return (Item: item, Frame: oriented, Error: (Exception?)null);
+                        return (Item: item, Frame: oriented, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: item.FileName);
                     }
                     catch (Exception ex)
                     {
-                        return (Item: (FrameItem?)null, Frame: (RustafitsService.LoadedFrame?)null, Error: ex);
+                        return (Item: (FrameItem?)null, Frame: (RustafitsService.LoadedFrame?)null, Error: ex, SourceIndex: entry.SourceIndex, FileName: Path.GetFileName(entry.File));
                     }
                     finally
                     {
@@ -439,27 +450,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                     if (result.Item is not null && result.Frame is not null)
                     {
-                        loadedItems.Add(result.Item);
-                        loadedContexts.Add(CreateLoadedFrameContext(result.Item, result.Frame));
+                        Frames.Add(result.Item);
+                        _loadedFrames.Add(CreateLoadedFrameContext(result.Item, result.Frame));
                         SessionFocalLengthMm ??= result.Frame.FocalLengthMm;
                         SessionPixelSizeUm ??= result.Frame.PixelSizeUm;
-                        Status = $"Loaded {result.Item.FileName}";
+                        loadedCount++;
+                        Status = $"Loaded {loadedCount}/{files.Count}: {result.Item.FileName}";
                     }
                     else if (result.Error is not null)
                     {
-                        Status = $"Skipped frame: {result.Error.Message}";
+                        skippedCount++;
+                        Status = $"Skipped {result.FileName} ({skippedCount} skipped): {result.Error.Message}";
                     }
 
                     ProgressValue += 1;
                 }
             }
 
-            _loadedFrames.Clear();
-            _loadedFrames.AddRange(loadedContexts);
-            Frames.ReplaceAll(loadedItems);
-
             ApplyThresholds();
-            Status = $"Loaded {Frames.Count} frame(s).";
+            stopwatch.Stop();
+            Status = $"Loaded {Frames.Count} frame(s) in {stopwatch.Elapsed.TotalSeconds:F1}s. {skippedCount} skipped.";
         }
         catch (Exception ex)
         {
