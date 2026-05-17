@@ -28,7 +28,7 @@
 
             <Border Grid.Row="1" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Background="#FF181818">
                 <ScrollViewer x:Name="ImageScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" PreviewMouseWheel="ImageScrollViewer_PreviewMouseWheel">
-                    <Image x:Name="PreviewImage" Source="{Binding Image}" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality" MouseLeftButtonDown="PreviewImage_MouseLeftButtonDown">
+                    <Image x:Name="PreviewImage" Source="{Binding Image}" Stretch="None" RenderOptions.BitmapScalingMode="NearestNeighbor" MouseLeftButtonDown="PreviewImage_MouseLeftButtonDown">
                         <Image.LayoutTransform>
                             <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
                         </Image.LayoutTransform>

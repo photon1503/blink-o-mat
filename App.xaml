@@ -58,6 +58,7 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="TextElement.Foreground" Value="{StaticResource TextBrush}" />
             <Setter Property="Padding" Value="6,3" />
+            <Setter Property="MinHeight" Value="26" />
             <Setter Property="ItemTemplate">
                 <Setter.Value>
                     <DataTemplate>
@@ -69,6 +70,9 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ComboBox">
                         <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
                             <Border x:Name="ComboBorder"
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
@@ -100,8 +104,17 @@
                                 </Grid>
                             </Border>
 
-                            <Popup x:Name="Popup"
+                            <ToggleButton x:Name="ToggleButton"
+                                          Focusable="False"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          Opacity="0"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                          ClickMode="Press" />
+
+                            <Popup x:Name="PART_Popup"
                                    Placement="Bottom"
+                                   PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
                                    IsOpen="{TemplateBinding IsDropDownOpen}"
                                    AllowsTransparency="True"
                                    Focusable="False"

@@ -18,7 +18,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     private sealed record LoadedFrameContext(
         FrameItem Item,
-        Half[] Pixels,
+        float[] Pixels,
         int Width,
         int Height,
         double? FocalLengthMm,
@@ -923,7 +923,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         return new LoadedFrameContext(
             item,
-            CompressPixels(frame.Pixels),
+            (float[])frame.Pixels.Clone(),
             frame.Width,
             frame.Height,
             frame.FocalLengthMm,
@@ -934,27 +934,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             null);
     }
 
-    private static Half[] CompressPixels(float[] pixels)
-    {
-        var compressed = new Half[pixels.Length];
-        for (var i = 0; i < pixels.Length; i++)
-        {
-            compressed[i] = (Half)pixels[i];
-        }
-
-        return compressed;
-    }
-
     private static RustafitsService.LoadedFrame ExpandFrame(LoadedFrameContext context)
     {
-        var pixels = new float[context.Pixels.Length];
-        for (var i = 0; i < context.Pixels.Length; i++)
-        {
-            pixels[i] = (float)context.Pixels[i];
-        }
-
         return new RustafitsService.LoadedFrame(
-            pixels,
+            (float[])context.Pixels.Clone(),
             context.Width,
             context.Height,
             context.FocalLengthMm,

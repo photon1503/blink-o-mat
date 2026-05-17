@@ -910,19 +910,41 @@ public sealed class RustafitsService
     {
         var scale = Math.Min(maxWidth / (double)Math.Max(1, width), maxHeight / (double)Math.Max(1, height));
         scale = Math.Min(1.0, scale <= 0 ? 1.0 : scale);
-        var targetWidth = Math.Max(1, (int)Math.Round(width * scale));
-        var targetHeight = Math.Max(1, (int)Math.Round(height * scale));
+        var contentWidth = Math.Max(1, (int)Math.Round(width * scale));
+        var contentHeight = Math.Max(1, (int)Math.Round(height * scale));
 
-        var sample = DownsampleAndStretch(pixels, width, height, targetWidth, targetHeight, stretchStrength, stretchMode, targetBackground);
+        var sample = DownsampleAndStretch(pixels, width, height, contentWidth, contentHeight, stretchStrength, stretchMode, targetBackground);
         if (metrics is { PossibleSatelliteTrail: true, TrailX1: not null, TrailY1: not null, TrailX2: not null, TrailY2: not null })
         {
-            DrawTrailOverlay(sample, targetWidth, targetHeight, metrics);
+            DrawTrailOverlay(sample, contentWidth, contentHeight, metrics);
         }
-        var stride = targetWidth * 3;
 
-        var bitmap = BitmapSource.Create(targetWidth, targetHeight, 96, 96, PixelFormats.Rgb24, null, sample, stride);
+        if (contentWidth != maxWidth || contentHeight != maxHeight)
+        {
+            sample = PadRgb(sample, contentWidth, contentHeight, maxWidth, maxHeight);
+        }
+
+        var stride = maxWidth * 3;
+
+        var bitmap = BitmapSource.Create(maxWidth, maxHeight, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
         return bitmap;
+    }
+
+    private static byte[] PadRgb(byte[] source, int sourceWidth, int sourceHeight, int targetWidth, int targetHeight)
+    {
+        var padded = new byte[targetWidth * targetHeight * 3];
+        var offsetX = Math.Max(0, (targetWidth - sourceWidth) / 2);
+        var offsetY = Math.Max(0, (targetHeight - sourceHeight) / 2);
+
+        for (var y = 0; y < sourceHeight; y++)
+        {
+            var sourceOffset = y * sourceWidth * 3;
+            var targetOffset = (((y + offsetY) * targetWidth) + offsetX) * 3;
+            Buffer.BlockCopy(source, sourceOffset, padded, targetOffset, sourceWidth * 3);
+        }
+
+        return padded;
     }
 
     private static void DrawTrailOverlay(byte[] rgb, int width, int height, AstroMetrics metrics)
@@ -1221,6 +1243,7 @@ public sealed class RustafitsService
         var madN = mad / range;
 
         var data = new byte[targetWidth * targetHeight * 3];
+        var useBilinearSampling = width != targetWidth || height != targetHeight;
 
         var normalizedStrength = Math.Clamp(stretchStrength, 0.25, 5.0);
         if (stretchMode == StretchMode.NinaStyle)
@@ -1249,11 +1272,13 @@ public sealed class RustafitsService
 
             for (var y = 0; y < targetHeight; y++)
             {
-                var sourceY = Math.Min(height - 1, (int)((y / (double)Math.Max(1, targetHeight - 1)) * (height - 1)));
+                var sourceY = MapTargetToSourceCoordinate(y, height, targetHeight);
                 for (var x = 0; x < targetWidth; x++)
                 {
-                    var sourceX = Math.Min(width - 1, (int)((x / (double)Math.Max(1, targetWidth - 1)) * (width - 1)));
-                    var value = pixels[(sourceY * width) + sourceX];
+                    var sourceX = MapTargetToSourceCoordinate(x, width, targetWidth);
+                    var value = useBilinearSampling
+                        ? SampleBilinear(pixels, width, height, sourceX, sourceY)
+                        : pixels[((int)sourceY * width) + (int)sourceX];
                     var normalized = Math.Clamp((value - blackPoint) / sigmaRange, 0.0, 1.0);
                     var stretched = Math.Pow(normalized, gamma);
                     var b = (byte)Math.Clamp((int)Math.Round(stretched * 255.0), 0, 255);
@@ -1286,11 +1311,13 @@ public sealed class RustafitsService
 
         for (var y = 0; y < targetHeight; y++)
         {
-            var sourceY = Math.Min(height - 1, (int)((y / (double)Math.Max(1, targetHeight - 1)) * (height - 1)));
+            var sourceY = MapTargetToSourceCoordinate(y, height, targetHeight);
             for (var x = 0; x < targetWidth; x++)
             {
-                var sourceX = Math.Min(width - 1, (int)((x / (double)Math.Max(1, targetWidth - 1)) * (width - 1)));
-                var value = pixels[(sourceY * width) + sourceX];
+                var sourceX = MapTargetToSourceCoordinate(x, width, targetWidth);
+                var value = useBilinearSampling
+                    ? SampleBilinear(pixels, width, height, sourceX, sourceY)
+                    : pixels[((int)sourceY * width) + (int)sourceX];
                 var normalized = Math.Clamp((value - low) / range, 0.0, 1.0);
                 normalized = Math.Clamp((normalized - c0) / Math.Max(1e-9, 1.0 - c0), 0.0, 1.0);
                 var stretched = Math.Clamp(MidtonesTransfer(normalized, midtones), 0.0, 1.0);
@@ -1309,6 +1336,35 @@ public sealed class RustafitsService
         }
 
         return data;
+    }
+
+    private static double MapTargetToSourceCoordinate(int targetIndex, int sourceSize, int targetSize)
+    {
+        if (sourceSize <= 1 || targetSize <= 1)
+        {
+            return 0;
+        }
+
+        return Math.Clamp((((targetIndex + 0.5) * sourceSize) / (double)targetSize) - 0.5, 0.0, sourceSize - 1.0);
+    }
+
+    private static float SampleBilinear(float[] pixels, int width, int height, double x, double y)
+    {
+        var x0 = Math.Clamp((int)Math.Floor(x), 0, width - 1);
+        var y0 = Math.Clamp((int)Math.Floor(y), 0, height - 1);
+        var x1 = Math.Min(x0 + 1, width - 1);
+        var y1 = Math.Min(y0 + 1, height - 1);
+        var tx = x - x0;
+        var ty = y - y0;
+
+        var topLeft = pixels[(y0 * width) + x0];
+        var topRight = pixels[(y0 * width) + x1];
+        var bottomLeft = pixels[(y1 * width) + x0];
+        var bottomRight = pixels[(y1 * width) + x1];
+
+        var top = (topLeft * (1.0 - tx)) + (topRight * tx);
+        var bottom = (bottomLeft * (1.0 - tx)) + (bottomRight * tx);
+        return (float)((top * (1.0 - ty)) + (bottom * ty));
     }
 
     private static void NormalizeRenderedBackground(byte[] rgb, double targetBackground)

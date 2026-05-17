@@ -18,13 +18,13 @@
                     <Border.InputBindings>
                         <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
                     </Border.InputBindings>
-                    <Image Stretch="Uniform" Source="{Binding ThumbnailImage}" ToolTip="Click to open preview" />
+                    <Image Stretch="Uniform" Source="{Binding ThumbnailImage}" ToolTip="Click to open preview" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                 </Border>
                 <Border Width="160" Height="160" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                     <Border.InputBindings>
                         <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
                     </Border.InputBindings>
-                    <Image Stretch="UniformToFill" Source="{Binding RoiImage}" ToolTip="Click to open preview" />
+                    <Image Stretch="UniformToFill" Source="{Binding RoiImage}" ToolTip="Click to open preview" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                 </Border>
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="10,0,0,0">
@@ -38,6 +38,25 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock FontWeight="SemiBold" Text="Date" />
+                        <TextBlock Text="{Binding ExposureDateTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}, TargetNullValue=n/a}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock FontWeight="SemiBold" Text="Filter" />
+                        <TextBlock Text="{Binding FilterName, TargetNullValue=n/a}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock FontWeight="SemiBold" Text="Exposure" />
+                        <TextBlock Text="{Binding ExposureSeconds, StringFormat={}{0:F1}s, TargetNullValue=n/a}" />
+                    </StackPanel>
+                </Grid>
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="12" />
                         <ColumnDefinition Width="Auto" />
@@ -95,25 +114,6 @@
                         <TextBlock Text="{Binding Metrics.MeanBackground, StringFormat={}{0:F1}}" />
                     </StackPanel>
                     <StackPanel Grid.Column="12">
-                        <TextBlock FontWeight="SemiBold" Text="Exposure" />
-                        <TextBlock Text="{Binding ExposureSeconds, StringFormat={}{0:F1}s, TargetNullValue=n/a}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="14">
-                        <TextBlock FontWeight="SemiBold" Text="Filter" />
-                        <TextBlock Text="{Binding FilterName, TargetNullValue=n/a}" />
-                    </StackPanel>
-                </Grid>
-                <Grid Margin="0,4,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock FontWeight="SemiBold" Text="Date" />
-                        <TextBlock Text="{Binding ExposureDateTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}, TargetNullValue=n/a}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="2">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="8" Height="8" Fill="{Binding TrailIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
                             <TextBlock FontWeight="SemiBold" Text="Trail" />
