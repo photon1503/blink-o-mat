@@ -34,7 +34,7 @@ public sealed class HeadlessRunner
             frame.IsRejected = _rejection.ShouldReject(frame, options.Thresholds);
             processed.Add(frame);
 
-            Console.WriteLine($"{frame.FileName}: FWHM={frame.Metrics.Fwhm:F2} HFR={frame.Metrics.Hfr:F2} Ecc={frame.Metrics.Eccentricity:F3} BG={frame.Metrics.MeanBackground:F1} Trail={frame.Metrics.PossibleSatelliteTrail} Reject={frame.IsRejected}");
+            Console.WriteLine($"{frame.FileName}: FWHM={frame.Metrics.Fwhm:F2}px FWHM\"={(frame.Metrics.FwhmArcsec?.ToString("F2") ?? "n/a")} Stars={frame.Metrics.StarCount} HFR={frame.Metrics.Hfr:F2} Ecc={frame.Metrics.Eccentricity:F3} BG={frame.Metrics.MeanBackground:F1} Focal={(frame.Metrics.FocalLengthMm?.ToString("F1") ?? "n/a")}mm Pixel={(frame.Metrics.PixelSizeUm?.ToString("F2") ?? "n/a")}um Trail={frame.Metrics.PossibleSatelliteTrail} Reject={frame.IsRejected}");
         }
 
         var moved = _move.MoveRejected(processed, options.RejectedFolder);

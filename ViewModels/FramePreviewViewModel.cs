@@ -30,7 +30,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         get => _getStretch();
         set
         {
-            var clamped = Math.Clamp(value, 0.25, 3.0);
+            var clamped = Math.Clamp(value, 0.25, 5.0);
             if (Math.Abs(clamped - _getStretch()) < 0.0001) return;
             _setStretch(clamped);
             OnPropertyChanged();

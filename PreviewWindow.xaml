@@ -37,14 +37,18 @@
             <TextBlock FontWeight="SemiBold" FontSize="15" Text="{Binding Item.FileName}" TextWrapping="Wrap" Margin="0,0,0,12" />
 
             <TextBlock FontWeight="SemiBold" Text="Stretch" />
-            <Slider Minimum="0.25" Maximum="3.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
+            <Slider Minimum="0.25" Maximum="5.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
             <TextBlock Text="{Binding Stretch, StringFormat=F2}" Margin="0,0,0,12" />
 
             <TextBlock FontWeight="SemiBold" Text="Metrics" Margin="0,0,0,8" />
             <TextBlock Text="{Binding Item.Metrics.Fwhm, StringFormat=FWHM: {0:F2}}" />
+            <TextBlock Text="{Binding Item.Metrics.FwhmArcsec, StringFormat=FWHM: {0:F2} arcsec, TargetNullValue=FWHM: n/a arcsec}" />
             <TextBlock Text="{Binding Item.Metrics.Hfr, StringFormat=HFR: {0:F2}}" />
+            <TextBlock Text="{Binding Item.Metrics.StarCount, StringFormat=Stars: {0}}" />
             <TextBlock Text="{Binding Item.Metrics.Eccentricity, StringFormat=Eccentricity: {0:F3}}" />
             <TextBlock Text="{Binding Item.Metrics.MeanBackground, StringFormat=Mean BG: {0:F1}}" />
+            <TextBlock Text="{Binding Item.Metrics.FocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
+            <TextBlock Text="{Binding Item.Metrics.PixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
             <TextBlock Text="{Binding Item.Metrics.PossibleSatelliteTrail, StringFormat=Satellite trail: {0}}" Margin="0,0,0,12" />
 
             <CheckBox Content="Reject frame" IsChecked="{Binding Item.IsRejected, Mode=TwoWay}" />

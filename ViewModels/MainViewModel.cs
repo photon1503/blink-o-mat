@@ -15,7 +15,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private sealed record LoadedFrameContext(
         FrameItem Item,
         RustafitsService.LoadedFrame FrameData,
-        BitmapSource FullImage);
+        BitmapSource? FullImage);
 
     private readonly FrameDiscoveryService _discovery = new();
     private readonly RustafitsService _rustafits = new();
@@ -189,7 +189,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => _stretchStrength;
         set
         {
-            var clamped = Math.Clamp(value, 0.25, 3.0);
+            var clamped = Math.Clamp(value, 0.25, 5.0);
             if (Math.Abs(_stretchStrength - clamped) < 0.0001) return;
             _stretchStrength = clamped;
             OnPropertyChanged();
@@ -250,9 +250,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             var files = _discovery.Discover(InputFolder);
-            var tempThumbs = Path.Combine(Path.GetTempPath(), "blink-o-mat-thumbs", DateTime.Now.ToString("yyyyMMddHHmmss"));
             ProgressMaximum = Math.Max(1, files.Count);
 
+            var firstSuccessfulIndex = -1;
             for (var i = 0; i < files.Count; i++)
             {
                 var file = files[i];
@@ -262,12 +262,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
                     var metrics = _rustafits.AnalyzeFrame(raw);
-                    _globalRoiCenter ??= _rustafits.DetectRoiNormalizedCenter(raw);
-
-                    var baseName = Path.GetFileNameWithoutExtension(file);
-                    var _ = baseName;
+                    _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(raw);
                     var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, StretchStrength, _globalRoiCenter, CancellationToken.None);
-                    var fullImage = await _rustafits.RenderFullBitmapAsync(raw, StretchStrength, CancellationToken.None);
 
                     var item = new FrameItem
                     {
@@ -279,14 +275,75 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     };
 
                     Frames.Add(item);
-                    _loadedFrames.Add(new LoadedFrameContext(item, raw, fullImage));
+                    _loadedFrames.Add(new LoadedFrameContext(item, raw, null));
+                    firstSuccessfulIndex = i;
+                    ProgressValue = i + 1;
+                    break;
                 }
                 catch (Exception ex)
                 {
                     Status = $"Skipped {Path.GetFileName(file)}: {ex.Message}";
+                    ProgressValue = i + 1;
                 }
+            }
 
-                ProgressValue = i + 1;
+            if (firstSuccessfulIndex >= 0)
+            {
+                var filesToProcess = files.Skip(firstSuccessfulIndex + 1).ToList();
+                var orientationReference = _loadedFrames[0].FrameData;
+                var maxParallelism = Math.Clamp(Environment.ProcessorCount - 1, 2, 8);
+                using var gate = new SemaphoreSlim(maxParallelism);
+
+                var pending = filesToProcess.Select(async file =>
+                {
+                    await gate.WaitAsync(CancellationToken.None);
+                    try
+                    {
+                        var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
+                        var oriented = _rustafits.NormalizeOrientation(raw, orientationReference);
+                        var metrics = _rustafits.AnalyzeFrame(oriented);
+                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, StretchStrength, _globalRoiCenter, CancellationToken.None);
+
+                        var item = new FrameItem
+                        {
+                            FilePath = file,
+                            FileName = Path.GetFileName(file),
+                            ThumbnailImage = previews.Full,
+                            RoiImage = previews.Roi,
+                            Metrics = metrics
+                        };
+
+                        return (Item: item, Frame: oriented, Error: (Exception?)null);
+                    }
+                    catch (Exception ex)
+                    {
+                        return (Item: (FrameItem?)null, Frame: (RustafitsService.LoadedFrame?)null, Error: ex);
+                    }
+                    finally
+                    {
+                        gate.Release();
+                    }
+                }).ToList();
+
+                while (pending.Count > 0)
+                {
+                    var completedTask = await Task.WhenAny(pending);
+                    pending.Remove(completedTask);
+                    var result = await completedTask;
+
+                    if (result.Item is not null && result.Frame is not null)
+                    {
+                        Frames.Add(result.Item);
+                        _loadedFrames.Add(new LoadedFrameContext(result.Item, result.Frame, null));
+                        Status = $"Loaded {result.Item.FileName}";
+                    }
+                    else if (result.Error is not null)
+                    {
+                        Status = $"Skipped frame: {result.Error.Message}";
+                    }
+
+                    ProgressValue += 1;
+                }
             }
 
             ApplyThresholds();
@@ -324,17 +381,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
                 var previews = await _rustafits.RenderPreviewBitmapsAsync(loaded.FrameData, StretchStrength, _globalRoiCenter, CancellationToken.None);
-                var fullImage = await _rustafits.RenderFullBitmapAsync(loaded.FrameData, StretchStrength, CancellationToken.None);
 
                 loaded.Item.ThumbnailImage = previews.Full;
                 loaded.Item.RoiImage = previews.Roi;
 
                 if (_previewItem == loaded.Item)
                 {
+                    var fullImage = await _rustafits.RenderFullBitmapAsync(loaded.FrameData, StretchStrength, CancellationToken.None);
                     _previewWindow?.RefreshImage(fullImage);
+                    _loadedFrames[i] = loaded with { FullImage = fullImage };
                 }
-
-                _loadedFrames[i] = loaded with { FullImage = fullImage };
 
                 ProgressValue = i + 1;
             }
@@ -363,8 +419,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (_previewWindow is not null)
         {
             _previewItem = item;
-            var existing = _loadedFrames.FirstOrDefault(f => f.Item == item);
-            _previewWindow.RefreshImage(existing.FullImage);
+            var existingImage = await GetOrCreateFullImageAsync(item);
+            _previewWindow.RefreshImage(existingImage);
             _previewWindow.Activate();
             await Task.CompletedTask;
             return;
@@ -373,8 +429,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _previewItem = item;
         var vm = new FramePreviewViewModel(item, () => StretchStrength, value => StretchStrength = value);
         _previewWindow = new PreviewWindow(vm);
-        var current = _loadedFrames.FirstOrDefault(f => f.Item == item);
-        _previewWindow.RefreshImage(current.FullImage);
+        var current = await GetOrCreateFullImageAsync(item);
+        _previewWindow.RefreshImage(current);
         _previewWindow.Closed += (_, _) =>
         {
             _previewWindow = null;
@@ -383,6 +439,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         _previewWindow.Show();
         await Task.CompletedTask;
+    }
+
+    private async Task<BitmapSource> GetOrCreateFullImageAsync(FrameItem item)
+    {
+        var index = _loadedFrames.FindIndex(f => f.Item == item);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("Frame is not loaded.");
+        }
+
+        var loaded = _loadedFrames[index];
+        if (loaded.FullImage is not null)
+        {
+            return loaded.FullImage;
+        }
+
+        var fullImage = await _rustafits.RenderFullBitmapAsync(loaded.FrameData, StretchStrength, CancellationToken.None);
+        _loadedFrames[index] = loaded with { FullImage = fullImage };
+        return fullImage;
     }
 
     private void ApplyThresholds()

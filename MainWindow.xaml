@@ -63,7 +63,7 @@
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,8,0">
                 <StackPanel>
                     <TextBlock Text="Stretch" />
-                    <Slider Minimum="0.25" Maximum="3.0" Value="{Binding StretchStrength, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
+                    <Slider Minimum="0.25" Maximum="5.0" Value="{Binding StretchStrength, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
                     <TextBlock Margin="0,0,0,8" Text="{Binding StretchStrength, StringFormat=F2}" />
 
                     <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Automatic rejection thresholds" />
@@ -117,9 +117,13 @@
                                 <StackPanel Grid.Column="1" Margin="10,0,0,0">
                                     <TextBlock FontWeight="SemiBold" Text="{Binding FileName}" />
                                     <TextBlock Text="{Binding Metrics.Fwhm, StringFormat=FWHM: {0:F2}}" />
+                                    <TextBlock Text="{Binding Metrics.FwhmArcsec, StringFormat=FWHM: {0:F2} arcsec, TargetNullValue=FWHM: n/a arcsec}" />
                                     <TextBlock Text="{Binding Metrics.Hfr, StringFormat=HFR: {0:F2}}" />
+                                    <TextBlock Text="{Binding Metrics.StarCount, StringFormat=Stars: {0}}" />
                                     <TextBlock Text="{Binding Metrics.Eccentricity, StringFormat=Eccentricity: {0:F3}}" />
                                     <TextBlock Text="{Binding Metrics.MeanBackground, StringFormat=Mean BG: {0:F1}}" />
+                                    <TextBlock Text="{Binding Metrics.FocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
+                                    <TextBlock Text="{Binding Metrics.PixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
                                     <TextBlock Text="{Binding Metrics.PossibleSatelliteTrail, StringFormat=Satellite trail: {0}}" />
                                 </StackPanel>
                                 <CheckBox Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="{Binding IsRejected, Mode=TwoWay}" Content="Reject" />

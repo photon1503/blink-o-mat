@@ -5,8 +5,13 @@ Blinker and subframe quality sorter for astronomical RAW/FITS/XISF images.
 ## Features
 
 - Browse a folder of light frames (`.fit`, `.fits`, `.xisf`)
-- Generate stretched thumbnails with native .NET processing
-- Compute/display per-frame quality metrics:
+- Native .NET FITS/XISF loading (no external converter needed)
+- Async + multithreaded frame loading with progress bar
+- Stretched preview rendering with global stretch control (`0.25` to `5.0`)
+- Dedicated preview window with zoom controls and per-frame inspection
+- ROI preview + full-frame preview for each subframe
+- Automatic orientation normalization (meridian-flip / 180° alignment)
+- Per-frame quality metrics:
   - FWHM
   - HFR
   - Eccentricity
@@ -20,7 +25,6 @@ Blinker and subframe quality sorter for astronomical RAW/FITS/XISF images.
 
 - Windows
 - .NET 10 SDK/runtime
-- No external converter required (native FITS/XISF reader stack)
 
 ## Build
 
@@ -61,7 +65,6 @@ dotnet run --project .\blink-o-mat.csproj -- --headless --input "D:\lights" --re
 
 ## Notes
 
-- FITS reading uses `NETStdFITS`; XISF reading uses `XisfSharp`.
-- Metrics and trail detection are currently heuristic and intended for quick subframe sorting.
-- Temporary thumbnails are generated in the system temp directory.
+- FITS reading uses a native parser in `RustafitsService`; XISF reading uses `XisfSharp`.
+- Metrics, trail detection, and orientation normalization are heuristic and intended for fast subframe sorting.
 - Rejected-frame move operation renames on collision to avoid overwrite.

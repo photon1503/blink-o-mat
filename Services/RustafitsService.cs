@@ -12,7 +12,9 @@ namespace blink_o_mat.Services;
 
 public sealed class RustafitsService
 {
-    public sealed record LoadedFrame(float[] Pixels, int Width, int Height);
+    private readonly record struct StarPoint(float X, float Y, float Signal);
+
+    public sealed record LoadedFrame(float[] Pixels, int Width, int Height, double? FocalLengthMm = null, double? PixelSizeUm = null);
 
     public async Task<FrameItem> ProcessFrameAsync(string filePath, string thumbnailDirectory, CancellationToken cancellationToken)
     {
@@ -20,9 +22,10 @@ public sealed class RustafitsService
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
 
-            var previews = await RenderPreviewBitmapsAsync(new LoadedFrame(frame.Pixels, frame.Width, frame.Height), 1.0, null, cancellationToken);
+            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm);
+            var previews = await RenderPreviewBitmapsAsync(loadedFrame, 1.0, null, cancellationToken);
 
-            var metrics = ComputeMetrics(frame.Pixels, frame.Width, frame.Height);
+            var metrics = ComputeMetrics(loadedFrame);
 
             return new FrameItem
             {
@@ -40,7 +43,7 @@ public sealed class RustafitsService
         return Task.Run(async () =>
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
-            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height);
+            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm);
         }, cancellationToken);
     }
 
@@ -77,10 +80,45 @@ public sealed class RustafitsService
 
     public AstroMetrics AnalyzeFrame(LoadedFrame frame)
     {
-        return ComputeMetrics(frame.Pixels, frame.Width, frame.Height);
+        return ComputeMetrics(frame);
     }
 
-    private static async Task<(float[] Pixels, int Width, int Height)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
+    public LoadedFrame NormalizeOrientation(LoadedFrame frame, LoadedFrame reference)
+    {
+        const int sampleSize = 256;
+        const int maxOffset = 48;
+        const double minImprovement = 0.04;
+
+        var referenceSample = CreateOrientationSample(reference.Pixels, reference.Width, reference.Height, sampleSize, rotate180: false);
+        var originalSample = CreateOrientationSample(frame.Pixels, frame.Width, frame.Height, sampleSize, rotate180: false);
+        var rotatedSample = CreateOrientationSample(frame.Pixels, frame.Width, frame.Height, sampleSize, rotate180: true);
+
+        var referenceStars = DetectOrientationStars(referenceSample, sampleSize, sampleSize);
+        var originalStars = DetectOrientationStars(originalSample, sampleSize, sampleSize);
+        var rotatedStars = DetectOrientationStars(rotatedSample, sampleSize, sampleSize);
+
+        double originalScore;
+        double rotatedScore;
+        if (referenceStars.Count >= 10 && originalStars.Count >= 10 && rotatedStars.Count >= 10)
+        {
+            originalScore = ComputeStarAlignmentScore(referenceStars, originalStars, sampleSize, sampleSize);
+            rotatedScore = ComputeStarAlignmentScore(referenceStars, rotatedStars, sampleSize, sampleSize);
+        }
+        else
+        {
+            originalScore = ComputeBestCorrelationWithOffsets(referenceSample, originalSample, sampleSize, maxOffset);
+            rotatedScore = ComputeBestCorrelationWithOffsets(referenceSample, rotatedSample, sampleSize, maxOffset);
+        }
+
+        if (rotatedScore > originalScore + minImprovement)
+        {
+            return Rotate180(frame);
+        }
+
+        return frame;
+    }
+
+    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
     {
         var ext = Path.GetExtension(filePath);
         if (ext.Equals(".fits", StringComparison.OrdinalIgnoreCase) || ext.Equals(".fit", StringComparison.OrdinalIgnoreCase))
@@ -96,7 +134,7 @@ public sealed class RustafitsService
         throw new NotSupportedException($"Unsupported file type: {ext}");
     }
 
-    private static (float[] Pixels, int Width, int Height) LoadFits(string filePath)
+    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm) LoadFits(string filePath)
     {
         using var stream = File.OpenRead(filePath);
         while (stream.Position < stream.Length)
@@ -120,7 +158,7 @@ public sealed class RustafitsService
         throw new InvalidOperationException("FITS image data not found.");
     }
 
-    private static (float[] Pixels, int Width, int Height)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
+    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
     {
         if (header.Axes.Length < 2)
         {
@@ -198,7 +236,7 @@ public sealed class RustafitsService
             stream.Seek(paddingBytes, SeekOrigin.Current);
         }
 
-        return (result, width, height);
+        return (result, width, height, header.FocalLengthMm, header.PixelSizeUm);
     }
 
     private static FitsHeaderInfo ReadFitsHeader(Stream stream)
@@ -224,7 +262,9 @@ public sealed class RustafitsService
 
                     var bScale = ParseDouble(cards, "BSCALE", 1.0);
                     var bZero = ParseDouble(cards, "BZERO", 0.0);
-                    return new FitsHeaderInfo(bitPix, axisCount, axes, bScale, bZero);
+                    var focalLengthMm = FirstAvailableDouble(cards, "FOCALLEN", "FOCAL", "FOCAL_LENGTH", "FOCLEN");
+                    var pixelSizeUm = ResolvePixelSizeUm(cards);
+                    return new FitsHeaderInfo(bitPix, axisCount, axes, bScale, bZero, focalLengthMm, pixelSizeUm);
                 }
 
                 if (!card.Contains('='))
@@ -370,9 +410,54 @@ public sealed class RustafitsService
             : fallback;
     }
 
-    private readonly record struct FitsHeaderInfo(int BitPix, int AxisCount, long[] Axes, double BScale, double BZero);
+    private static double? TryParseDouble(Dictionary<string, string> cards, string key)
+    {
+        if (!cards.TryGetValue(key, out var raw))
+        {
+            return null;
+        }
 
-    private static async Task<(float[] Pixels, int Width, int Height)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
+        var normalized = raw.Replace('D', 'E').Replace('d', 'E');
+        return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static double? FirstAvailableDouble(Dictionary<string, string> cards, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = TryParseDouble(cards, key);
+            if (value is > 0)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static double? ResolvePixelSizeUm(Dictionary<string, string> cards)
+    {
+        var pixelSizeUm = FirstAvailableDouble(cards, "XPIXSZ", "PIXSIZE", "PIXELSZ", "PIXSZ", "PIXELSIZE");
+        if (pixelSizeUm is > 0)
+        {
+            return pixelSizeUm;
+        }
+
+        var xPixelSize = FirstAvailableDouble(cards, "XPIXSIZE");
+        var yPixelSize = FirstAvailableDouble(cards, "YPIXSIZE");
+        if (xPixelSize is > 0 && yPixelSize is > 0)
+        {
+            return (xPixelSize.Value + yPixelSize.Value) / 2.0;
+        }
+
+        return xPixelSize ?? yPixelSize;
+    }
+
+    private readonly record struct FitsHeaderInfo(int BitPix, int AxisCount, long[] Axes, double BScale, double BZero, double? FocalLengthMm, double? PixelSizeUm);
+
+    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
     {
         var image = await XisfImage.LoadAsync(filePath, cancellationToken);
         var bytes = image.Data.Span;
@@ -407,7 +492,307 @@ public sealed class RustafitsService
             luminance[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
         }
 
-        return (luminance, width, height);
+        return (luminance, width, height, null, null);
+    }
+
+    private static LoadedFrame Rotate180(LoadedFrame frame)
+    {
+        var pixels = new float[frame.Pixels.Length];
+        var source = frame.Pixels;
+        for (var i = 0; i < source.Length; i++)
+        {
+            pixels[i] = source[source.Length - 1 - i];
+        }
+
+        return new LoadedFrame(pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm);
+    }
+
+    private static float[] CreateOrientationSample(float[] pixels, int width, int height, int sampleSize, bool rotate180)
+    {
+        var sample = new float[sampleSize * sampleSize];
+        var widthDenom = Math.Max(1, sampleSize - 1);
+        var heightDenom = Math.Max(1, sampleSize - 1);
+
+        for (var y = 0; y < sampleSize; y++)
+        {
+            var sourceY = (int)Math.Round((y / (double)heightDenom) * (height - 1));
+            for (var x = 0; x < sampleSize; x++)
+            {
+                var sourceX = (int)Math.Round((x / (double)widthDenom) * (width - 1));
+                if (rotate180)
+                {
+                    sourceX = (width - 1) - sourceX;
+                    sourceY = (height - 1) - sourceY;
+                }
+
+                sample[(y * sampleSize) + x] = pixels[(sourceY * width) + sourceX];
+            }
+        }
+
+        return sample;
+    }
+
+    private static double ComputeCorrelation(float[] a, float[] b)
+    {
+        if (a.Length == 0 || b.Length == 0 || a.Length != b.Length)
+        {
+            return -1;
+        }
+
+        double sumA = 0;
+        double sumB = 0;
+        for (var i = 0; i < a.Length; i++)
+        {
+            sumA += a[i];
+            sumB += b[i];
+        }
+
+        var meanA = sumA / a.Length;
+        var meanB = sumB / b.Length;
+
+        double dot = 0;
+        double normA = 0;
+        double normB = 0;
+        for (var i = 0; i < a.Length; i++)
+        {
+            var da = a[i] - meanA;
+            var db = b[i] - meanB;
+            dot += da * db;
+            normA += da * da;
+            normB += db * db;
+        }
+
+        if (normA <= 1e-20 || normB <= 1e-20)
+        {
+            return -1;
+        }
+
+        return dot / Math.Sqrt(normA * normB);
+    }
+
+    private static double ComputeBestCorrelationWithOffsets(float[] reference, float[] candidate, int size, int maxOffset)
+    {
+        var best = -1.0;
+        for (var dy = -maxOffset; dy <= maxOffset; dy++)
+        {
+            for (var dx = -maxOffset; dx <= maxOffset; dx++)
+            {
+                var score = ComputeCorrelationWithOffset(reference, candidate, size, dx, dy);
+                if (score > best)
+                {
+                    best = score;
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private static double ComputeCorrelationWithOffset(float[] reference, float[] candidate, int size, int dx, int dy)
+    {
+        var xStart = Math.Max(0, dx);
+        var yStart = Math.Max(0, dy);
+        var xEnd = Math.Min(size, size + dx);
+        var yEnd = Math.Min(size, size + dy);
+
+        var overlapWidth = xEnd - xStart;
+        var overlapHeight = yEnd - yStart;
+        if (overlapWidth < size / 2 || overlapHeight < size / 2)
+        {
+            return -1;
+        }
+
+        double sumA = 0;
+        double sumB = 0;
+        var count = 0;
+
+        for (var y = yStart; y < yEnd; y++)
+        {
+            var refRow = y * size;
+            var candRow = (y - dy) * size;
+            for (var x = xStart; x < xEnd; x++)
+            {
+                sumA += reference[refRow + x];
+                sumB += candidate[candRow + (x - dx)];
+                count++;
+            }
+        }
+
+        if (count <= 0)
+        {
+            return -1;
+        }
+
+        var meanA = sumA / count;
+        var meanB = sumB / count;
+        double dot = 0;
+        double normA = 0;
+        double normB = 0;
+
+        for (var y = yStart; y < yEnd; y++)
+        {
+            var refRow = y * size;
+            var candRow = (y - dy) * size;
+            for (var x = xStart; x < xEnd; x++)
+            {
+                var da = reference[refRow + x] - meanA;
+                var db = candidate[candRow + (x - dx)] - meanB;
+                dot += da * db;
+                normA += da * da;
+                normB += db * db;
+            }
+        }
+
+        if (normA <= 1e-20 || normB <= 1e-20)
+        {
+            return -1;
+        }
+
+        return dot / Math.Sqrt(normA * normB);
+    }
+
+    private static List<StarPoint> DetectOrientationStars(float[] pixels, int width, int height)
+    {
+        var sample = Sample(pixels);
+        if (sample.Length == 0)
+        {
+            return [];
+        }
+
+        Array.Sort(sample);
+        var background = PercentileFromSorted(sample, 0.5);
+        var mad = MedianAbsoluteDeviation(sample, background, alreadySorted: true);
+        var sigma = Math.Max(1e-6, 1.4826 * mad);
+        var p98 = PercentileFromSorted(sample, 0.98);
+        var threshold = Math.Max(background + (4.0 * sigma), background + ((p98 - background) * 0.35));
+        var stars = new List<StarPoint>(256);
+        for (var y = 1; y < height - 1; y++)
+        {
+            var row = y * width;
+            for (var x = 1; x < width - 1; x++)
+            {
+                var center = pixels[row + x];
+                if (center < threshold)
+                {
+                    continue;
+                }
+
+                if (center < pixels[row + x - 1] ||
+                    center < pixels[row + x + 1] ||
+                    center < pixels[row - width + x] ||
+                    center < pixels[row + width + x] ||
+                    center < pixels[row - width + x - 1] ||
+                    center < pixels[row - width + x + 1] ||
+                    center < pixels[row + width + x - 1] ||
+                    center < pixels[row + width + x + 1])
+                {
+                    continue;
+                }
+
+                var signal = (float)Math.Max(0, center - background);
+                stars.Add(new StarPoint(x, y, signal));
+            }
+        }
+
+        return stars
+            .OrderByDescending(s => s.Signal)
+            .Take(160)
+            .ToList();
+    }
+
+    private static double ComputeStarAlignmentScore(IReadOnlyList<StarPoint> referenceStars, IReadOnlyList<StarPoint> candidateStars, int width, int height)
+    {
+        if (referenceStars.Count < 3 || candidateStars.Count < 3)
+        {
+            return -1;
+        }
+
+        const int maxStarsForShift = 18;
+        const double tolerance = 2.0;
+        var refTop = referenceStars.Take(maxStarsForShift).ToList();
+        var candTop = candidateStars.Take(maxStarsForShift).ToList();
+
+        var occupancy = BuildStarOccupancy(referenceStars, width, height);
+        var best = 0.0;
+        foreach (var r in refTop)
+        {
+            foreach (var c in candTop)
+            {
+                var dx = (int)Math.Round(r.X - c.X);
+                var dy = (int)Math.Round(r.Y - c.Y);
+                var score = ScoreShift(occupancy, candidateStars, dx, dy, tolerance, width, height, referenceStars.Count);
+                if (score > best)
+                {
+                    best = score;
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private static bool[] BuildStarOccupancy(IReadOnlyList<StarPoint> stars, int width, int height)
+    {
+        var occupancy = new bool[width * height];
+        foreach (var s in stars)
+        {
+            var x = Math.Clamp((int)Math.Round(s.X), 0, width - 1);
+            var y = Math.Clamp((int)Math.Round(s.Y), 0, height - 1);
+            occupancy[(y * width) + x] = true;
+        }
+
+        return occupancy;
+    }
+
+    private static double ScoreShift(bool[] referenceOccupancy, IReadOnlyList<StarPoint> candidateStars, int dx, int dy, double tolerance, int width, int height, int referenceCount)
+    {
+        var toleranceInt = (int)Math.Ceiling(tolerance);
+        var toleranceSq = tolerance * tolerance;
+        var matched = 0;
+
+        foreach (var c in candidateStars)
+        {
+            var tx = (int)Math.Round(c.X + dx);
+            var ty = (int)Math.Round(c.Y + dy);
+            var found = false;
+
+            for (var oy = -toleranceInt; oy <= toleranceInt && !found; oy++)
+            {
+                var y = ty + oy;
+                if ((uint)y >= (uint)height)
+                {
+                    continue;
+                }
+
+                for (var ox = -toleranceInt; ox <= toleranceInt; ox++)
+                {
+                    var x = tx + ox;
+                    if ((uint)x >= (uint)width)
+                    {
+                        continue;
+                    }
+
+                    if ((ox * ox) + (oy * oy) > toleranceSq)
+                    {
+                        continue;
+                    }
+
+                    if (referenceOccupancy[(y * width) + x])
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (found)
+            {
+                matched++;
+            }
+        }
+
+        var denominator = Math.Max(1, Math.Min(referenceCount, candidateStars.Count));
+        return matched / (double)denominator;
     }
 
     private static void Flatten(Array array, List<double> output)
@@ -633,7 +1018,7 @@ public sealed class RustafitsService
         var medianN = Math.Clamp((median - low) / range, 0.0, 1.0);
         var madN = mad / range;
 
-        var normalizedStrength = Math.Clamp(stretchStrength, 0.25, 3.0);
+        var normalizedStrength = Math.Clamp(stretchStrength, 0.25, 5.0);
         var shadowsClipping = Math.Clamp(-2.8 * normalizedStrength, -8.0, -0.5);
         var c0 = Math.Clamp(medianN + (shadowsClipping * 1.4826 * madN), 0.0, 0.99);
 
@@ -670,8 +1055,11 @@ public sealed class RustafitsService
         return data;
     }
 
-    private static AstroMetrics ComputeMetrics(float[] pixels, int width, int height)
+    private static AstroMetrics ComputeMetrics(LoadedFrame frame)
     {
+        var pixels = frame.Pixels;
+        var width = frame.Width;
+        var height = frame.Height;
         var background = Percentile(pixels, 0.5);
         var sigma = ComputeSigma(pixels, background);
         var threshold = background + (5 * sigma);
@@ -683,13 +1071,25 @@ public sealed class RustafitsService
         var hfr = Median(orderedStars.Select(s => s.Hfr));
         var eccentricity = Median(orderedStars.Select(s => s.Eccentricity));
         var possibleTrail = DetectTrail(pixels, width, height, background, sigma);
+        var starCount = orderedStars.Count;
+
+        double? fwhmArcsec = null;
+        if (frame.FocalLengthMm is > 0 && frame.PixelSizeUm is > 0 && fwhm > 0)
+        {
+            var arcsecPerPixel = 206.265 * (frame.PixelSizeUm.Value / frame.FocalLengthMm.Value);
+            fwhmArcsec = fwhm * arcsecPerPixel;
+        }
 
         return new AstroMetrics
         {
             Fwhm = fwhm,
+            FwhmArcsec = fwhmArcsec,
             Hfr = hfr,
+            StarCount = starCount,
             Eccentricity = eccentricity,
             MeanBackground = background,
+            FocalLengthMm = frame.FocalLengthMm,
+            PixelSizeUm = frame.PixelSizeUm,
             PossibleSatelliteTrail = possibleTrail
         };
     }
