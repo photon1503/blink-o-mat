@@ -7,6 +7,7 @@ using System.Windows.Media.Imaging;
 using blink_o_mat.Infrastructure;
 using blink_o_mat.Models;
 using blink_o_mat.Services;
+using WpfPoint = System.Windows.Point;
 
 namespace blink_o_mat.ViewModels;
 
@@ -33,11 +34,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _maxHfr = 4.5;
     private double _maxEccentricity = 0.6;
     private double _maxMeanBackground = 2000.0;
+    private double _minStars;
     private bool _rejectSatelliteTrail = true;
     private double _stretchStrength = 1.0;
+    private double? _sessionFocalLengthMm;
+    private double? _sessionPixelSizeUm;
+    private RoiBias _roiBias = RoiBias.Galaxy;
+    private bool _hasManualRoi;
 
     private readonly List<LoadedFrameContext> _loadedFrames = [];
     private PreviewWindow? _previewWindow;
+    private FramePreviewViewModel? _previewVm;
     private FrameItem? _previewItem;
     private (double X, double Y)? _globalRoiCenter;
 
@@ -172,6 +179,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public double MinStars
+    {
+        get => _minStars;
+        set
+        {
+            if (Math.Abs(_minStars - value) < double.Epsilon) return;
+            _minStars = value;
+            OnPropertyChanged();
+            ApplyThresholds();
+        }
+    }
+
     public bool RejectSatelliteTrail
     {
         get => _rejectSatelliteTrail;
@@ -196,6 +215,45 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _ = RebuildThumbnailsAsync();
         }
     }
+
+    public double? SessionFocalLengthMm
+    {
+        get => _sessionFocalLengthMm;
+        private set
+        {
+            if (_sessionFocalLengthMm == value) return;
+            _sessionFocalLengthMm = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double? SessionPixelSizeUm
+    {
+        get => _sessionPixelSizeUm;
+        private set
+        {
+            if (_sessionPixelSizeUm == value) return;
+            _sessionPixelSizeUm = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public RoiBias RoiBias
+    {
+        get => _roiBias;
+        set
+        {
+            if (_roiBias == value) return;
+            _roiBias = value;
+            OnPropertyChanged();
+            _globalRoiCenter = null;
+            _hasManualRoi = false;
+            UpdateAutoRoiCenter();
+            _ = RebuildThumbnailsAsync();
+        }
+    }
+
+    public Array RoiBiasOptions { get; } = Enum.GetValues(typeof(RoiBias));
 
     public ICommand BrowseInputCommand { get; }
     public ICommand BrowseRejectedCommand { get; }
@@ -246,6 +304,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Frames.Clear();
         _loadedFrames.Clear();
         _globalRoiCenter = null;
+        _hasManualRoi = false;
+        SessionFocalLengthMm = null;
+        SessionPixelSizeUm = null;
 
         try
         {
@@ -262,13 +323,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
                     var metrics = _rustafits.AnalyzeFrame(raw);
-                    _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(raw);
-                    var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, StretchStrength, _globalRoiCenter, CancellationToken.None);
+                    _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(raw, RoiBias);
+                    var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, StretchStrength, _globalRoiCenter, metrics, CancellationToken.None);
 
                     var item = new FrameItem
                     {
                         FilePath = file,
                         FileName = Path.GetFileName(file),
+                        ExposureDateTime = raw.ExposureDateTime,
+                        ExposureSeconds = raw.ExposureSeconds,
+                        FilterName = raw.FilterName,
                         ThumbnailImage = previews.Full,
                         RoiImage = previews.Roi,
                         Metrics = metrics
@@ -276,6 +340,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                     Frames.Add(item);
                     _loadedFrames.Add(new LoadedFrameContext(item, raw, null));
+                    SessionFocalLengthMm ??= raw.FocalLengthMm;
+                    SessionPixelSizeUm ??= raw.PixelSizeUm;
                     firstSuccessfulIndex = i;
                     ProgressValue = i + 1;
                     break;
@@ -302,12 +368,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
                         var oriented = _rustafits.NormalizeOrientation(raw, orientationReference);
                         var metrics = _rustafits.AnalyzeFrame(oriented);
-                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, StretchStrength, _globalRoiCenter, CancellationToken.None);
+                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, StretchStrength, _globalRoiCenter, metrics, CancellationToken.None);
 
                         var item = new FrameItem
                         {
                             FilePath = file,
                             FileName = Path.GetFileName(file),
+                            ExposureDateTime = oriented.ExposureDateTime,
+                            ExposureSeconds = oriented.ExposureSeconds,
+                            FilterName = oriented.FilterName,
                             ThumbnailImage = previews.Full,
                             RoiImage = previews.Roi,
                             Metrics = metrics
@@ -335,6 +404,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     {
                         Frames.Add(result.Item);
                         _loadedFrames.Add(new LoadedFrameContext(result.Item, result.Frame, null));
+                        SessionFocalLengthMm ??= result.Frame.FocalLengthMm;
+                        SessionPixelSizeUm ??= result.Frame.PixelSizeUm;
                         Status = $"Loaded {result.Item.FileName}";
                     }
                     else if (result.Error is not null)
@@ -368,6 +439,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        UpdateAutoRoiCenter();
+
         IsBusy = true;
         IsProgressVisible = true;
         ProgressValue = 0;
@@ -380,7 +453,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 var loaded = _loadedFrames[i];
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
-                var previews = await _rustafits.RenderPreviewBitmapsAsync(loaded.FrameData, StretchStrength, _globalRoiCenter, CancellationToken.None);
+                var previews = await _rustafits.RenderPreviewBitmapsAsync(loaded.FrameData, StretchStrength, _globalRoiCenter, loaded.Item.Metrics, CancellationToken.None);
 
                 loaded.Item.ThumbnailImage = previews.Full;
                 loaded.Item.RoiImage = previews.Roi;
@@ -420,6 +493,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             _previewItem = item;
             var existingImage = await GetOrCreateFullImageAsync(item);
+            _previewVm?.SetItem(item);
             _previewWindow.RefreshImage(existingImage);
             _previewWindow.Activate();
             await Task.CompletedTask;
@@ -427,18 +501,72 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         _previewItem = item;
-        var vm = new FramePreviewViewModel(item, () => StretchStrength, value => StretchStrength = value);
+        var vm = new FramePreviewViewModel(
+            item,
+            () => StretchStrength,
+            value => StretchStrength = value,
+            () => RoiBias,
+            value => RoiBias = value,
+            SetManualRoi,
+            NavigatePreviewAsync,
+            TogglePreviewReject);
+        _previewVm = vm;
         _previewWindow = new PreviewWindow(vm);
         var current = await GetOrCreateFullImageAsync(item);
         _previewWindow.RefreshImage(current);
         _previewWindow.Closed += (_, _) =>
         {
             _previewWindow = null;
+            _previewVm = null;
             _previewItem = null;
         };
 
         _previewWindow.Show();
         await Task.CompletedTask;
+    }
+
+    private void SetManualRoi(WpfPoint point)
+    {
+        _globalRoiCenter = (
+            Math.Clamp(point.X, 0.0, 1.0),
+            Math.Clamp(point.Y, 0.0, 1.0));
+        _hasManualRoi = true;
+        Status = "Manual ROI override set.";
+        _ = RebuildThumbnailsAsync();
+    }
+
+    private async Task NavigatePreviewAsync(int direction)
+    {
+        if (_previewItem is null || direction == 0 || _loadedFrames.Count == 0)
+        {
+            return;
+        }
+
+        var currentIndex = _loadedFrames.FindIndex(f => f.Item == _previewItem);
+        if (currentIndex < 0)
+        {
+            return;
+        }
+
+        var nextIndex = Math.Clamp(currentIndex + direction, 0, _loadedFrames.Count - 1);
+        if (nextIndex == currentIndex)
+        {
+            return;
+        }
+
+        var nextItem = _loadedFrames[nextIndex].Item;
+        await OpenPreviewAsync(nextItem);
+    }
+
+    private void TogglePreviewReject()
+    {
+        if (_previewItem is null)
+        {
+            return;
+        }
+
+        _previewItem.IsRejected = !_previewItem.IsRejected;
+        ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
     }
 
     private async Task<BitmapSource> GetOrCreateFullImageAsync(FrameItem item)
@@ -468,6 +596,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             MaxHfr = MaxHfr,
             MaxEccentricity = MaxEccentricity,
             MaxMeanBackground = MaxMeanBackground,
+            MinStars = MinStars,
             RejectSatelliteTrail = RejectSatelliteTrail
         };
 
@@ -495,6 +624,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             Status = $"Move failed: {ex.Message}";
         }
+    }
+
+    private void UpdateAutoRoiCenter()
+    {
+        if (_hasManualRoi || _loadedFrames.Count == 0)
+        {
+            return;
+        }
+
+        _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(_loadedFrames[0].FrameData, RoiBias);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

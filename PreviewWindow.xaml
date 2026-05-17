@@ -15,6 +15,8 @@
             </Grid.RowDefinitions>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <Button Content="Prev" Width="60" Margin="0,0,6,0" Click="Prev_Click" />
+                <Button Content="Next" Width="60" Margin="0,0,6,0" Click="Next_Click" />
                 <Button Content="Smaller" Width="70" Margin="0,0,6,0" Click="Smaller_Click" />
                 <Button Content="Fit" Width="60" Margin="0,0,6,0" Click="Fit_Click" />
                 <Button Content="Zoom In" Width="70" Margin="0,0,6,0" Click="ZoomIn_Click" />
@@ -24,7 +26,7 @@
 
             <Border Grid.Row="1" BorderBrush="#22000000" BorderThickness="1" Background="#111111">
                 <ScrollViewer x:Name="ImageScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" PreviewMouseWheel="ImageScrollViewer_PreviewMouseWheel">
-                    <Image x:Name="PreviewImage" Source="{Binding Image}" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image x:Name="PreviewImage" Source="{Binding Image}" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality" MouseLeftButtonDown="PreviewImage_MouseLeftButtonDown">
                         <Image.LayoutTransform>
                             <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
                         </Image.LayoutTransform>
@@ -35,6 +37,10 @@
 
         <StackPanel Grid.Column="1" Margin="12,0,0,0">
             <TextBlock FontWeight="SemiBold" FontSize="15" Text="{Binding Item.FileName}" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+            <TextBlock FontWeight="SemiBold" Text="ROI bias" />
+            <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,6" />
+            <TextBlock Text="Ctrl+Click image to set manual ROI override (persists for loaded set)." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,10" />
 
             <TextBlock FontWeight="SemiBold" Text="Stretch" />
             <Slider Minimum="0.25" Maximum="5.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
@@ -55,3 +61,6 @@
         </StackPanel>
     </Grid>
 </Window>
+
+
+

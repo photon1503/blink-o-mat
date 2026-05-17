@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Media.Imaging;
 using blink_o_mat.Models;
+using WpfPoint = System.Windows.Point;
 
 namespace blink_o_mat.ViewModels;
 
@@ -9,10 +10,25 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 {
     private readonly Action<double> _setStretch;
     private readonly Func<double> _getStretch;
+    private readonly Action<WpfPoint> _setManualRoi;
+    private readonly Func<RoiBias> _getRoiBias;
+    private readonly Action<RoiBias> _setRoiBias;
+    private readonly Func<int, Task> _navigate;
+    private readonly Action _toggleReject;
+    private FrameItem _item;
     private BitmapSource? _image;
     private double _zoom = 1.0;
 
-    public FrameItem Item { get; }
+    public FrameItem Item
+    {
+        get => _item;
+        private set
+        {
+            if (ReferenceEquals(_item, value)) return;
+            _item = value;
+            OnPropertyChanged();
+        }
+    }
 
     public BitmapSource? Image
     {
@@ -49,12 +65,58 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         }
     }
 
-    public FramePreviewViewModel(FrameItem item, Func<double> getStretch, Action<double> setStretch)
+    public RoiBias RoiBias
     {
-        Item = item;
+        get => _getRoiBias();
+        set
+        {
+            if (_getRoiBias() == value) return;
+            _setRoiBias(value);
+            OnPropertyChanged();
+        }
+    }
+
+    public Array RoiBiasOptions { get; } = Enum.GetValues(typeof(RoiBias));
+
+    public FramePreviewViewModel(
+        FrameItem item,
+        Func<double> getStretch,
+        Action<double> setStretch,
+        Func<RoiBias> getRoiBias,
+        Action<RoiBias> setRoiBias,
+        Action<WpfPoint> setManualRoi,
+        Func<int, Task> navigate,
+        Action toggleReject)
+    {
+        _item = item;
         _getStretch = getStretch;
         _setStretch = setStretch;
+        _getRoiBias = getRoiBias;
+        _setRoiBias = setRoiBias;
+        _setManualRoi = setManualRoi;
+        _navigate = navigate;
+        _toggleReject = toggleReject;
         _image = null;
+    }
+
+    public void SetManualRoi(WpfPoint normalizedPoint)
+    {
+        _setManualRoi(normalizedPoint);
+    }
+
+    public async Task NavigateAsync(int direction)
+    {
+        await _navigate(direction);
+    }
+
+    public void ToggleReject()
+    {
+        _toggleReject();
+    }
+
+    public void SetItem(FrameItem item)
+    {
+        Item = item;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

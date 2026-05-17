@@ -84,6 +84,17 @@
                     <Slider Minimum="0" Maximum="10000" Value="{Binding MaxMeanBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="50" IsSnapToTickEnabled="False" />
                     <TextBlock Margin="0,0,0,8" Text="{Binding MaxMeanBackground, StringFormat=F1}" />
 
+                    <TextBlock Text="Min Stars" />
+                    <Slider Minimum="0" Maximum="1000" Value="{Binding MinStars, UpdateSourceTrigger=PropertyChanged}" TickFrequency="5" IsSnapToTickEnabled="False" />
+                    <TextBlock Margin="0,0,0,8" Text="{Binding MinStars, StringFormat=F0}" />
+
+                    <TextBlock FontWeight="SemiBold" Margin="0,6,0,4" Text="Imaging setup" />
+                    <TextBlock Text="{Binding SessionFocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
+                    <TextBlock Margin="0,0,0,8" Text="{Binding SessionPixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
+
+                    <TextBlock FontWeight="SemiBold" Margin="0,6,0,4" Text="ROI" />
+                    <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,0,0,8" />
+
                     <CheckBox Content="Reject possible satellite trails" IsChecked="{Binding RejectSatelliteTrail}" Margin="0,6,0,12" />
 
                     <Button Padding="12,5" Content="One-click move rejected subframes" Command="{Binding MoveRejectedCommand}" />
@@ -116,15 +127,72 @@
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Margin="10,0,0,0">
                                     <TextBlock FontWeight="SemiBold" Text="{Binding FileName}" />
-                                    <TextBlock Text="{Binding Metrics.Fwhm, StringFormat=FWHM: {0:F2}}" />
-                                    <TextBlock Text="{Binding Metrics.FwhmArcsec, StringFormat=FWHM: {0:F2} arcsec, TargetNullValue=FWHM: n/a arcsec}" />
-                                    <TextBlock Text="{Binding Metrics.Hfr, StringFormat=HFR: {0:F2}}" />
-                                    <TextBlock Text="{Binding Metrics.StarCount, StringFormat=Stars: {0}}" />
-                                    <TextBlock Text="{Binding Metrics.Eccentricity, StringFormat=Eccentricity: {0:F3}}" />
-                                    <TextBlock Text="{Binding Metrics.MeanBackground, StringFormat=Mean BG: {0:F1}}" />
-                                    <TextBlock Text="{Binding Metrics.FocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
-                                    <TextBlock Text="{Binding Metrics.PixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
-                                    <TextBlock Text="{Binding Metrics.PossibleSatelliteTrail, StringFormat=Satellite trail: {0}}" />
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock FontWeight="SemiBold" Text="FWHM px" />
+                                            <TextBlock Text="{Binding Metrics.Fwhm, StringFormat={}{0:F2}}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock FontWeight="SemiBold" Text="FWHM arcsec" />
+                                            <TextBlock Text="{Binding Metrics.FwhmArcsec, StringFormat={}{0:F2}, TargetNullValue=n/a}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="4">
+                                            <TextBlock FontWeight="SemiBold" Text="HFR" />
+                                            <TextBlock Text="{Binding Metrics.Hfr, StringFormat={}{0:F2}}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="6">
+                                            <TextBlock FontWeight="SemiBold" Text="Stars" />
+                                            <TextBlock Text="{Binding Metrics.StarCount}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="8">
+                                            <TextBlock FontWeight="SemiBold" Text="Ecc" />
+                                            <TextBlock Text="{Binding Metrics.Eccentricity, StringFormat={}{0:F3}}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="10">
+                                            <TextBlock FontWeight="SemiBold" Text="Mean BG" />
+                                            <TextBlock Text="{Binding Metrics.MeanBackground, StringFormat={}{0:F1}}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="12">
+                                            <TextBlock FontWeight="SemiBold" Text="Exposure" />
+                                            <TextBlock Text="{Binding ExposureSeconds, StringFormat={}{0:F1}s, TargetNullValue=n/a}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="14">
+                                            <TextBlock FontWeight="SemiBold" Text="Filter" />
+                                            <TextBlock Text="{Binding FilterName, TargetNullValue=n/a}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock FontWeight="SemiBold" Text="Date" />
+                                            <TextBlock Text="{Binding ExposureDateTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}, TargetNullValue=n/a}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock FontWeight="SemiBold" Text="Trail" />
+                                            <TextBlock Text="{Binding Metrics.PossibleSatelliteTrail}" />
+                                        </StackPanel>
+                                    </Grid>
                                 </StackPanel>
                                 <CheckBox Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="{Binding IsRejected, Mode=TwoWay}" Content="Reject" />
                             </Grid>

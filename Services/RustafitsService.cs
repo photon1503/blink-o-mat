@@ -13,8 +13,17 @@ namespace blink_o_mat.Services;
 public sealed class RustafitsService
 {
     private readonly record struct StarPoint(float X, float Y, float Signal);
+    private readonly record struct TrailDetectionResult(bool Detected, double X1, double Y1, double X2, double Y2);
 
-    public sealed record LoadedFrame(float[] Pixels, int Width, int Height, double? FocalLengthMm = null, double? PixelSizeUm = null);
+    public sealed record LoadedFrame(
+        float[] Pixels,
+        int Width,
+        int Height,
+        double? FocalLengthMm = null,
+        double? PixelSizeUm = null,
+        DateTimeOffset? ExposureDateTime = null,
+        double? ExposureSeconds = null,
+        string? FilterName = null);
 
     public async Task<FrameItem> ProcessFrameAsync(string filePath, string thumbnailDirectory, CancellationToken cancellationToken)
     {
@@ -22,15 +31,17 @@ public sealed class RustafitsService
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
 
-            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm);
-            var previews = await RenderPreviewBitmapsAsync(loadedFrame, 1.0, null, cancellationToken);
-
+            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName);
             var metrics = ComputeMetrics(loadedFrame);
+            var previews = await RenderPreviewBitmapsAsync(loadedFrame, 1.0, null, metrics, cancellationToken);
 
             return new FrameItem
             {
                 FilePath = filePath,
                 FileName = Path.GetFileName(filePath),
+                ExposureDateTime = loadedFrame.ExposureDateTime,
+                ExposureSeconds = loadedFrame.ExposureSeconds,
+                FilterName = loadedFrame.FilterName,
                 ThumbnailImage = previews.Full,
                 RoiImage = previews.Roi,
                 Metrics = metrics
@@ -43,7 +54,7 @@ public sealed class RustafitsService
         return Task.Run(async () =>
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
-            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm);
+            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName);
         }, cancellationToken);
     }
 
@@ -57,11 +68,11 @@ public sealed class RustafitsService
         return Task.CompletedTask;
     }
 
-    public Task<(BitmapSource Full, BitmapSource Roi)> RenderPreviewBitmapsAsync(LoadedFrame frame, double stretchStrength, (double X, double Y)? roiNormalizedCenter, CancellationToken cancellationToken)
+    public Task<(BitmapSource Full, BitmapSource Roi)> RenderPreviewBitmapsAsync(LoadedFrame frame, double stretchStrength, (double X, double Y)? roiNormalizedCenter, AstroMetrics? metrics, CancellationToken cancellationToken)
     {
         return Task.Run(() =>
         {
-            var full = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stretchStrength);
+            var full = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stretchStrength, metrics);
             var roi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stretchStrength, roiNormalizedCenter);
             return (full, roi);
         }, cancellationToken);
@@ -72,9 +83,9 @@ public sealed class RustafitsService
         return Task.Run(() => CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stretchStrength), cancellationToken);
     }
 
-    public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame)
+    public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame, RoiBias bias)
     {
-        var (x, y) = DetectRoiCenter(frame.Pixels, frame.Width, frame.Height);
+        var (x, y) = DetectRoiCenter(frame.Pixels, frame.Width, frame.Height, bias);
         return (frame.Width <= 1 ? 0.5 : x / (double)(frame.Width - 1), frame.Height <= 1 ? 0.5 : y / (double)(frame.Height - 1));
     }
 
@@ -118,7 +129,7 @@ public sealed class RustafitsService
         return frame;
     }
 
-    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
+    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
     {
         var ext = Path.GetExtension(filePath);
         if (ext.Equals(".fits", StringComparison.OrdinalIgnoreCase) || ext.Equals(".fit", StringComparison.OrdinalIgnoreCase))
@@ -134,7 +145,7 @@ public sealed class RustafitsService
         throw new NotSupportedException($"Unsupported file type: {ext}");
     }
 
-    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm) LoadFits(string filePath)
+    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName) LoadFits(string filePath)
     {
         using var stream = File.OpenRead(filePath);
         while (stream.Position < stream.Length)
@@ -158,7 +169,7 @@ public sealed class RustafitsService
         throw new InvalidOperationException("FITS image data not found.");
     }
 
-    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
+    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
     {
         if (header.Axes.Length < 2)
         {
@@ -236,7 +247,7 @@ public sealed class RustafitsService
             stream.Seek(paddingBytes, SeekOrigin.Current);
         }
 
-        return (result, width, height, header.FocalLengthMm, header.PixelSizeUm);
+        return (result, width, height, header.FocalLengthMm, header.PixelSizeUm, header.ExposureDateTime, header.ExposureSeconds, header.FilterName);
     }
 
     private static FitsHeaderInfo ReadFitsHeader(Stream stream)
@@ -264,7 +275,10 @@ public sealed class RustafitsService
                     var bZero = ParseDouble(cards, "BZERO", 0.0);
                     var focalLengthMm = FirstAvailableDouble(cards, "FOCALLEN", "FOCAL", "FOCAL_LENGTH", "FOCLEN");
                     var pixelSizeUm = ResolvePixelSizeUm(cards);
-                    return new FitsHeaderInfo(bitPix, axisCount, axes, bScale, bZero, focalLengthMm, pixelSizeUm);
+                    var exposureDateTime = ResolveExposureDateTime(cards);
+                    var exposureSeconds = FirstAvailableDouble(cards, "EXPTIME", "EXPOSURE", "EXPOSURETIME");
+                    var filterName = FirstAvailableString(cards, "FILTER", "INSFLNAM", "FILTERID");
+                    return new FitsHeaderInfo(bitPix, axisCount, axes, bScale, bZero, focalLengthMm, pixelSizeUm, exposureDateTime, exposureSeconds, filterName);
                 }
 
                 if (!card.Contains('='))
@@ -455,9 +469,59 @@ public sealed class RustafitsService
         return xPixelSize ?? yPixelSize;
     }
 
-    private readonly record struct FitsHeaderInfo(int BitPix, int AxisCount, long[] Axes, double BScale, double BZero, double? FocalLengthMm, double? PixelSizeUm);
+    private static string? FirstAvailableString(Dictionary<string, string> cards, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (!cards.TryGetValue(key, out var value))
+            {
+                continue;
+            }
 
-    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
+            var cleaned = value.Trim().Trim('"', '\'', ' ');
+            if (!string.IsNullOrWhiteSpace(cleaned))
+            {
+                return cleaned;
+            }
+        }
+
+        return null;
+    }
+
+    private static DateTimeOffset? ResolveExposureDateTime(Dictionary<string, string> cards)
+    {
+        var raw = FirstAvailableString(cards, "DATE-OBS", "DATEOBS", "DATE_OBS");
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        if (DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AllowWhiteSpaces, out var dto))
+        {
+            return dto;
+        }
+
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AllowWhiteSpaces, out var dt))
+        {
+            return new DateTimeOffset(dt);
+        }
+
+        return null;
+    }
+
+    private readonly record struct FitsHeaderInfo(
+        int BitPix,
+        int AxisCount,
+        long[] Axes,
+        double BScale,
+        double BZero,
+        double? FocalLengthMm,
+        double? PixelSizeUm,
+        DateTimeOffset? ExposureDateTime,
+        double? ExposureSeconds,
+        string? FilterName);
+
+    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
     {
         var image = await XisfImage.LoadAsync(filePath, cancellationToken);
         var bytes = image.Data.Span;
@@ -492,7 +556,7 @@ public sealed class RustafitsService
             luminance[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
         }
 
-        return (luminance, width, height, null, null);
+        return (luminance, width, height, null, null, null, null, null);
     }
 
     private static LoadedFrame Rotate180(LoadedFrame frame)
@@ -504,7 +568,7 @@ public sealed class RustafitsService
             pixels[i] = source[source.Length - 1 - i];
         }
 
-        return new LoadedFrame(pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm);
+        return new LoadedFrame(pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName);
     }
 
     private static float[] CreateOrientationSample(float[] pixels, int width, int height, int sampleSize, bool rotate180)
@@ -842,7 +906,7 @@ public sealed class RustafitsService
         };
     }
 
-    private static BitmapSource CreateThumbnailBitmap(float[] pixels, int width, int height, int maxWidth, int maxHeight, double stretchStrength)
+    private static BitmapSource CreateThumbnailBitmap(float[] pixels, int width, int height, int maxWidth, int maxHeight, double stretchStrength, AstroMetrics? metrics)
     {
         var scale = Math.Min(maxWidth / (double)Math.Max(1, width), maxHeight / (double)Math.Max(1, height));
         scale = Math.Min(1.0, scale <= 0 ? 1.0 : scale);
@@ -850,6 +914,10 @@ public sealed class RustafitsService
         var targetHeight = Math.Max(1, (int)Math.Round(height * scale));
 
         var sample = DownsampleAndStretch(pixels, width, height, targetWidth, targetHeight, stretchStrength);
+        if (metrics is { PossibleSatelliteTrail: true, TrailX1: not null, TrailY1: not null, TrailX2: not null, TrailY2: not null })
+        {
+            DrawTrailOverlay(sample, targetWidth, targetHeight, metrics);
+        }
         Debug.WriteLine($"CreateThumbnailBitmap stretch={stretchStrength:F2} min={sample.Min()} max={sample.Max()} avg={sample.Select(v => (int)v).Average():F2}");
         var stride = targetWidth * 3;
 
@@ -858,11 +926,75 @@ public sealed class RustafitsService
         return bitmap;
     }
 
+    private static void DrawTrailOverlay(byte[] rgb, int width, int height, AstroMetrics metrics)
+    {
+        var x1 = (int)Math.Round(Math.Clamp(metrics.TrailX1 ?? 0, 0.0, 1.0) * (width - 1));
+        var y1 = (int)Math.Round(Math.Clamp(metrics.TrailY1 ?? 0, 0.0, 1.0) * (height - 1));
+        var x2 = (int)Math.Round(Math.Clamp(metrics.TrailX2 ?? 0, 0.0, 1.0) * (width - 1));
+        var y2 = (int)Math.Round(Math.Clamp(metrics.TrailY2 ?? 0, 0.0, 1.0) * (height - 1));
+
+        var dx = Math.Abs(x2 - x1);
+        var dy = Math.Abs(y2 - y1);
+        var sx = x1 < x2 ? 1 : -1;
+        var sy = y1 < y2 ? 1 : -1;
+        var err = dx - dy;
+        var x = x1;
+        var y = y1;
+
+        while (true)
+        {
+            DrawGreenDot(rgb, width, height, x, y, 1);
+            if (x == x2 && y == y2)
+            {
+                break;
+            }
+
+            var e2 = 2 * err;
+            if (e2 > -dy)
+            {
+                err -= dy;
+                x += sx;
+            }
+
+            if (e2 < dx)
+            {
+                err += dx;
+                y += sy;
+            }
+        }
+    }
+
+    private static void DrawGreenDot(byte[] rgb, int width, int height, int cx, int cy, int radius)
+    {
+        for (var oy = -radius; oy <= radius; oy++)
+        {
+            var y = cy + oy;
+            if ((uint)y >= (uint)height)
+            {
+                continue;
+            }
+
+            for (var ox = -radius; ox <= radius; ox++)
+            {
+                var x = cx + ox;
+                if ((uint)x >= (uint)width)
+                {
+                    continue;
+                }
+
+                var idx = ((y * width) + x) * 3;
+                rgb[idx] = 0;
+                rgb[idx + 1] = 255;
+                rgb[idx + 2] = 0;
+            }
+        }
+    }
+
     private static BitmapSource CreateRoiBitmap(float[] pixels, int width, int height, int roiSize, double stretchStrength, (double X, double Y)? roiNormalizedCenter)
     {
         var (cx, cy) = roiNormalizedCenter is { } roi
             ? ((int)Math.Round(Math.Clamp(roi.X, 0, 1) * (width - 1)), (int)Math.Round(Math.Clamp(roi.Y, 0, 1) * (height - 1)))
-            : DetectRoiCenter(pixels, width, height);
+            : DetectRoiCenter(pixels, width, height, RoiBias.Galaxy);
 
         var half = roiSize / 2;
         var startX = Math.Clamp(cx - half, 0, Math.Max(0, width - roiSize));
@@ -895,99 +1027,171 @@ public sealed class RustafitsService
         return bitmap;
     }
 
-    private static (int X, int Y) DetectRoiCenter(float[] pixels, int width, int height)
+    private static (int X, int Y) DetectRoiCenter(float[] pixels, int width, int height, RoiBias bias)
     {
-        const int grid = 48;
-        var tileW = Math.Max(8, width / grid);
-        var tileH = Math.Max(8, height / grid);
-        var nx = Math.Max(1, width / tileW);
-        var ny = Math.Max(1, height / tileH);
+        var longest = Math.Max(width, height);
+        var scale = longest > 256 ? 256.0 / longest : 1.0;
+        var sw = Math.Max(64, (int)Math.Round(width * scale));
+        var sh = Math.Max(64, (int)Math.Round(height * scale));
 
-        var sampled = Sample(pixels);
+        var small = ResampleNearest(pixels, width, height, sw, sh);
+        small = BoxBlur(small, sw, sh, 2);
+        small = BoxBlur(small, sw, sh, 2);
+
+        var sampled = Sample(small);
         Array.Sort(sampled);
         var bg = PercentileFromSorted(sampled, 0.5);
         var hi = PercentileFromSorted(sampled, 0.995);
-        var floor = Math.Max(bg, hi * 0.25);
+        var threshold = bg + ((hi - bg) * 0.16);
 
+        var visited = new bool[sw * sh];
+        var queue = new Queue<int>();
         double bestScore = double.NegativeInfinity;
-        int bestX = width / 2;
-        int bestY = height / 2;
+        double bestCx = sw * 0.5;
+        double bestCy = sh * 0.5;
 
-        for (var ty = 0; ty < ny; ty++)
+        for (var y = 1; y < sh - 1; y++)
         {
-            var y0 = ty * tileH;
-            var y1 = Math.Min(height, y0 + tileH);
-
-            for (var tx = 0; tx < nx; tx++)
+            for (var x = 1; x < sw - 1; x++)
             {
-                var x0 = tx * tileW;
-                var x1 = Math.Min(width, x0 + tileW);
+                var idx = (y * sw) + x;
+                if (visited[idx] || small[idx] <= threshold)
+                {
+                    continue;
+                }
 
-                double sum = 0;
+                visited[idx] = true;
+                queue.Clear();
+                queue.Enqueue(idx);
+
                 var count = 0;
-                double w = 0;
+                double signalSum = 0;
                 double sx = 0;
                 double sy = 0;
-                double sxx = 0;
-                double syy = 0;
-                double sxy = 0;
-                for (var y = y0; y < y1; y++)
+                double peak = 0;
+
+                while (queue.Count > 0)
                 {
-                    var row = y * width;
-                    for (var x = x0; x < x1; x++)
+                    var cur = queue.Dequeue();
+                    var cy = cur / sw;
+                    var cx = cur - (cy * sw);
+                    var v = small[cur];
+                    var signal = Math.Max(0.0, v - threshold);
+
+                    count++;
+                    signalSum += signal;
+                    sx += signal * cx;
+                    sy += signal * cy;
+                    if (signal > peak)
                     {
-                        var v = pixels[row + x];
-                        if (v <= floor)
+                        peak = signal;
+                    }
+
+                    for (var ny = Math.Max(0, cy - 1); ny <= Math.Min(sh - 1, cy + 1); ny++)
+                    {
+                        var row = ny * sw;
+                        for (var nx = Math.Max(0, cx - 1); nx <= Math.Min(sw - 1, cx + 1); nx++)
                         {
-                            continue;
+                            var nidx = row + nx;
+                            if (visited[nidx] || small[nidx] <= threshold)
+                            {
+                                continue;
+                            }
+
+                            visited[nidx] = true;
+                            queue.Enqueue(nidx);
                         }
-
-                        var signal = v - floor;
-                        sum += signal;
-                        count++;
-
-                        w += signal;
-                        sx += signal * x;
-                        sy += signal * y;
-                        sxx += signal * x * x;
-                        syy += signal * y * y;
-                        sxy += signal * x * y;
                     }
                 }
 
-                var isotropy = 0.0;
-                if (w > 0)
+                if (count < 6 || signalSum <= 0)
                 {
-                    var mx = sx / w;
-                    var my = sy / w;
-                    var cxx = (sxx / w) - (mx * mx);
-                    var cyy = (syy / w) - (my * my);
-                    var cxy = (sxy / w) - (mx * my);
-
-                    var trace = cxx + cyy;
-                    var det = (cxx * cyy) - (cxy * cxy);
-                    var disc = Math.Max(0.0, (trace * trace) - (4.0 * det));
-                    var major = Math.Max(1e-12, (trace + Math.Sqrt(disc)) / 2.0);
-                    var minor = Math.Max(1e-12, (trace - Math.Sqrt(disc)) / 2.0);
-                    isotropy = Math.Clamp(minor / major, 0.0, 1.0);
+                    continue;
                 }
 
-                var centerBiasX = ((x0 + x1) * 0.5 - (width * 0.5)) / width;
-                var centerBiasY = ((y0 + y1) * 0.5 - (height * 0.5)) / height;
-                var centerPenalty = (centerBiasX * centerBiasX) + (centerBiasY * centerBiasY);
-                var shapeWeight = 0.25 + (0.75 * isotropy);
-                var score = ((count > 0 ? sum / Math.Sqrt(count) : 0) * shapeWeight) - (0.10 * centerPenalty);
+                var cxW = sx / signalSum;
+                var cyW = sy / signalSum;
+                var areaWeight = Math.Sqrt(count);
+                var compactSignal = signalSum / Math.Max(1.0, areaWeight * 0.8);
+                var peakPenalty = Math.Max(0.0, (peak / Math.Max(1e-9, signalSum / count)) - 10.0);
+
+                var dx = (cxW - (sw * 0.5)) / sw;
+                var dy = (cyW - (sh * 0.5)) / sh;
+                var centerPenalty = (dx * dx) + (dy * dy);
+
+                var (areaMul, peakMul, centerMul) = bias switch
+                {
+                    RoiBias.Core => (0.70, 0.10, 0.40),
+                    RoiBias.Starfield => (0.45, -0.20, 0.10),
+                    _ => (1.00, 0.35, 0.15)
+                };
+
+                var score = (compactSignal * (1.0 + (areaMul * areaWeight)))
+                            - (peakMul * peakPenalty)
+                            - (centerMul * centerPenalty * compactSignal);
 
                 if (score > bestScore)
                 {
                     bestScore = score;
-                    bestX = (x0 + x1) / 2;
-                    bestY = (y0 + y1) / 2;
+                    bestCx = cxW;
+                    bestCy = cyW;
                 }
             }
         }
 
-        return (Math.Clamp(bestX, 0, width - 1), Math.Clamp(bestY, 0, height - 1));
+        var fullX = (int)Math.Round((bestCx / Math.Max(1, sw - 1)) * (width - 1));
+        var fullY = (int)Math.Round((bestCy / Math.Max(1, sh - 1)) * (height - 1));
+        return (Math.Clamp(fullX, 0, width - 1), Math.Clamp(fullY, 0, height - 1));
+    }
+
+    private static float[] ResampleNearest(float[] pixels, int width, int height, int targetWidth, int targetHeight)
+    {
+        var result = new float[targetWidth * targetHeight];
+        for (var y = 0; y < targetHeight; y++)
+        {
+            var sy = Math.Min(height - 1, (int)Math.Round((y / (double)Math.Max(1, targetHeight - 1)) * (height - 1)));
+            var srcRow = sy * width;
+            var dstRow = y * targetWidth;
+            for (var x = 0; x < targetWidth; x++)
+            {
+                var sx = Math.Min(width - 1, (int)Math.Round((x / (double)Math.Max(1, targetWidth - 1)) * (width - 1)));
+                result[dstRow + x] = pixels[srcRow + sx];
+            }
+        }
+
+        return result;
+    }
+
+    private static float[] BoxBlur(float[] input, int width, int height, int radius)
+    {
+        if (radius <= 0)
+        {
+            return input;
+        }
+
+        var output = new float[input.Length];
+        var area = (2 * radius + 1) * (2 * radius + 1);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                double sum = 0;
+                for (var oy = -radius; oy <= radius; oy++)
+                {
+                    var sy = Math.Clamp(y + oy, 0, height - 1);
+                    var row = sy * width;
+                    for (var ox = -radius; ox <= radius; ox++)
+                    {
+                        var sx = Math.Clamp(x + ox, 0, width - 1);
+                        sum += input[row + sx];
+                    }
+                }
+
+                output[(y * width) + x] = (float)(sum / area);
+            }
+        }
+
+        return output;
     }
 
     private static byte[] DownsampleAndStretch(float[] pixels, int width, int height, int targetWidth, int targetHeight, double stretchStrength)
@@ -1064,7 +1268,7 @@ public sealed class RustafitsService
         var sigma = ComputeSigma(pixels, background);
         var threshold = background + (5 * sigma);
 
-        var stars = DetectStars(pixels, width, height, threshold, background);
+        var stars = DetectStars(pixels, width, height, threshold, background, sigma);
         var orderedStars = stars.OrderByDescending(s => s.Peak).Take(300).ToList();
 
         var fwhm = Median(orderedStars.Select(s => s.Fwhm));
@@ -1094,14 +1298,16 @@ public sealed class RustafitsService
         };
     }
 
-    private static List<(double Peak, double Fwhm, double Hfr, double Eccentricity)> DetectStars(float[] pixels, int width, int height, double threshold, double background)
+    private static List<(double Peak, double Fwhm, double Hfr, double Eccentricity)> DetectStars(float[] pixels, int width, int height, double threshold, double background, double sigma)
     {
         var result = new List<(double Peak, double Fwhm, double Hfr, double Eccentricity)>();
+        var filtered = MedianFilter3x3(pixels, width, height);
+        var minNeighborLevel = background + (2.0 * sigma);
         for (var y = 3; y < height - 3; y++)
         {
             for (var x = 3; x < width - 3; x++)
             {
-                var center = pixels[(y * width) + x];
+                var center = filtered[(y * width) + x];
                 if (center < threshold)
                 {
                     continue;
@@ -1117,7 +1323,7 @@ public sealed class RustafitsService
                             continue;
                         }
 
-                        if (pixels[((y + ny) * width) + (x + nx)] > center)
+                        if (filtered[((y + ny) * width) + (x + nx)] > center)
                         {
                             isPeak = false;
                             break;
@@ -1126,6 +1332,30 @@ public sealed class RustafitsService
                 }
 
                 if (!isPeak)
+                {
+                    continue;
+                }
+
+                // Reject isolated hot pixels: require supporting signal in immediate neighborhood.
+                var supportNeighbors = 0;
+                for (var ny = -1; ny <= 1; ny++)
+                {
+                    for (var nx = -1; nx <= 1; nx++)
+                    {
+                        if (nx == 0 && ny == 0)
+                        {
+                            continue;
+                        }
+
+                        var neighbor = filtered[((y + ny) * width) + (x + nx)];
+                        if (neighbor >= minNeighborLevel)
+                        {
+                            supportNeighbors++;
+                        }
+                    }
+                }
+
+                if (supportNeighbors < 2)
                 {
                     continue;
                 }
@@ -1141,13 +1371,83 @@ public sealed class RustafitsService
         return result;
     }
 
+    private static float[] MedianFilter3x3(float[] pixels, int width, int height)
+    {
+        if (width < 3 || height < 3)
+        {
+            return pixels;
+        }
+
+        var filtered = new float[pixels.Length];
+        Array.Copy(pixels, filtered, pixels.Length);
+
+        var window = new float[9];
+        for (var y = 1; y < height - 1; y++)
+        {
+            for (var x = 1; x < width - 1; x++)
+            {
+                var k = 0;
+                for (var oy = -1; oy <= 1; oy++)
+                {
+                    var row = (y + oy) * width;
+                    for (var ox = -1; ox <= 1; ox++)
+                    {
+                        window[k++] = pixels[row + x + ox];
+                    }
+                }
+
+                Array.Sort(window);
+                filtered[(y * width) + x] = window[4];
+            }
+        }
+
+        return filtered;
+    }
+
     private static (double Fwhm, double Hfr, double Eccentricity) MeasureStar(float[] pixels, int width, int height, int cx, int cy, double background)
     {
-        const int radius = 4;
+        const int radius = 7;
+        const int annulusInner = 8;
+        const int annulusOuter = 12;
         var points = new List<(double X, double Y, double R, double Flux)>();
+        var annulus = new List<float>();
         double fluxSum = 0;
         double xSum = 0;
         double ySum = 0;
+
+        for (var y = cy - annulusOuter; y <= cy + annulusOuter; y++)
+        {
+            if (y < 0 || y >= height)
+            {
+                continue;
+            }
+
+            for (var x = cx - annulusOuter; x <= cx + annulusOuter; x++)
+            {
+                if (x < 0 || x >= width)
+                {
+                    continue;
+                }
+
+                var r = Math.Sqrt(((x - cx) * (x - cx)) + ((y - cy) * (y - cy)));
+                if (r < annulusInner || r > annulusOuter)
+                {
+                    continue;
+                }
+
+                annulus.Add(pixels[(y * width) + x]);
+            }
+        }
+
+        var localBackground = background;
+        if (annulus.Count >= 16)
+        {
+            annulus.Sort();
+            var mid = annulus.Count / 2;
+            localBackground = annulus.Count % 2 == 0
+                ? (annulus[mid - 1] + annulus[mid]) * 0.5
+                : annulus[mid];
+        }
 
         for (var y = cy - radius; y <= cy + radius; y++)
         {
@@ -1163,7 +1463,7 @@ public sealed class RustafitsService
                     continue;
                 }
 
-                var signal = Math.Max(0, pixels[(y * width) + x] - background);
+                var signal = Math.Max(0, pixels[(y * width) + x] - localBackground);
                 if (signal <= 0)
                 {
                     continue;
@@ -1208,8 +1508,12 @@ public sealed class RustafitsService
         var lambda1 = Math.Max(1e-6, (trace + Math.Sqrt(disc)) / 2.0);
         var lambda2 = Math.Max(1e-6, (trace - Math.Sqrt(disc)) / 2.0);
 
-        var sigma = Math.Sqrt((lambda1 + lambda2) / 2.0);
-        var fwhm = 2.3548 * sigma;
+        var fwhm = EstimateFwhmHalfMaximum(points);
+        if (fwhm <= 0)
+        {
+            var sigma = Math.Sqrt((lambda1 + lambda2) / 2.0);
+            fwhm = 2.3548 * sigma;
+        }
         var hfr = ComputeHfr(points, fluxSum);
         var eccentricity = Math.Sqrt(Math.Max(0, 1.0 - (lambda2 / lambda1)));
 
@@ -1231,6 +1535,63 @@ public sealed class RustafitsService
         }
 
         return sorted.Count == 0 ? 0 : sorted[^1].R;
+    }
+
+    private static double EstimateFwhmHalfMaximum(List<(double X, double Y, double R, double Flux)> points)
+    {
+        if (points.Count < 6)
+        {
+            return 0;
+        }
+
+        var peak = points.Max(p => p.Flux);
+        if (peak <= 0)
+        {
+            return 0;
+        }
+
+        var half = peak * 0.5;
+        const double binSize = 0.5;
+        var maxRadius = points.Max(p => p.R);
+        var binCount = Math.Max(3, (int)Math.Ceiling(maxRadius / binSize) + 1);
+        var sum = new double[binCount];
+        var count = new int[binCount];
+
+        foreach (var p in points)
+        {
+            var bin = Math.Clamp((int)Math.Floor(p.R / binSize), 0, binCount - 1);
+            sum[bin] += p.Flux;
+            count[bin] += 1;
+        }
+
+        var previousRadius = 0.0;
+        var previousValue = peak;
+        for (var i = 0; i < binCount; i++)
+        {
+            if (count[i] == 0)
+            {
+                continue;
+            }
+
+            var radius = (i + 0.5) * binSize;
+            var value = sum[i] / count[i];
+            if (value <= half)
+            {
+                if (previousValue <= half)
+                {
+                    return 2.0 * radius;
+                }
+
+                var t = (half - previousValue) / Math.Max(1e-9, value - previousValue);
+                var halfRadius = previousRadius + ((radius - previousRadius) * t);
+                return 2.0 * Math.Max(0, halfRadius);
+            }
+
+            previousRadius = radius;
+            previousValue = value;
+        }
+
+        return 0;
     }
 
     private static bool DetectTrail(float[] pixels, int width, int height, double background, double sigma)

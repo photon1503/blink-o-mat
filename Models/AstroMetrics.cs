@@ -11,4 +11,8 @@ public sealed record AstroMetrics
     public double? FocalLengthMm { get; init; }
     public double? PixelSizeUm { get; init; }
     public bool PossibleSatelliteTrail { get; init; }
+    public double? TrailX1 { get; init; }
+    public double? TrailY1 { get; init; }
+    public double? TrailX2 { get; init; }
+    public double? TrailY2 { get; init; }
 }

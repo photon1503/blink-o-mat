@@ -6,5 +6,6 @@ public sealed class Thresholds
     public double MaxHfr { get; set; } = 4.5;
     public double MaxEccentricity { get; set; } = 0.6;
     public double MaxMeanBackground { get; set; } = 2000.0;
+    public double MinStars { get; set; } = 0;
     public bool RejectSatelliteTrail { get; set; } = true;
 }
