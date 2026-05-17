@@ -7,6 +7,7 @@
     <Grid Margin="10" Background="{StaticResource WindowBackgroundBrush}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="280" />
         </Grid.ColumnDefinitions>
 
@@ -37,7 +38,36 @@
             </Border>
         </Grid>
 
-        <ScrollViewer Grid.Column="1" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto">
+        <Border Grid.Column="1" Margin="12,0" Padding="8" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Text="Frames" />
+                <TextBlock Grid.Row="1" Margin="0,4,0,8" HorizontalAlignment="Center" Text="{Binding FramePositionText}" />
+                <Slider Grid.Row="2"
+                        Width="36"
+                        Margin="0,0,0,8"
+                        VerticalAlignment="Stretch"
+                        HorizontalAlignment="Center"
+                        Orientation="Vertical"
+                        Minimum="0"
+                        Maximum="{Binding FrameSliderMaximum}"
+                        Value="{Binding FrameSliderValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        TickFrequency="1"
+                        TickPlacement="Both"
+                        IsSnapToTickEnabled="True"
+                        IsMoveToPointEnabled="True"
+                        IsDirectionReversed="True" />
+                <TextBlock Grid.Row="3" HorizontalAlignment="Center" Text="{Binding FrameCount, StringFormat=Total: {0}}" />
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Column="2" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                     <StackPanel>

@@ -692,11 +692,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        var currentIndex = _loadedFrames.FindIndex(f => f.Item == item);
+        if (currentIndex < 0)
+        {
+            return;
+        }
+
         if (_previewWindow is not null)
         {
             _previewItem = item;
             var existingImage = await GetOrCreateFullImageAsync(item);
             _previewVm?.SetItem(item);
+            _previewVm?.UpdateFramePosition(currentIndex, _loadedFrames.Count);
             _previewWindow.RefreshImage(existingImage);
             StartPreviewCaching(item, ahead: 2, behind: 4);
             _previewWindow.Activate();
@@ -719,9 +726,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             value => TargetBackground = value,
             SetManualRoi,
             NavigatePreviewAsync,
+            NavigatePreviewToIndexAsync,
             TogglePreviewReject,
             () => SkipRejectedInPreview,
             value => SkipRejectedInPreview = value);
+        vm.UpdateFramePosition(currentIndex, _loadedFrames.Count);
         _previewVm = vm;
         _previewWindow = new PreviewWindow(vm);
         var current = await GetOrCreateFullImageAsync(item);
@@ -785,6 +794,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         var nextItem = _loadedFrames[nextIndex].Item;
         await OpenPreviewAsync(nextItem);
+    }
+
+    private async Task NavigatePreviewToIndexAsync(int index)
+    {
+        if (_loadedFrames.Count == 0)
+        {
+            return;
+        }
+
+        var targetIndex = Math.Clamp(index, 0, _loadedFrames.Count - 1);
+        var targetItem = _loadedFrames[targetIndex].Item;
+        if (targetItem == _previewItem)
+        {
+            return;
+        }
+
+        await OpenPreviewAsync(targetItem);
     }
 
     private void TogglePreviewReject()
