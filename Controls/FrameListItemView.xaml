@@ -134,6 +134,43 @@
                         <TextBlock Text="{Binding Metrics.PossibleSatelliteTrail}" />
                     </StackPanel>
                 </Grid>
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock FontWeight="SemiBold" Text="Median" />
+                        <TextBlock Text="{Binding Metrics.Median, StringFormat={}{0:F1}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock FontWeight="SemiBold" Text="MAD" />
+                        <TextBlock Text="{Binding Metrics.Mad, StringFormat={}{0:F1}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock FontWeight="SemiBold" Text="Min" />
+                        <TextBlock>
+                            <Run Text="{Binding Metrics.Min, StringFormat={}{0:F1}}" />
+                            <Run Text=" (" />
+                            <Run Text="{Binding Metrics.MinCount}" />
+                            <Run Text="x)" />
+                        </TextBlock>
+                    </StackPanel>
+                    <StackPanel Grid.Column="6">
+                        <TextBlock FontWeight="SemiBold" Text="Max" />
+                        <TextBlock>
+                            <Run Text="{Binding Metrics.Max, StringFormat={}{0:F1}}" />
+                            <Run Text=" (" />
+                            <Run Text="{Binding Metrics.MaxCount}" />
+                            <Run Text="x)" />
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
             </StackPanel>
             <CheckBox Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="{Binding IsRejected, Mode=TwoWay}" Content="Reject" />
         </Grid>

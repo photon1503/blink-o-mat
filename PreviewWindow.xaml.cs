@@ -14,6 +14,13 @@ public partial class PreviewWindow : Window
 {
     private readonly FramePreviewViewModel _vm;
     private bool _hasInitializedView;
+    private bool _isLoupeActive;
+    private bool _isPanning;
+    private WpfPoint _panStartPoint;
+    private double _panStartHorizontalOffset;
+    private double _panStartVerticalOffset;
+    private const int LoupeSampleSize = 31;
+    private const int LoupeZoomScale = 4;
 
     public PreviewWindow(FramePreviewViewModel vm)
     {
@@ -40,6 +47,7 @@ public partial class PreviewWindow : Window
         var viewState = CaptureViewState();
         _vm.Image = null;
         _vm.Image = image;
+        HideLoupe();
 
         if (!_hasInitializedView)
         {
@@ -161,22 +169,220 @@ public partial class PreviewWindow : Window
 
     private void PreviewImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Control) == 0 || PreviewImage.Source is null)
+        HideLoupe();
+
+        if (PreviewImage.Source is null)
         {
             return;
         }
 
-        var point = e.GetPosition(PreviewImage);
-        if (PreviewImage.ActualWidth <= 0 || PreviewImage.ActualHeight <= 0)
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            var point = e.GetPosition(PreviewImage);
+            if (PreviewImage.ActualWidth <= 0 || PreviewImage.ActualHeight <= 0)
+            {
+                return;
+            }
+
+            var normalized = new WpfPoint(
+                point.X / PreviewImage.ActualWidth,
+                point.Y / PreviewImage.ActualHeight);
+
+            _vm.SetManualRoi(normalized);
+            e.Handled = true;
+            return;
+        }
+
+        _isPanning = true;
+        _panStartPoint = e.GetPosition(ImageScrollViewer);
+        _panStartHorizontalOffset = ImageScrollViewer.HorizontalOffset;
+        _panStartVerticalOffset = ImageScrollViewer.VerticalOffset;
+        PreviewImage.CaptureMouse();
+        Cursor = System.Windows.Input.Cursors.SizeAll;
+        e.Handled = true;
+    }
+
+    private void PreviewImage_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isPanning)
         {
             return;
         }
 
-        var normalized = new WpfPoint(
-            point.X / PreviewImage.ActualWidth,
-            point.Y / PreviewImage.ActualHeight);
+        StopPanning();
+        e.Handled = true;
+    }
 
-        _vm.SetManualRoi(normalized);
+    private void ImageScrollViewer_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject dependencyObject || IsVisualDescendantOf(dependencyObject, PreviewImage))
+        {
+            return;
+        }
+
+        HideLoupe();
+    }
+
+    private void PreviewImage_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        _isLoupeActive = true;
+        PreviewImage.CaptureMouse();
+        ShowLoupeAt(e.GetPosition(PreviewImage));
+    }
+
+    private void PreviewImage_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_isLoupeActive)
+        {
+            if (!_isPanning)
+            {
+                return;
+            }
+
+            if (e.LeftButton != MouseButtonState.Pressed)
+            {
+                StopPanning();
+                return;
+            }
+
+            var point = e.GetPosition(ImageScrollViewer);
+            var deltaX = point.X - _panStartPoint.X;
+            var deltaY = point.Y - _panStartPoint.Y;
+
+            ImageScrollViewer.ScrollToHorizontalOffset(Math.Max(0, _panStartHorizontalOffset - deltaX));
+            ImageScrollViewer.ScrollToVerticalOffset(Math.Max(0, _panStartVerticalOffset - deltaY));
+            e.Handled = true;
+            return;
+        }
+
+        ShowLoupeAt(e.GetPosition(PreviewImage));
+    }
+
+    private void PreviewImage_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        _isLoupeActive = false;
+        if (Mouse.Captured == PreviewImage)
+        {
+            Mouse.Capture(null);
+        }
+
+        HideLoupe();
+    }
+
+    private void ShowLoupeAt(WpfPoint imagePoint)
+    {
+        if (PreviewImage.Source is not BitmapSource source || PreviewImage.ActualWidth <= 0 || PreviewImage.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        var pixelX = Math.Clamp((int)Math.Round((imagePoint.X / PreviewImage.ActualWidth) * Math.Max(0, source.PixelWidth - 1)), 0, Math.Max(0, source.PixelWidth - 1));
+        var pixelY = Math.Clamp((int)Math.Round((imagePoint.Y / PreviewImage.ActualHeight) * Math.Max(0, source.PixelHeight - 1)), 0, Math.Max(0, source.PixelHeight - 1));
+
+        var crop = BuildLoupeBitmap(source, pixelX, pixelY, out var centerValue, out var minValue, out var maxValue, out var meanValue);
+        LoupeImage.Source = crop;
+
+        LoupeXText.Text = $"X    {pixelX}";
+        LoupeYText.Text = $"Y    {pixelY}";
+        LoupeKText.Text = $"K    {centerValue}";
+        LoupeMinText.Text = $"Min  {minValue}";
+        LoupeMaxText.Text = $"Max  {maxValue}";
+        LoupeMeanText.Text = $"Mean {meanValue:F2}";
+
+        var hostPoint = PreviewImage.TranslatePoint(imagePoint, LoupeCanvas);
+        var canvasWidth = Math.Max(0.0, LoupeCanvas.ActualWidth);
+        var canvasHeight = Math.Max(0.0, LoupeCanvas.ActualHeight);
+        var left = Math.Min(Math.Max(0, hostPoint.X + 16), Math.Max(0, canvasWidth - LoupeBorder.Width));
+        var top = Math.Min(Math.Max(0, hostPoint.Y + 16), Math.Max(0, canvasHeight - LoupeBorder.Height));
+
+        Canvas.SetLeft(LoupeBorder, left);
+        Canvas.SetTop(LoupeBorder, top);
+        LoupeBorder.Visibility = Visibility.Visible;
+    }
+
+    private static BitmapSource BuildLoupeBitmap(BitmapSource source, int pixelX, int pixelY, out byte centerValue, out byte minValue, out byte maxValue, out double meanValue)
+    {
+        BitmapSource graySource;
+        if (source.Format == PixelFormats.Gray8)
+        {
+            graySource = source;
+        }
+        else
+        {
+            var converted = new FormatConvertedBitmap();
+            converted.BeginInit();
+            converted.Source = source;
+            converted.DestinationFormat = PixelFormats.Gray8;
+            converted.EndInit();
+            converted.Freeze();
+            graySource = converted;
+        }
+
+        var half = LoupeSampleSize / 2;
+        var startX = Math.Clamp(pixelX - half, 0, Math.Max(0, graySource.PixelWidth - LoupeSampleSize));
+        var startY = Math.Clamp(pixelY - half, 0, Math.Max(0, graySource.PixelHeight - LoupeSampleSize));
+        var width = Math.Min(LoupeSampleSize, graySource.PixelWidth);
+        var height = Math.Min(LoupeSampleSize, graySource.PixelHeight);
+        var stride = width;
+        var pixels = new byte[stride * height];
+        graySource.CopyPixels(new Int32Rect(startX, startY, width, height), pixels, stride, 0);
+
+        minValue = byte.MaxValue;
+        maxValue = byte.MinValue;
+        double sum = 0;
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            var v = pixels[i];
+            if (v < minValue) minValue = v;
+            if (v > maxValue) maxValue = v;
+            sum += v;
+        }
+
+        meanValue = sum / Math.Max(1, width * height);
+        var centerLocalX = Math.Clamp(pixelX - startX, 0, width - 1);
+        var centerLocalY = Math.Clamp(pixelY - startY, 0, height - 1);
+        centerValue = pixels[(centerLocalY * stride) + centerLocalX];
+
+        var loupeSource = BitmapSource.Create(width, height, 96, 96, PixelFormats.Gray8, null, pixels, stride);
+        loupeSource.Freeze();
+        var scaled = new TransformedBitmap(loupeSource, new ScaleTransform(LoupeZoomScale, LoupeZoomScale));
+        scaled.Freeze();
+        return scaled;
+    }
+
+    private void HideLoupe()
+    {
+        _isLoupeActive = false;
+        LoupeBorder.Visibility = Visibility.Collapsed;
+        LoupeImage.Source = null;
+    }
+
+    private void StopPanning()
+    {
+        _isPanning = false;
+        if (Mouse.Captured == PreviewImage)
+        {
+            Mouse.Capture(null);
+        }
+
+        Cursor = null;
+    }
+
+    private static bool IsVisualDescendantOf(DependencyObject? child, DependencyObject ancestor)
+    {
+        while (child is not null)
+        {
+            if (ReferenceEquals(child, ancestor))
+            {
+                return true;
+            }
+
+            child = VisualTreeHelper.GetParent(child);
+        }
+
+        return false;
     }
 
     private void FrameSlider_SizeChanged(object sender, SizeChangedEventArgs e)

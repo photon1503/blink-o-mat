@@ -27,15 +27,47 @@
                 <TextBlock VerticalAlignment="Center" Text="{Binding Zoom, StringFormat=Zoom: {0:F2}x}" />
             </StackPanel>
 
-            <Border Grid.Row="1" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Background="#FF181818">
-                <ScrollViewer x:Name="ImageScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" PreviewMouseWheel="ImageScrollViewer_PreviewMouseWheel">
-                    <Image x:Name="PreviewImage" Source="{Binding Image}" Stretch="None" RenderOptions.BitmapScalingMode="NearestNeighbor" MouseLeftButtonDown="PreviewImage_MouseLeftButtonDown">
-                        <Image.LayoutTransform>
-                            <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
-                        </Image.LayoutTransform>
-                    </Image>
-                </ScrollViewer>
-            </Border>
+            <Grid Grid.Row="1">
+                <Border BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Background="#FF181818">
+                    <ScrollViewer x:Name="ImageScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" PreviewMouseWheel="ImageScrollViewer_PreviewMouseWheel" PreviewMouseLeftButtonDown="ImageScrollViewer_PreviewMouseLeftButtonDown">
+                        <Image x:Name="PreviewImage" Source="{Binding Image}" Stretch="None" RenderOptions.BitmapScalingMode="NearestNeighbor" MouseLeftButtonDown="PreviewImage_MouseLeftButtonDown" MouseLeftButtonUp="PreviewImage_MouseLeftButtonUp" MouseRightButtonDown="PreviewImage_MouseRightButtonDown" MouseRightButtonUp="PreviewImage_MouseRightButtonUp" MouseMove="PreviewImage_MouseMove">
+                            <Image.LayoutTransform>
+                                <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
+                            </Image.LayoutTransform>
+                        </Image>
+                    </ScrollViewer>
+                </Border>
+
+                <Canvas x:Name="LoupeCanvas" IsHitTestVisible="False">
+                    <Border x:Name="LoupeBorder"
+                            Visibility="Collapsed"
+                            Width="204"
+                            Height="140"
+                            Background="#FF24323C"
+                            BorderBrush="{StaticResource PanelBorderBrush}"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="124" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Background="#FF1A1A1A" BorderBrush="#33000000" BorderThickness="0,0,1,0">
+                                <Image x:Name="LoupeImage" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" Margin="8,6,8,6">
+                                <TextBlock x:Name="LoupeXText" FontFamily="Consolas" Text="X    0" />
+                                <TextBlock x:Name="LoupeYText" FontFamily="Consolas" Text="Y    0" />
+                                <TextBlock x:Name="LoupeKText" FontFamily="Consolas" Text="K    0" />
+                                <TextBlock x:Name="LoupeMinText" FontFamily="Consolas" Margin="0,6,0,0" Text="Min  0" />
+                                <TextBlock x:Name="LoupeMaxText" FontFamily="Consolas" Text="Max  0" />
+                                <TextBlock x:Name="LoupeMeanText" FontFamily="Consolas" Text="Mean 0.00" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Canvas>
+            </Grid>
         </Grid>
 
         <Border Grid.Column="1" Margin="12,0" Padding="8" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
@@ -137,6 +169,22 @@
                         <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.StarsIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.StarCount, StringFormat=Stars: {0}}" /></StackPanel>
                         <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.EccentricityIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.Eccentricity, StringFormat=Eccentricity: {0:F3}}" /></StackPanel>
                         <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.MeanBackgroundIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.MeanBackground, StringFormat=Mean BG: {0:F1}}" /></StackPanel>
+                        <TextBlock Text="{Binding Item.Metrics.Median, StringFormat=Median: {0:F1}}" />
+                        <TextBlock Text="{Binding Item.Metrics.Mad, StringFormat=MAD: {0:F1}}" />
+                        <TextBlock>
+                            <Run Text="Min: " />
+                            <Run Text="{Binding Item.Metrics.Min, StringFormat={}{0:F1}}" />
+                            <Run Text=" (" />
+                            <Run Text="{Binding Item.Metrics.MinCount}" />
+                            <Run Text="x)" />
+                        </TextBlock>
+                        <TextBlock>
+                            <Run Text="Max: " />
+                            <Run Text="{Binding Item.Metrics.Max, StringFormat={}{0:F1}}" />
+                            <Run Text=" (" />
+                            <Run Text="{Binding Item.Metrics.MaxCount}" />
+                            <Run Text="x)" />
+                        </TextBlock>
                         <TextBlock Text="{Binding Item.Metrics.FocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
                         <TextBlock Text="{Binding Item.Metrics.PixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
                         <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.TrailIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.PossibleSatelliteTrail, StringFormat=Satellite trail: {0}}" /></StackPanel>

@@ -8,6 +8,12 @@ public sealed record AstroMetrics
     public int StarCount { get; init; }
     public double Eccentricity { get; init; }
     public double MeanBackground { get; init; }
+    public double Median { get; init; }
+    public double Mad { get; init; }
+    public double Min { get; init; }
+    public int MinCount { get; init; }
+    public double Max { get; init; }
+    public int MaxCount { get; init; }
     public double? FocalLengthMm { get; init; }
     public double? PixelSizeUm { get; init; }
     public bool PossibleSatelliteTrail { get; init; }

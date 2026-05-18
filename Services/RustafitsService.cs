@@ -1430,7 +1430,12 @@ public sealed class RustafitsService
         var pixels = frame.Pixels;
         var width = frame.Width;
         var height = frame.Height;
-        var background = Percentile(pixels, 0.5);
+        var statsSample = Sample(pixels);
+        Array.Sort(statsSample);
+        var median = PercentileFromSorted(statsSample, 0.5);
+        var mad = MedianAbsoluteDeviation(statsSample, median, alreadySorted: true);
+        var (minValue, minCount, maxValue, maxCount) = ComputeExtremaWithCounts(pixels);
+        var background = median;
         var sigma = ComputeSigma(pixels, background);
         var analysisPixels = CreateAnalysisPixels(pixels, width, height, 1536, out var analysisWidth, out var analysisHeight, out var xScale, out var yScale);
         var analysisBackground = analysisPixels == pixels ? background : Percentile(analysisPixels, 0.5);
@@ -1461,6 +1466,12 @@ public sealed class RustafitsService
             StarCount = starCount,
             Eccentricity = eccentricity,
             MeanBackground = background,
+            Median = median,
+            Mad = mad,
+            Min = minValue,
+            MinCount = minCount,
+            Max = maxValue,
+            MaxCount = maxCount,
             FocalLengthMm = frame.FocalLengthMm,
             PixelSizeUm = frame.PixelSizeUm,
             PossibleSatelliteTrail = trail.Detected,
@@ -1469,6 +1480,56 @@ public sealed class RustafitsService
             TrailX2 = trail.Detected ? trail.X2 : null,
             TrailY2 = trail.Detected ? trail.Y2 : null
         };
+    }
+
+    private static (double Min, int MinCount, double Max, int MaxCount) ComputeExtremaWithCounts(float[] values)
+    {
+        var initialized = false;
+        float min = 0;
+        float max = 0;
+        var minCount = 0;
+        var maxCount = 0;
+
+        for (var i = 0; i < values.Length; i++)
+        {
+            var value = values[i];
+            if (float.IsNaN(value) || float.IsInfinity(value))
+            {
+                continue;
+            }
+
+            if (!initialized)
+            {
+                min = value;
+                max = value;
+                minCount = 1;
+                maxCount = 1;
+                initialized = true;
+                continue;
+            }
+
+            if (value < min)
+            {
+                min = value;
+                minCount = 1;
+            }
+            else if (value == min)
+            {
+                minCount++;
+            }
+
+            if (value > max)
+            {
+                max = value;
+                maxCount = 1;
+            }
+            else if (value == max)
+            {
+                maxCount++;
+            }
+        }
+
+        return initialized ? (min, minCount, max, maxCount) : (0, 0, 0, 0);
     }
 
     private static List<(double Peak, double Fwhm, double Hfr, double Eccentricity)> DetectStars(float[] pixels, int width, int height, float[] analysisPixels, int analysisWidth, int analysisHeight, double background, double sigma, double xScale, double yScale)
