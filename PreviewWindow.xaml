@@ -5,10 +5,14 @@
          Foreground="{StaticResource TextBrush}"
         Title="Frame Preview" Height="900" Width="1300">
     <Grid Margin="10" Background="{StaticResource WindowBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="280" />
+            <ColumnDefinition Width="320" />
         </Grid.ColumnDefinitions>
 
         <Grid Grid.Column="0">
@@ -17,15 +21,33 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                <Button Content="Prev" Width="60" Margin="0,0,6,0" Click="Prev_Click" />
-                <Button Content="Next" Width="60" Margin="0,0,6,0" Click="Next_Click" />
-                <Button Content="Smaller" Width="70" Margin="0,0,6,0" Click="Smaller_Click" />
-                <Button Content="Fit" Width="60" Margin="0,0,6,0" Click="Fit_Click" />
-                <Button Content="Zoom In" Width="70" Margin="0,0,6,0" Click="ZoomIn_Click" />
-                <Button Content="1:1" Width="55" Margin="0,0,6,0" Click="OneToOne_Click" />
-                <TextBlock VerticalAlignment="Center" Text="{Binding Zoom, StringFormat=Zoom: {0:F2}x}" />
-            </StackPanel>
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Prev" Width="60" Margin="0,0,6,0" Click="Prev_Click" />
+                    <Button Content="Next" Width="60" Margin="0,0,6,0" Click="Next_Click" />
+                    <Button Width="38" Margin="0,0,6,0" Click="Smaller_Click" ToolTip="Zoom out">
+                        <TextBlock Text="−" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                    </Button>
+                    <Button Width="38" Margin="0,0,6,0" Click="Fit_Click" ToolTip="Fit to view">
+                        <TextBlock Text="⛶" FontSize="14" HorizontalAlignment="Center" />
+                    </Button>
+                    <Button Width="38" Margin="0,0,6,0" Click="ZoomIn_Click" ToolTip="Zoom in">
+                        <TextBlock Text="+" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                    </Button>
+                    <Button Content="1:1" Width="55" Margin="0,0,10,0" Click="OneToOne_Click" />
+                    <CheckBox VerticalAlignment="Center" Content="Skip rejected" IsChecked="{Binding SkipRejectedInPreview, Mode=TwoWay}" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Text="{Binding Zoom, StringFormat=Zoom: {0:F2}x}" />
+
+                <CheckBox Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Content="Reject frame" IsChecked="{Binding Item.IsRejected, Mode=TwoWay}" />
+            </Grid>
 
             <Grid Grid.Row="1">
                 <Border BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Background="#FF181818">
@@ -85,12 +107,11 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="8" />
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="120" />
                     </Grid.ColumnDefinitions>
                     <Canvas x:Name="CacheIndicatorCanvas" Grid.Column="0" Width="8" Margin="0,4,0,4" IsHitTestVisible="False" />
                     <Slider x:Name="FrameSlider"
                             Grid.Column="1"
-                            Width="36"
+                             Width="24"
                             VerticalAlignment="Stretch"
                             HorizontalAlignment="Center"
                             Orientation="Vertical"
@@ -103,25 +124,6 @@
                             IsMoveToPointEnabled="True"
                             IsDirectionReversed="True"
                             SizeChanged="FrameSlider_SizeChanged" />
-                    <TextBlock Grid.Column="2"
-                               Margin="8,0,0,0"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Left"
-                               Foreground="Orange"
-                               TextWrapping="Wrap"
-                               TextAlignment="Left"
-                               Text="{Binding PreviewStatusMessage}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsPreviewStatusVisible}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
                 </Grid>
                 <TextBlock Grid.Row="3" HorizontalAlignment="Center" Text="{Binding FrameCount, StringFormat=Total: {0}}" />
             </Grid>
@@ -143,51 +145,142 @@
                 <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                     <StackPanel>
                         <TextBlock FontWeight="SemiBold" Text="Inspection" Margin="0,0,0,6" />
-                        <TextBlock FontWeight="SemiBold" Text="ROI bias" />
-                        <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,6" />
-                        <TextBlock Text="Ctrl+Click image to set manual ROI override (persists for loaded set)." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,10" />
-                        <CheckBox Content="Skip rejected when blinking" IsChecked="{Binding SkipRejectedInPreview, Mode=TwoWay}" Margin="0,0,0,10" />
-                        <TextBlock FontWeight="SemiBold" Text="Stretch mode" />
-                        <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,2,0,6" />
-                        <TextBlock FontWeight="SemiBold" Text="Stretch" />
-                        <Slider Minimum="0.25" Maximum="5.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
-                        <TextBlock Text="{Binding Stretch, StringFormat=F2}" Margin="0,0,0,8" />
-                        <CheckBox Content="Use same target background for all frames" IsChecked="{Binding UseGlobalTargetBackground}" Margin="0,0,0,6" />
-                        <TextBlock FontWeight="SemiBold" Text="Target background" />
-                        <Slider Minimum="0.05" Maximum="0.75" Value="{Binding TargetBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
-                        <TextBlock Text="{Binding TargetBackground, StringFormat=F2}" Margin="0,0,0,8" />
-                        <CheckBox Content="Reject frame" IsChecked="{Binding Item.IsRejected, Mode=TwoWay}" />
+                        <Expander IsExpanded="False" Margin="0,0,0,8">
+                            <Expander.Header>
+                                <TextBlock FontWeight="SemiBold" Text="Stretching" />
+                            </Expander.Header>
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock FontWeight="SemiBold" Text="Stretch mode" />
+                                <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,2,0,6" />
+                                <TextBlock FontWeight="SemiBold" Text="Stretch" />
+                                <DockPanel Margin="0,0,0,8">
+                                    <TextBlock DockPanel.Dock="Right"
+                                               Width="56"
+                                               HorizontalAlignment="Right"
+                                               TextAlignment="Right"
+                                               Text="{Binding Stretch, StringFormat=F2}" />
+                                    <Slider Minimum="0.25" Maximum="5.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
+                                </DockPanel>
+                                <CheckBox Content="Use same target background for all frames" IsChecked="{Binding UseGlobalTargetBackground}" Margin="0,0,0,6" />
+                                <TextBlock FontWeight="SemiBold" Text="Target background" />
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right"
+                                               Width="56"
+                                               HorizontalAlignment="Right"
+                                               TextAlignment="Right"
+                                               Text="{Binding TargetBackground, StringFormat=F2}" />
+                                    <Slider Minimum="0.05" Maximum="0.75" Value="{Binding TargetBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
+                                </DockPanel>
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander IsExpanded="False">
+                            <Expander.Header>
+                                <TextBlock FontWeight="SemiBold" Text="ROI" />
+                            </Expander.Header>
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock FontWeight="SemiBold" Text="ROI bias" />
+                                <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,6" />
+                                <TextBlock Text="Ctrl+Click image to set manual ROI override (persists for loaded set)." TextWrapping="Wrap" FontSize="11" />
+                            </StackPanel>
+                        </Expander>
                     </StackPanel>
                 </Border>
 
                 <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+                    <Border.Resources>
+                        <Style x:Key="MetricLabelStyle" TargetType="TextBlock">
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                            <Setter Property="Margin" Value="0,0,10,0" />
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                            <Setter Property="Opacity" Value="0.92" />
+                        </Style>
+                        <Style x:Key="MetricValueStyle" TargetType="TextBlock">
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                            <Setter Property="HorizontalAlignment" Value="Right" />
+                            <Setter Property="TextAlignment" Value="Right" />
+                            <Setter Property="FontSize" Value="14" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Setter Property="Foreground" Value="#FFF6E7B0" />
+                        </Style>
+                    </Border.Resources>
                     <StackPanel>
                         <TextBlock FontWeight="SemiBold" Text="Metrics" Margin="0,0,0,8" />
-                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.FwhmIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.Fwhm, StringFormat=FWHM: {0:F2}}" /></StackPanel>
-                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.FwhmIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.FwhmArcsec, StringFormat=FWHM: {0:F2} arcsec, TargetNullValue=FWHM: n/a arcsec}" /></StackPanel>
-                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.HfrIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.Hfr, StringFormat=HFR: {0:F2}}" /></StackPanel>
-                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.StarsIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.StarCount, StringFormat=Stars: {0}}" /></StackPanel>
-                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.EccentricityIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.Eccentricity, StringFormat=Eccentricity: {0:F3}}" /></StackPanel>
-                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.MeanBackgroundIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.MeanBackground, StringFormat=Mean BG: {0:F1}}" /></StackPanel>
-                        <TextBlock Text="{Binding Item.Metrics.Median, StringFormat=Median: {0:F1}}" />
-                        <TextBlock Text="{Binding Item.Metrics.Mad, StringFormat=MAD: {0:F1}}" />
-                        <TextBlock>
-                            <Run Text="Min: " />
-                            <Run Text="{Binding Item.Metrics.Min, StringFormat={}{0:F1}}" />
-                            <Run Text=" (" />
-                            <Run Text="{Binding Item.Metrics.MinCount}" />
-                            <Run Text="x)" />
-                        </TextBlock>
-                        <TextBlock>
-                            <Run Text="Max: " />
-                            <Run Text="{Binding Item.Metrics.Max, StringFormat={}{0:F1}}" />
-                            <Run Text=" (" />
-                            <Run Text="{Binding Item.Metrics.MaxCount}" />
-                            <Run Text="x)" />
-                        </TextBlock>
-                        <TextBlock Text="{Binding Item.Metrics.FocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
-                        <TextBlock Text="{Binding Item.Metrics.PixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
-                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{Binding Item.TrailIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBlock Text="{Binding Item.Metrics.PossibleSatelliteTrail, StringFormat=Satellite trail: {0}}" /></StackPanel>
+
+                        <Border Padding="8" Background="#14000000" BorderBrush="#22000000" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabelColumn" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Text="Date/time" />
+                                <TextBlock Grid.Row="0" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Text="{Binding Item.ExposureDateTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}, TargetNullValue=n/a}" />
+
+                                <Ellipse Grid.Row="1" Width="8" Height="8" Fill="{Binding Item.FwhmIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="FWHM" />
+                                <TextBlock Grid.Row="1" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Fwhm, StringFormat={}{0:F2} px}" />
+
+                                <Ellipse Grid.Row="2" Width="8" Height="8" Fill="{Binding Item.FwhmIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="FWHM sky" />
+                                <TextBlock Grid.Row="2" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.FwhmArcsec, StringFormat={}{0:F2} as, TargetNullValue=n/a}" />
+
+                                <Ellipse Grid.Row="3" Width="8" Height="8" Fill="{Binding Item.HfrIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="HFR" />
+                                <TextBlock Grid.Row="3" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Hfr, StringFormat={}{0:F2} px}" />
+
+                                <Ellipse Grid.Row="4" Width="8" Height="8" Fill="{Binding Item.StarsIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="Stars" />
+                                <TextBlock Grid.Row="4" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.StarCount, StringFormat={}{0}}" />
+
+                                <Ellipse Grid.Row="5" Width="8" Height="8" Fill="{Binding Item.EccentricityIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="Eccentricity" />
+                                <TextBlock Grid.Row="5" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Eccentricity, StringFormat={}{0:F3}}" />
+
+                                <Ellipse Grid.Row="6" Width="8" Height="8" Fill="{Binding Item.MeanBackgroundIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="Mean BG" />
+                                <TextBlock Grid.Row="6" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.MeanBackground, StringFormat={}{0:F1} ADU}" />
+
+                                <TextBlock Grid.Row="7" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,8,10,0" Text="Median" />
+                                <TextBlock Grid.Row="7" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,8,0,0" Text="{Binding Item.Metrics.Median, StringFormat={}{0:F1} ADU}" />
+
+                                <TextBlock Grid.Row="8" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="MAD" />
+                                <TextBlock Grid.Row="8" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Mad, StringFormat={}{0:F1} ADU}" />
+
+                                <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Min" />
+                                <TextBlock Grid.Row="9" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Min, StringFormat={}{0:F1} ADU}" />
+
+                                <TextBlock Grid.Row="10" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Max" />
+                                <TextBlock Grid.Row="10" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Max, StringFormat={}{0:F1} ADU}" />
+
+                                <TextBlock Grid.Row="11" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Min count" />
+                                <TextBlock Grid.Row="11" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.MinCount, StringFormat={}{0} px}" />
+
+                                <TextBlock Grid.Row="12" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Max count" />
+                                <TextBlock Grid.Row="12" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.MaxCount, StringFormat={}{0} px}" />
+
+                                <Ellipse Grid.Row="13" Width="8" Height="8" Fill="{Binding Item.TrailIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="13" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="Trail" />
+                                <TextBlock Grid.Row="13" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.PossibleSatelliteTrail, StringFormat={}{0}}" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
 
@@ -202,6 +295,30 @@
                 </Border>
             </StackPanel>
         </ScrollViewer>
+
+        <Border Grid.Row="1"
+                Grid.Column="0"
+                Grid.ColumnSpan="3"
+                Margin="0,10,0,0"
+                Padding="8,4"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1">
+            <TextBlock Foreground="Orange"
+                       Text="{Binding PreviewStatusMessage}"
+                       TextTrimming="CharacterEllipsis">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsPreviewStatusVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Border>
     </Grid>
 </Window>
 

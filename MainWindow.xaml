@@ -16,28 +16,36 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="0,0,0,8">
+        <Grid Grid.Row="0" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0" Text="Input folder:" />
-            <TextBox Grid.Column="1" Margin="0,0,8,0" Text="{Binding InputFolder, UpdateSourceTrigger=PropertyChanged}" />
-            <Button Grid.Column="2" Padding="10,3" Content="Browse" Command="{Binding BrowseInputCommand}" />
-        </Grid>
 
-        <Grid Grid.Row="1" Margin="0,0,0,12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0" Text="Rejected folder:" />
-            <TextBox Grid.Column="1" Margin="0,0,8,0" Text="{Binding RejectedFolder, UpdateSourceTrigger=PropertyChanged}" />
-            <Button Grid.Column="2" Padding="10,3" Margin="0,0,8,0" Content="Browse" Command="{Binding BrowseRejectedCommand}" />
-            <Button Grid.Column="3" Padding="12,3" Content="Load Frames" Command="{Binding LoadFramesCommand}" />
+            <Grid Grid.Column="0" Margin="0,0,10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Hyperlink Command="{Binding BrowseInputCommand}" Foreground="{StaticResource TextBrush}">Input folder:</Hyperlink>
+                </TextBlock>
+                <TextBox Grid.Column="1" Text="{Binding InputFolder, UpdateSourceTrigger=PropertyChanged}" />
+            </Grid>
+
+            <Grid Grid.Column="1" Margin="0,0,10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Hyperlink Command="{Binding BrowseRejectedCommand}" Foreground="{StaticResource TextBrush}">Rejected folder:</Hyperlink>
+                </TextBlock>
+                <TextBox Grid.Column="1" Text="{Binding RejectedFolder, UpdateSourceTrigger=PropertyChanged}" />
+            </Grid>
+
+            <Button Grid.Column="2" Padding="12,3" Content="Load Frames" Command="{Binding LoadFramesCommand}" />
         </Grid>
 
         <Grid Grid.Row="2" Margin="0,0,0,10">
