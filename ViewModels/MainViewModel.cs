@@ -455,6 +455,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand LoadFramesCommand { get; }
     public ICommand MoveRejectedCommand { get; }
     public ICommand OpenPreviewCommand { get; }
+    public ICommand ToggleRejectCommand { get; }
 
     public MainViewModel()
     {
@@ -463,6 +464,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         LoadFramesCommand = new RelayCommand(async _ => await LoadFramesAsync(), _ => !IsBusy && !string.IsNullOrWhiteSpace(InputFolder));
         MoveRejectedCommand = new RelayCommand(_ => MoveRejected(), _ => !IsBusy && Frames.Any(f => f.IsRejected) && !string.IsNullOrWhiteSpace(RejectedFolder));
         OpenPreviewCommand = new RelayCommand(async p => await OpenPreviewAsync(p as FrameItem));
+        ToggleRejectCommand = new RelayCommand(p => ToggleFrameReject(p as FrameItem), p => p is FrameItem);
 
         var settings = _settings.Load();
         InputFolder = settings.InputFolder;
@@ -958,12 +960,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void TogglePreviewReject()
     {
-        if (_previewItem is null)
+        ToggleFrameReject(_previewItem);
+    }
+
+    private void ToggleFrameReject(FrameItem? frame)
+    {
+        if (frame is null)
         {
             return;
         }
 
-        _previewItem.IsRejected = !_previewItem.IsRejected;
+        var nextRejectedState = !frame.IsRejected;
+        bool? nextManualOverride = nextRejectedState == frame.AutomaticRejected
+            ? null
+            : nextRejectedState;
+
+        SetFrameRejected(frame, frame.AutomaticRejected, nextManualOverride);
+        Status = frame.IsRejected
+            ? $"Marked {frame.FileName} as rejected."
+            : $"Marked {frame.FileName} as kept.";
+    }
+
+    private void SetFrameRejected(FrameItem frame, bool automaticRejected, bool? manualRejectedOverride = null, bool refreshStatistics = true)
+    {
+        var previousRejected = frame.IsRejected;
+        var previousOverride = frame.ManualRejectedOverride;
+
+        frame.SetAutomaticRejected(automaticRejected);
+        frame.SetManualRejectedOverride(manualRejectedOverride);
+
+        if (previousRejected == frame.IsRejected && previousOverride == frame.ManualRejectedOverride)
+        {
+            return;
+        }
+
+        if (!refreshStatistics)
+        {
+            return;
+        }
+
+        UpdateFrameStatistics();
         ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
     }
 
@@ -1069,7 +1105,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         foreach (var frame in Frames)
         {
-            frame.IsRejected = _rejection.ShouldReject(frame, thresholds);
+            SetFrameRejected(frame, _rejection.ShouldReject(frame, thresholds), frame.ManualRejectedOverride, refreshStatistics: false);
         }
 
         UpdateFrameStatistics();

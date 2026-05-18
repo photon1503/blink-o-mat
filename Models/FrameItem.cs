@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using WpfBrush = System.Windows.Media.Brush;
 using WpfBrushes = System.Windows.Media.Brushes;
@@ -8,7 +9,8 @@ namespace blink_o_mat.Models;
 
 public sealed class FrameItem : INotifyPropertyChanged
 {
-    private bool _isRejected;
+    private bool _autoRejected;
+    private bool? _manualRejectedOverride;
     private bool _isPreviewActive;
     private BitmapSource? _thumbnailImage;
     private BitmapSource? _roiImage;
@@ -133,6 +135,11 @@ public sealed class FrameItem : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(OverallScoreStars));
             OnPropertyChanged(nameof(OverallScoreText));
+            OnPropertyChanged(nameof(ScoreValueText));
+            OnPropertyChanged(nameof(QualityLabel));
+            OnPropertyChanged(nameof(QualityBrush));
+            OnPropertyChanged(nameof(QualityBackgroundBrush));
+            OnPropertyChanged(nameof(ScoreProgressPercent));
         }
     }
 
@@ -146,6 +153,60 @@ public sealed class FrameItem : INotifyPropertyChanged
     }
 
     public string OverallScoreText => $"{_overallScore:F1}/5";
+
+    public string ScoreValueText => _overallScore.ToString("F1");
+
+    public string QualityLabel => _overallScore switch
+    {
+        >= 4.0 => "GOOD",
+        >= 2.5 => "FAIR",
+        _ => "POOR"
+    };
+
+    public WpfBrush QualityBrush => _overallScore switch
+    {
+        >= 4.0 => WpfBrushes.LimeGreen,
+        >= 2.5 => WpfBrushes.Goldenrod,
+        _ => WpfBrushes.IndianRed
+    };
+
+    public WpfBrush QualityBackgroundBrush => _overallScore switch
+    {
+        >= 4.0 => new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x33, 0x32, 0xCD, 0x32)),
+        >= 2.5 => new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x33, 0xDA, 0xA5, 0x20)),
+        _ => new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x33, 0xCD, 0x5C, 0x5C))
+    };
+
+    public double ScoreProgressPercent => Math.Clamp((_overallScore / 5.0) * 100.0, 0.0, 100.0);
+
+    public string TrailText => Metrics.PossibleSatelliteTrail ? "YES" : "NO";
+
+    public string FilterDisplay => string.IsNullOrWhiteSpace(FilterName) ? "n/a" : FilterName;
+
+    public string ExposureDisplay => ExposureSeconds is null ? "n/a" : $"{ExposureSeconds:F1}s";
+
+    public string TimestampDisplay => ExposureDateTime?.ToString("yyyy-MM-dd HH:mm:ss") ?? "n/a";
+
+    public string FwhmArcsecDisplay => Metrics.FwhmArcsec is > 0 ? $"{Metrics.FwhmArcsec:F2}\"" : "n/a";
+
+    public bool IsRejected => _manualRejectedOverride ?? _autoRejected;
+
+    public bool AutomaticRejected => _autoRejected;
+
+    public bool IsManualOverrideActive => _manualRejectedOverride.HasValue;
+
+    public bool? ManualRejectedOverride => _manualRejectedOverride;
+
+    public string RejectionStateLabel
+    {
+        get
+        {
+            var prefix = IsManualOverrideActive ? "✋ " : string.Empty;
+            return IsRejected ? $"{prefix}Rejected" : $"{prefix}Keep";
+        }
+    }
+
+    public WpfBrush RejectionStateBrush => IsRejected ? WpfBrushes.IndianRed : WpfBrushes.MediumSeaGreen;
 
     public required BitmapSource? RoiImage
     {
@@ -162,18 +223,54 @@ public sealed class FrameItem : INotifyPropertyChanged
         }
     }
 
-    public bool IsRejected
+    public void SetAutomaticRejected(bool value)
     {
-        get => _isRejected;
-        set
+        if (_autoRejected == value)
         {
-            if (_isRejected == value)
-            {
-                return;
-            }
+            return;
+        }
 
-            _isRejected = value;
-            OnPropertyChanged();
+        var previousEffective = IsRejected;
+        var previousOverrideActive = IsManualOverrideActive;
+        _autoRejected = value;
+        NotifyRejectionStateChanges(previousEffective, previousOverrideActive);
+    }
+
+    public void SetManualRejectedOverride(bool? value)
+    {
+        if (_manualRejectedOverride == value)
+        {
+            return;
+        }
+
+        var previousEffective = IsRejected;
+        var previousOverrideActive = IsManualOverrideActive;
+        _manualRejectedOverride = value;
+        NotifyRejectionStateChanges(previousEffective, previousOverrideActive);
+    }
+
+    private void NotifyRejectionStateChanges(bool previousEffective, bool previousOverrideActive)
+    {
+        if (previousEffective != IsRejected)
+        {
+            OnPropertyChanged(nameof(IsRejected));
+            OnPropertyChanged(nameof(RejectionStateBrush));
+        }
+
+        if (previousEffective != IsRejected || previousOverrideActive != IsManualOverrideActive)
+        {
+            OnPropertyChanged(nameof(RejectionStateLabel));
+        }
+
+        if (previousEffective != IsRejected || previousOverrideActive != IsManualOverrideActive)
+        {
+            OnPropertyChanged(nameof(AutomaticRejected));
+        }
+
+        if (previousOverrideActive != IsManualOverrideActive)
+        {
+            OnPropertyChanged(nameof(IsManualOverrideActive));
+            OnPropertyChanged(nameof(ManualRejectedOverride));
         }
     }
 

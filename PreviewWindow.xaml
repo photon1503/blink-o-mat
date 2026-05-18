@@ -46,7 +46,24 @@
 
                 <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Text="{Binding Zoom, StringFormat=Zoom: {0:F2}x}" />
 
-                <CheckBox Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Content="Reject frame" IsChecked="{Binding Item.IsRejected, Mode=TwoWay}" />
+                <Button Grid.Column="2"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Right"
+                        Padding="12,4"
+                        FontWeight="SemiBold"
+                        Foreground="#F5F5F5"
+                        BorderThickness="0"
+                        Background="{Binding Item.RejectionStateBrush}"
+                        Click="ToggleReject_Click">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <TextBlock Text="{Binding Item.RejectionStateLabel}" FontWeight="SemiBold" Foreground="#F5F5F5" />
+                </Button>
             </Grid>
 
             <Grid Grid.Row="1">

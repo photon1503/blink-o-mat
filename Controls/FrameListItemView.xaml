@@ -4,9 +4,43 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="180"
-             d:DesignWidth="900">
-    <Border BorderBrush="{StaticResource PanelBorderBrush}" Background="{StaticResource PanelBackgroundAltBrush}" BorderThickness="1" Padding="6" Margin="0,0,0,6">
+              d:DesignHeight="210"
+              d:DesignWidth="1240">
+    <UserControl.Resources>
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#7AA7FF" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style x:Key="MetricNameStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="#D0D0D0" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
+        <Style x:Key="MetricValueStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="#F2F2F2" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Margin" Value="12,0,0,2" />
+        </Style>
+        <Style x:Key="ChipBorderStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="Background" Value="#202224" />
+        </Style>
+        <Style x:Key="PreviewTagStyle" TargetType="Border">
+            <Setter Property="Background" Value="#AA1C1C1C" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="5,2" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="6" />
+        </Style>
+    </UserControl.Resources>
+    <Border BorderBrush="{StaticResource PanelBorderBrush}" Background="{StaticResource PanelBackgroundAltBrush}" BorderThickness="1" Padding="6" Margin="0,0,0,8" CornerRadius="4">
         <Border.Style>
             <Style TargetType="Border">
                 <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}" />
@@ -22,157 +56,225 @@
         </Border.Style>
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="340" />
+                <ColumnDefinition Width="310" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="150" />
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0" Orientation="Horizontal">
-                <Border Width="160" Height="160" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Margin="0,0,6,0">
+            <Grid Grid.Column="0" Margin="0,0,10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="150" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Width="145" Height="145" Margin="0,0,6,0" BorderBrush="#3B3E42" BorderThickness="1" Background="#151618" CornerRadius="4">
                     <Border.InputBindings>
                         <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
                     </Border.InputBindings>
-                    <Image Stretch="Uniform" Source="{Binding ThumbnailImage}" ToolTip="Click to open preview" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                    <Grid>
+                        <Image Stretch="UniformToFill" Source="{Binding ThumbnailImage}" ToolTip="Click to open preview" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                        <Border Style="{StaticResource PreviewTagStyle}">
+                            <TextBlock Text="Frame" FontSize="11" FontWeight="SemiBold" Foreground="#EEEEEE" />
+                        </Border>
+                    </Grid>
                 </Border>
-                <Border Width="160" Height="160" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+
+                <Border Grid.Column="1" Width="145" Height="145" BorderBrush="#3B3E42" BorderThickness="1" Background="#151618" CornerRadius="4">
                     <Border.InputBindings>
                         <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenPreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
                     </Border.InputBindings>
-                    <Image Stretch="UniformToFill" Source="{Binding RoiImage}" ToolTip="Click to open preview" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                    <Grid>
+                        <Image Stretch="UniformToFill" Source="{Binding RoiImage}" ToolTip="Click to open preview" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                        <Border Style="{StaticResource PreviewTagStyle}">
+                            <TextBlock Text="PSF" FontSize="11" FontWeight="SemiBold" Foreground="#EEEEEE" />
+                        </Border>
+                    </Grid>
                 </Border>
-            </StackPanel>
-            <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                <TextBlock FontWeight="SemiBold" Text="{Binding FileName}" />
-                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                    <TextBlock Text="Score:" FontWeight="SemiBold" Margin="0,0,6,0" />
-                    <TextBlock Text="{Binding OverallScoreStars}" Foreground="Gold" Margin="0,0,6,0" />
-                    <TextBlock Text="{Binding OverallScoreText}" />
+            </Grid>
+
+            <Grid Grid.Column="1" Margin="0,0,10,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" LastChildFill="False">
+                    <TextBlock DockPanel.Dock="Left"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="#F0F0F0"
+                               TextTrimming="CharacterEllipsis"
+                               Text="{Binding FileName}"
+                               VerticalAlignment="Center" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
+                        <TextBlock Text="{Binding OverallScoreStars}" Foreground="#F7C948" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <Border Background="{Binding QualityBackgroundBrush}" CornerRadius="5" Padding="10,3" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding QualityLabel}" Foreground="{Binding QualityBrush}" FontWeight="Bold" FontSize="12" />
+                        </Border>
+                    </StackPanel>
+                </DockPanel>
+
+                <WrapPanel Grid.Row="1" Margin="0,6,0,8">
+                    <TextBlock Text="{Binding TimestampDisplay}" Foreground="#BBBBBB" FontSize="12" Margin="0,0,12,0" />
+                    <TextBlock Text="•" Foreground="#666666" Margin="0,0,12,0" />
+                    <TextBlock Text="{Binding ExposureDisplay}" Foreground="#BBBBBB" FontSize="12" Margin="0,0,12,0" />
+                    <TextBlock Text="•" Foreground="#666666" Margin="0,0,12,0" />
+                    <TextBlock Text="Filter: " Foreground="#888888" FontSize="12" />
+                    <TextBlock Text="{Binding FilterDisplay}" Foreground="#BBBBBB" FontSize="12" Margin="0,0,12,0" />
+                    <TextBlock Text="•" Foreground="#666666" Margin="0,0,12,0" />
+                    <TextBlock Text="Trail: " Foreground="#888888" FontSize="12" />
+                    <TextBlock Text="{Binding TrailText}" Foreground="{Binding TrailIndicatorBrush}" FontSize="12" FontWeight="SemiBold" />
+                </WrapPanel>
+
+                <WrapPanel Grid.Row="2">
+                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding FwhmIndicatorBrush}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="FWHM" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding FwhmArcsecDisplay}" Foreground="{Binding FwhmIndicatorBrush}" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding EccentricityIndicatorBrush}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="ECC" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding Metrics.Eccentricity, StringFormat={}{0:F3}}" Foreground="{Binding EccentricityIndicatorBrush}" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding HfrIndicatorBrush}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="HFR" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding Metrics.Hfr, StringFormat={}{0:F2}}" Foreground="{Binding HfrIndicatorBrush}" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding StarsIndicatorBrush}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="STARS" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding Metrics.StarCount}" Foreground="{Binding StarsIndicatorBrush}" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding TrailIndicatorBrush}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="TRAIL" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding TrailText}" Foreground="{Binding TrailIndicatorBrush}" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Border>
+                </WrapPanel>
+
+                <Grid Grid.Row="3" Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" BorderBrush="#2E3134" BorderThickness="0,0,1,0" Padding="0,4,8,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="OPTICS" />
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource MetricNameStyle}" Text="FWHM (px)" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Fwhm, StringFormat={}{0:F2}}" />
+                                <TextBlock Grid.Row="1" Style="{StaticResource MetricNameStyle}" Text="FWHM (arcsec)" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding FwhmArcsecDisplay}" />
+                                <TextBlock Grid.Row="2" Style="{StaticResource MetricNameStyle}" Text="HFR" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Hfr, StringFormat={}{0:F2}}" />
+                                <TextBlock Grid.Row="3" Style="{StaticResource MetricNameStyle}" Text="Eccentricity" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Eccentricity, StringFormat={}{0:F3}}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="2" BorderBrush="#2E3134" BorderThickness="0,0,1,0" Padding="0,4,8,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="BACKGROUND" />
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource MetricNameStyle}" Text="Mean BG" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.MeanBackground, StringFormat={}{0:F1}}" />
+                                <TextBlock Grid.Row="1" Style="{StaticResource MetricNameStyle}" Text="Median" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Median, StringFormat={}{0:F1}}" />
+                                <TextBlock Grid.Row="2" Style="{StaticResource MetricNameStyle}" Text="MAD" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Mad, StringFormat={}{0:F1}}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Grid.Column="4" Margin="0,4,0,0">
+                        <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="FRAME" />
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource MetricNameStyle}" Text="Stars" />
+                            <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.StarCount}" />
+                            <TextBlock Grid.Row="1" Style="{StaticResource MetricNameStyle}" Text="Min / count" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.MinCount, StringFormat={}{0}}" />
+                            <TextBlock Grid.Row="2" Style="{StaticResource MetricNameStyle}" Text="Max / count" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.MaxCount, StringFormat={}{0}}" />
+                            <TextBlock Grid.Row="3" Style="{StaticResource MetricNameStyle}" Text="Range" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetricValueStyle}">
+                                <Run Text="{Binding Metrics.Min, StringFormat={}{0:F0}}" />
+                                <Run Text=" / " />
+                                <Run Text="{Binding Metrics.Max, StringFormat={}{0:F0}}" />
+                            </TextBlock>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
+            <Border Grid.Column="2" Background="#1B1D20" BorderBrush="#303338" BorderThickness="1" CornerRadius="4" Padding="12,10">
+                <StackPanel>
+                    <TextBlock Text="SCORE" FontSize="11" Foreground="#9A9A9A" />
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,2">
+                        <TextBlock Text="{Binding ScoreValueText}" FontSize="34" FontWeight="Bold" Foreground="{Binding QualityBrush}" />
+                        <TextBlock Text=" / 5" FontSize="16" Foreground="#C8C8C8" VerticalAlignment="Bottom" Margin="4,0,0,4" />
+                    </StackPanel>
+                    <ProgressBar Height="12" Margin="0,10,0,14" Minimum="0" Maximum="100" Value="{Binding ScoreProgressPercent, Mode=OneWay}" Foreground="{Binding QualityBrush}" Background="#303338" />
+                    <Button Command="{Binding DataContext.ToggleRejectCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                            CommandParameter="{Binding}"
+                            FontWeight="SemiBold"
+                            Foreground="#F5F5F5"
+                            HorizontalContentAlignment="Center"
+                            Padding="10,7"
+                            BorderThickness="0"
+                            Background="{Binding RejectionStateBrush}">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <TextBlock Text="{Binding RejectionStateLabel}" FontWeight="SemiBold" Foreground="#F5F5F5" HorizontalAlignment="Center" />
+                    </Button>
                 </StackPanel>
-                <Grid Margin="0,4,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock FontWeight="SemiBold" Text="Date" />
-                        <TextBlock Text="{Binding ExposureDateTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}, TargetNullValue=n/a}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="2">
-                        <TextBlock FontWeight="SemiBold" Text="Filter" />
-                        <TextBlock Text="{Binding FilterName, TargetNullValue=n/a}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="4">
-                        <TextBlock FontWeight="SemiBold" Text="Exposure" />
-                        <TextBlock Text="{Binding ExposureSeconds, StringFormat={}{0:F1}s, TargetNullValue=n/a}" />
-                    </StackPanel>
-                </Grid>
-                <Grid Margin="0,4,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="8" Height="8" Fill="{Binding FwhmIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
-                            <TextBlock FontWeight="SemiBold" Text="FWHM px" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding Metrics.Fwhm, StringFormat={}{0:F2}}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="2">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="8" Height="8" Fill="{Binding FwhmIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
-                            <TextBlock FontWeight="SemiBold" Text="FWHM arcsec" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding Metrics.FwhmArcsec, StringFormat={}{0:F2}, TargetNullValue=n/a}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="4">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="8" Height="8" Fill="{Binding HfrIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
-                            <TextBlock FontWeight="SemiBold" Text="HFR" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding Metrics.Hfr, StringFormat={}{0:F2}}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="6">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="8" Height="8" Fill="{Binding StarsIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
-                            <TextBlock FontWeight="SemiBold" Text="Stars" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding Metrics.StarCount}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="8">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="8" Height="8" Fill="{Binding EccentricityIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
-                            <TextBlock FontWeight="SemiBold" Text="Ecc" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding Metrics.Eccentricity, StringFormat={}{0:F3}}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="10">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="8" Height="8" Fill="{Binding MeanBackgroundIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
-                            <TextBlock FontWeight="SemiBold" Text="Mean BG" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding Metrics.MeanBackground, StringFormat={}{0:F1}}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="12">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="8" Height="8" Fill="{Binding TrailIndicatorBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
-                            <TextBlock FontWeight="SemiBold" Text="Trail" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding Metrics.PossibleSatelliteTrail}" />
-                    </StackPanel>
-                </Grid>
-                <Grid Margin="0,4,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock FontWeight="SemiBold" Text="Median" />
-                        <TextBlock Text="{Binding Metrics.Median, StringFormat={}{0:F1}}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="2">
-                        <TextBlock FontWeight="SemiBold" Text="MAD" />
-                        <TextBlock Text="{Binding Metrics.Mad, StringFormat={}{0:F1}}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="4">
-                        <TextBlock FontWeight="SemiBold" Text="Min" />
-                        <TextBlock>
-                            <Run Text="{Binding Metrics.Min, StringFormat={}{0:F1}}" />
-                            <Run Text=" (" />
-                            <Run Text="{Binding Metrics.MinCount}" />
-                            <Run Text="x)" />
-                        </TextBlock>
-                    </StackPanel>
-                    <StackPanel Grid.Column="6">
-                        <TextBlock FontWeight="SemiBold" Text="Max" />
-                        <TextBlock>
-                            <Run Text="{Binding Metrics.Max, StringFormat={}{0:F1}}" />
-                            <Run Text=" (" />
-                            <Run Text="{Binding Metrics.MaxCount}" />
-                            <Run Text="x)" />
-                        </TextBlock>
-                    </StackPanel>
-                </Grid>
-            </StackPanel>
-            <CheckBox Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="{Binding IsRejected, Mode=TwoWay}" Content="Reject" />
+            </Border>
         </Grid>
     </Border>
 </UserControl>

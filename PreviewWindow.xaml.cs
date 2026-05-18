@@ -152,6 +152,11 @@ public partial class PreviewWindow : Window
         _vm.Zoom = 1.0;
     }
 
+    private void ToggleReject_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.ToggleReject();
+    }
+
     private void ImageScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         if ((Keyboard.Modifiers & ModifierKeys.Control) == 0)
