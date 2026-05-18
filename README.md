@@ -10,8 +10,6 @@ Designed for fast proofing of weak astro subframes on Windows with a dark-room-f
 
 - Browse a folder of light frames (`.fit`, `.fits`, `.xisf`)
 - Native .NET FITS/XISF loading on Windows
-  - FITS via the built-in parser in `RustafitsService`
-  - XISF via `XisfSharp`
 - Async and batched frame loading with progress/status updates
 - Early thumbnail/ROI availability while the session is still loading
 - Remembers the last used input and rejected folders between runs

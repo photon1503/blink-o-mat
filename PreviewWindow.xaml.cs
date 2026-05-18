@@ -14,11 +14,14 @@ public partial class PreviewWindow : Window
 {
     private readonly FramePreviewViewModel _vm;
     private bool _hasInitializedView;
+    private bool _isKeyboardNavigationInProgress;
     private bool _isLoupeActive;
     private bool _isPanning;
+    private int? _activeKeyboardNavigationIndex;
     private WpfPoint _panStartPoint;
     private double _panStartHorizontalOffset;
     private double _panStartVerticalOffset;
+    private int? _queuedKeyboardNavigationIndex;
     private const int LoupeSampleSize = 31;
     private const int LoupeZoomScale = 4;
 
@@ -456,14 +459,14 @@ public partial class PreviewWindow : Window
         if (e.Key == Key.Left)
         {
             e.Handled = true;
-            await _vm.NavigateAsync(-1);
+            QueueKeyboardNavigation(-1);
             return;
         }
 
         if (e.Key == Key.Right)
         {
             e.Handled = true;
-            await _vm.NavigateAsync(1);
+            QueueKeyboardNavigation(1);
             return;
         }
 
@@ -471,6 +474,64 @@ public partial class PreviewWindow : Window
         {
             e.Handled = true;
             _vm.ToggleReject();
+        }
+    }
+
+    private void QueueKeyboardNavigation(int direction)
+    {
+        if (direction == 0 || _vm.FrameCount <= 0)
+        {
+            return;
+        }
+
+        var baseIndex = _queuedKeyboardNavigationIndex ?? _activeKeyboardNavigationIndex ?? _vm.CurrentFrameIndex;
+        var targetIndex = Math.Clamp(baseIndex + direction, 0, _vm.FrameCount - 1);
+        if (targetIndex == baseIndex && targetIndex == _vm.CurrentFrameIndex)
+        {
+            return;
+        }
+
+        _queuedKeyboardNavigationIndex = targetIndex;
+        if (_isKeyboardNavigationInProgress)
+        {
+            return;
+        }
+
+        _ = ProcessQueuedKeyboardNavigationAsync();
+    }
+
+    private async Task ProcessQueuedKeyboardNavigationAsync()
+    {
+        if (_isKeyboardNavigationInProgress)
+        {
+            return;
+        }
+
+        _isKeyboardNavigationInProgress = true;
+        try
+        {
+            while (_queuedKeyboardNavigationIndex is int targetIndex)
+            {
+                _queuedKeyboardNavigationIndex = null;
+                if (targetIndex == _vm.CurrentFrameIndex)
+                {
+                    continue;
+                }
+
+                _activeKeyboardNavigationIndex = targetIndex;
+                try
+                {
+                    await _vm.NavigateToIndexAsync(targetIndex);
+                }
+                finally
+                {
+                    _activeKeyboardNavigationIndex = null;
+                }
+            }
+        }
+        finally
+        {
+            _isKeyboardNavigationInProgress = false;
         }
     }
 }

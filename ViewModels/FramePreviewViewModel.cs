@@ -163,6 +163,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 
     public int FrameCount => _frameCount;
 
+    public int CurrentFrameIndex => Math.Clamp((int)Math.Round(_frameSliderValue), 0, Math.Max(0, _frameCount - 1));
+
     public ObservableCollection<int> CachedFrameIndices { get; } = [];
 
     public string FramePositionText
@@ -174,7 +176,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
                 return "0 / 0";
             }
 
-            var current = Math.Clamp((int)Math.Round(_frameSliderValue) + 1, 1, _frameCount);
+            var current = Math.Clamp(CurrentFrameIndex + 1, 1, _frameCount);
             return $"{current} / {_frameCount}";
         }
     }
@@ -240,6 +242,11 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     public async Task NavigateAsync(int direction)
     {
         await _navigate(direction);
+    }
+
+    public async Task NavigateToIndexAsync(int index)
+    {
+        await _navigateToIndex(index);
     }
 
     public void ToggleReject()
