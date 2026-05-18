@@ -82,18 +82,27 @@
 
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
-                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Preview and ROI" />
-                            <TextBlock Text="Stretch mode" />
-                            <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,2,0,8" />
-                            <TextBlock Text="Stretch" />
-                            <Slider Minimum="0.25" Maximum="5.0" Value="{Binding StretchStrength, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
-                            <TextBlock Margin="0,0,0,8" Text="{Binding StretchStrength, StringFormat=F2}" />
-                            <CheckBox Content="Use same target background for all frames" IsChecked="{Binding UseGlobalTargetBackground}" Margin="0,0,0,6" />
-                            <TextBlock Text="Target background" />
-                            <Slider Minimum="0.05" Maximum="0.75" Value="{Binding TargetBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
-                            <TextBlock Margin="0,0,0,8" Text="{Binding TargetBackground, StringFormat=F2}" />
-                            <TextBlock Text="ROI bias" />
-                            <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,0" />
+                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Frame summary" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="Total frames" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" FontWeight="SemiBold" Text="{Binding TotalFrameCount}" />
+                                <TextBlock Grid.Row="1" Text="Rejected frames" Margin="0,4,0,0" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding RejectedFrameCount}" />
+                                <TextBlock Grid.Row="2" Text="Rejected %" Margin="0,4,0,0" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding RejectedFramePercentageText}" />
+                                <TextBlock Grid.Row="3" Text="Approved frames" Margin="0,4,0,0" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding ApprovedFrameCount}" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 
@@ -102,26 +111,94 @@
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Automatic rejection" />
                             <CheckBox Content="Reject possible satellite trails" IsChecked="{Binding RejectSatelliteTrail}" Margin="0,0,0,10" />
 
-                            <TextBlock Text="Max FWHM" />
-                            <Slider Minimum="0" Maximum="15" Value="{Binding MaxFwhm, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.25" IsSnapToTickEnabled="False" />
-                            <TextBlock Margin="0,0,0,8" Text="{Binding MaxFwhm, StringFormat=F2}" />
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Max FWHM" />
+                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding FwhmRejectedFrameCount, StringFormat={}Rejects: {0}}" />
+                            </Grid>
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MaxFwhm, StringFormat=F2}" />
+                                <Slider Minimum="0" Maximum="15" Value="{Binding MaxFwhm, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.25" IsSnapToTickEnabled="False" />
+                            </DockPanel>
 
-                            <TextBlock Text="Max HFR" />
-                            <Slider Minimum="0" Maximum="10" Value="{Binding MaxHfr, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.1" IsSnapToTickEnabled="False" />
-                            <TextBlock Margin="0,0,0,8" Text="{Binding MaxHfr, StringFormat=F2}" />
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Max HFR" />
+                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding HfrRejectedFrameCount, StringFormat={}Rejects: {0}}" />
+                            </Grid>
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MaxHfr, StringFormat=F2}" />
+                                <Slider Minimum="0" Maximum="10" Value="{Binding MaxHfr, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.1" IsSnapToTickEnabled="False" />
+                            </DockPanel>
 
-                            <TextBlock Text="Max Eccentricity" />
-                            <Slider Minimum="0" Maximum="1" Value="{Binding MaxEccentricity, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
-                            <TextBlock Margin="0,0,0,8" Text="{Binding MaxEccentricity, StringFormat=F3}" />
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Max Eccentricity" />
+                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding EccentricityRejectedFrameCount, StringFormat={}Rejects: {0}}" />
+                            </Grid>
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MaxEccentricity, StringFormat=F3}" />
+                                <Slider Minimum="0" Maximum="1" Value="{Binding MaxEccentricity, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
+                            </DockPanel>
 
-                            <TextBlock Text="Max Mean Background" />
-                            <Slider Minimum="0" Maximum="10000" Value="{Binding MaxMeanBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="50" IsSnapToTickEnabled="False" />
-                            <TextBlock Margin="0,0,0,8" Text="{Binding MaxMeanBackground, StringFormat=F1}" />
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Max Mean Background" />
+                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding MeanBackgroundRejectedFrameCount, StringFormat={}Rejects: {0}}" />
+                            </Grid>
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MaxMeanBackground, StringFormat=F1}" />
+                                <Slider Minimum="0" Maximum="10000" Value="{Binding MaxMeanBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="50" IsSnapToTickEnabled="False" />
+                            </DockPanel>
 
-                            <TextBlock Text="Min Stars" />
-                            <Slider Minimum="0" Maximum="1000" Value="{Binding MinStars, UpdateSourceTrigger=PropertyChanged}" TickFrequency="5" IsSnapToTickEnabled="False" />
-                            <TextBlock Text="{Binding MinStars, StringFormat=F0}" />
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Min Stars" />
+                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding StarCountRejectedFrameCount, StringFormat={}Rejects: {0}}" />
+                            </Grid>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MinStars, StringFormat=F0}" />
+                                <Slider Minimum="0" Maximum="1000" Value="{Binding MinStars, UpdateSourceTrigger=PropertyChanged}" TickFrequency="5" IsSnapToTickEnabled="False" />
+                            </DockPanel>
+
+                            <TextBlock Margin="0,8,0,0" Opacity="0.78" Text="{Binding SatelliteTrailRejectedFrameCount, StringFormat=Satellite trail rejects: {0}}" />
                         </StackPanel>
+                    </Border>
+
+                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+                        <Expander IsExpanded="False">
+                            <Expander.Header>
+                                <TextBlock FontWeight="SemiBold" Text="Preview and ROI" />
+                            </Expander.Header>
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="Stretch mode" />
+                                <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,2,0,8" />
+                                <TextBlock Text="Stretch" />
+                                <Slider Minimum="0.25" Maximum="5.0" Value="{Binding StretchStrength, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
+                                <TextBlock Margin="0,0,0,8" Text="{Binding StretchStrength, StringFormat=F2}" />
+                                <CheckBox Content="Use same target background for all frames" IsChecked="{Binding UseGlobalTargetBackground}" Margin="0,0,0,6" />
+                                <TextBlock Text="Target background" />
+                                <Slider Minimum="0.05" Maximum="0.75" Value="{Binding TargetBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
+                                <TextBlock Margin="0,0,0,8" Text="{Binding TargetBackground, StringFormat=F2}" />
+                                <TextBlock Text="ROI bias" />
+                                <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </Expander>
                     </Border>
 
                     <Border Padding="10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">

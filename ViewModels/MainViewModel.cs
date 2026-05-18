@@ -59,8 +59,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _targetBackground = 0.22;
     private double? _sessionFocalLengthMm;
     private double? _sessionPixelSizeUm;
+    private int _approvedFrameCount;
+    private int _eccentricityRejectedFrameCount;
+    private int _fwhmRejectedFrameCount;
+    private int _hfrRejectedFrameCount;
+    private int _meanBackgroundRejectedFrameCount;
+    private int _rejectedFrameCount;
     private RoiBias _roiBias = RoiBias.Galaxy;
+    private int _satelliteTrailRejectedFrameCount;
     private StretchMode _stretchMode = StretchMode.Default;
+    private int _starCountRejectedFrameCount;
     private bool _hasManualRoi;
     private bool _skipRejectedInPreview;
     private FrameItem? _selectedFrame;
@@ -84,6 +92,101 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             SaveFolderSettings();
             ((RelayCommand)LoadFramesCommand).RaiseCanExecuteChanged();
+        }
+    }
+
+    public int TotalFrameCount => Frames.Count;
+
+    public int RejectedFrameCount
+    {
+        get => _rejectedFrameCount;
+        private set
+        {
+            if (_rejectedFrameCount == value) return;
+            _rejectedFrameCount = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(RejectedFramePercentageText));
+        }
+    }
+
+    public int ApprovedFrameCount
+    {
+        get => _approvedFrameCount;
+        private set
+        {
+            if (_approvedFrameCount == value) return;
+            _approvedFrameCount = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string RejectedFramePercentageText => TotalFrameCount == 0
+        ? "0.0%"
+        : $"{(double)RejectedFrameCount / TotalFrameCount:P1}";
+
+    public int FwhmRejectedFrameCount
+    {
+        get => _fwhmRejectedFrameCount;
+        private set
+        {
+            if (_fwhmRejectedFrameCount == value) return;
+            _fwhmRejectedFrameCount = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int HfrRejectedFrameCount
+    {
+        get => _hfrRejectedFrameCount;
+        private set
+        {
+            if (_hfrRejectedFrameCount == value) return;
+            _hfrRejectedFrameCount = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int EccentricityRejectedFrameCount
+    {
+        get => _eccentricityRejectedFrameCount;
+        private set
+        {
+            if (_eccentricityRejectedFrameCount == value) return;
+            _eccentricityRejectedFrameCount = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int MeanBackgroundRejectedFrameCount
+    {
+        get => _meanBackgroundRejectedFrameCount;
+        private set
+        {
+            if (_meanBackgroundRejectedFrameCount == value) return;
+            _meanBackgroundRejectedFrameCount = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int StarCountRejectedFrameCount
+    {
+        get => _starCountRejectedFrameCount;
+        private set
+        {
+            if (_starCountRejectedFrameCount == value) return;
+            _starCountRejectedFrameCount = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int SatelliteTrailRejectedFrameCount
+    {
+        get => _satelliteTrailRejectedFrameCount;
+        private set
+        {
+            if (_satelliteTrailRejectedFrameCount == value) return;
+            _satelliteTrailRejectedFrameCount = value;
+            OnPropertyChanged();
         }
     }
 
@@ -408,6 +511,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Status = "Scanning folder...";
         Frames.Clear();
         _loadedFrames.Clear();
+        ResetFrameStatistics();
         SelectedFrame = null;
         _globalRoiCenter = null;
         _hasManualRoi = false;
@@ -968,6 +1072,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             frame.IsRejected = _rejection.ShouldReject(frame, thresholds);
         }
 
+        UpdateFrameStatistics();
         ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
     }
 
@@ -1134,6 +1239,34 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         vm.UpdateCachedFrameIndices(cachedIndices);
+    }
+
+    private void ResetFrameStatistics()
+    {
+        OnPropertyChanged(nameof(TotalFrameCount));
+        RejectedFrameCount = 0;
+        ApprovedFrameCount = 0;
+        FwhmRejectedFrameCount = 0;
+        HfrRejectedFrameCount = 0;
+        EccentricityRejectedFrameCount = 0;
+        MeanBackgroundRejectedFrameCount = 0;
+        StarCountRejectedFrameCount = 0;
+        SatelliteTrailRejectedFrameCount = 0;
+    }
+
+    private void UpdateFrameStatistics()
+    {
+        OnPropertyChanged(nameof(TotalFrameCount));
+        RejectedFrameCount = Frames.Count(frame => frame.IsRejected);
+        ApprovedFrameCount = Math.Max(0, TotalFrameCount - RejectedFrameCount);
+        FwhmRejectedFrameCount = Frames.Count(frame => frame.Metrics.Fwhm > MaxFwhm);
+        HfrRejectedFrameCount = Frames.Count(frame => frame.Metrics.Hfr > MaxHfr);
+        EccentricityRejectedFrameCount = Frames.Count(frame => frame.Metrics.Eccentricity > MaxEccentricity);
+        MeanBackgroundRejectedFrameCount = Frames.Count(frame => frame.Metrics.MeanBackground > MaxMeanBackground);
+        StarCountRejectedFrameCount = Frames.Count(frame => frame.Metrics.StarCount < MinStars);
+        SatelliteTrailRejectedFrameCount = RejectSatelliteTrail
+            ? Frames.Count(frame => frame.Metrics.PossibleSatelliteTrail)
+            : 0;
     }
 
     private void SyncPreviewSelection(FrameItem? activeItem)
