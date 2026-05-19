@@ -26,9 +26,11 @@ Designed for fast proofing of weak astro subframes on Windows with a dark-room-f
   - Default zoom-to-fit
   - Prev/Next buttons
 	- Direct frame scrubbing with a vertical frame slider
+	- Accepted/Rejected filter chips matching the main window
+  - Instant preview-list and slider updates when filters change
   - Keyboard navigation with `Left` / `Right`
   - Reject toggle with `R`
-  - Optional `Skip rejected when blinking`
+	- Navigation follows the currently visible filtered frame list
   - Keeps zoom level and pan position while stepping between frames
   - Left mouse drag pans the image
   - `Ctrl + Mouse Wheel` zooms
@@ -120,6 +122,8 @@ The UI also includes:
 - Async processing to keep the UI responsive
 - Batched collection updates and virtualized frame list
 - Adaptive preview caching for faster frame-to-frame blinking
+- Lower-latency preview iteration with reduced redraw and allocation overhead while stepping through frames
+- Reused preview-slider cache-indicator brushes to reduce UI allocation churn
 - Automatic trimming of cached full-resolution preview images to stay memory-conscious
 - Memory-conscious frame handling for large sessions
 

@@ -15,4 +15,11 @@
     <PackageReference Include="XisfSharp" Version="1.0.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="BenchmarkSuite1\**" />
+    <None Remove="BenchmarkSuite1\**" />
+    <Content Remove="BenchmarkSuite1\**" />
+    <EmbeddedResource Remove="BenchmarkSuite1\**" />
+  </ItemGroup>
+
 </Project>

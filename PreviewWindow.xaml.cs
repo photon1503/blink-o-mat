@@ -13,6 +13,17 @@ namespace blink_o_mat;
 
 public partial class PreviewWindow : Window
 {
+    private static readonly System.Windows.Media.Brush CachedFrameBrush;
+    private static readonly System.Windows.Media.Brush ActiveFrameBrush;
+
+    static PreviewWindow()
+    {
+        CachedFrameBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x39, 0xD3, 0x53));
+        CachedFrameBrush.Freeze();
+        ActiveFrameBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xD7, 0x00));
+        ActiveFrameBrush.Freeze();
+    }
+
     private readonly FramePreviewViewModel _vm;
     private bool _hasInitializedView;
     private bool _isKeyboardNavigationInProgress;
@@ -429,11 +440,23 @@ public partial class PreviewWindow : Window
 
     private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(FramePreviewViewModel.FramePositionBatchUpdated))
+        {
+            // FramePosition batch: all position fields were updated together; redraw once.
+            RedrawCacheIndicators();
+            return;
+        }
+
         if (e.PropertyName is nameof(FramePreviewViewModel.FrameSliderValue)
             or nameof(FramePreviewViewModel.FrameCount)
             or nameof(FramePreviewViewModel.CachedFrameIndices))
         {
-            RedrawCacheIndicators();
+            // Skip individual redraws while UpdateFramePosition is batching;
+            // the final FramePositionBatchUpdated event will trigger a single redraw.
+            if (!_vm.IsBatchingFramePosition)
+            {
+                RedrawCacheIndicators();
+            }
         }
     }
 
@@ -475,9 +498,7 @@ public partial class PreviewWindow : Window
                 Height = markerHeight,
                 RadiusX = 1,
                 RadiusY = 1,
-                Fill = cachedIndex == currentIndex
-                    ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xD7, 0x00))
-                    : new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x39, 0xD3, 0x53))
+                Fill = cachedIndex == currentIndex ? ActiveFrameBrush : CachedFrameBrush
             };
 
             Canvas.SetTop(marker, Math.Clamp(y - (markerHeight / 2.0), 0.0, Math.Max(0.0, height - markerHeight)));

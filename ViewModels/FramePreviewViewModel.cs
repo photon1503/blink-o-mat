@@ -299,6 +299,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     public void UpdateFramePosition(int currentVisibleIndex, int visibleFrameCount)
     {
         _isSynchronizingFrameSlider = true;
+        _isBatchingFramePosition = true;
         _frameCount = Math.Max(0, visibleFrameCount);
         _selectedVisibleFrameIndex = Math.Clamp(currentVisibleIndex, 0, Math.Max(0, _frameCount - 1));
         _frameSliderValue = _selectedVisibleFrameIndex;
@@ -307,8 +308,22 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(FrameSliderValue));
         OnPropertyChanged(nameof(CurrentFrameIndex));
         OnPropertyChanged(nameof(FramePositionText));
+        _isBatchingFramePosition = false;
         _isSynchronizingFrameSlider = false;
+        // Signal a single batch-update event so the cache indicator redraws once.
+        OnPropertyChanged(nameof(FramePositionBatchUpdated));
     }
+
+    /// <summary>True while UpdateFramePosition is emitting its individual property changes.</summary>
+    public bool IsBatchingFramePosition => _isBatchingFramePosition;
+    private bool _isBatchingFramePosition;
+
+    /// <summary>
+    /// A synthetic property-changed token fired after all frame-position fields
+    /// are updated together, allowing the view to perform a single redraw pass
+    /// instead of one per individual property change.
+    /// </summary>
+    public object? FramePositionBatchUpdated => null;
 
     public void UpdateCachedFrameIndices(IEnumerable<int> cachedVisibleIndices)
     {

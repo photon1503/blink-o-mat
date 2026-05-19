@@ -1571,8 +1571,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private static RustafitsService.LoadedFrame ExpandFrame(LoadedFrameContext context)
     {
+        // Pixels are treated as read-only by all rendering methods — no clone needed.
         return new RustafitsService.LoadedFrame(
-            (float[])context.Pixels.Clone(),
+            context.Pixels,
             context.Width,
             context.Height,
             context.NormalizationMax,
