@@ -1494,7 +1494,7 @@ public sealed class RustafitsService
 
             var sigmaRange = Math.Max(1e-9, whitePoint - ninaBlackPoint);
             var medianSigmaNormalized = Math.Clamp((median - ninaBlackPoint) / sigmaRange, 1e-6, 0.999999);
-            var targetBackgroundValue = Math.Clamp(targetBackground ?? (0.50 - (0.04 * (normalizedStrength - 1.0))), 0.20, 0.75);
+            var targetBackgroundValue = Math.Clamp(targetBackground ?? (0.50 - (0.04 * (normalizedStrength - 1.0))), 0.05, 0.75);
             var gamma = Math.Log(targetBackgroundValue) / Math.Log(medianSigmaNormalized);
             if (double.IsNaN(gamma) || double.IsInfinity(gamma))
             {
@@ -1535,7 +1535,7 @@ public sealed class RustafitsService
         var stfBlackPoint = Math.Clamp(median + (shadowsClipping * stfSigma), low, high - 1e-9);
         var stretchRange = Math.Max(1e-9, high - stfBlackPoint);
         var medianPostClip = Math.Clamp((median - stfBlackPoint) / stretchRange, 0.0, 1.0);
-        var stfTargetBackground = Math.Clamp(targetBackground ?? (0.25 + (0.03 * (normalizedStrength - 1.0))), 0.12, 0.40);
+        var stfTargetBackground = Math.Clamp(targetBackground ?? (0.25 + (0.03 * (normalizedStrength - 1.0))), 0.05, 0.75);
         var midtones = InverseMidtonesTransfer(stfTargetBackground, medianPostClip);
         if (double.IsNaN(midtones) || double.IsInfinity(midtones))
         {
@@ -1619,7 +1619,7 @@ public sealed class RustafitsService
         }
 
         Array.Sort(sample, 0, sampleIndex);
-        var currentBackground = sample[Math.Clamp((int)Math.Round((sampleIndex - 1) * 0.5), 0, sampleIndex - 1)];
+        var currentBackground = sample[Math.Clamp((int)Math.Round((sampleIndex - 1) * 0.35), 0, sampleIndex - 1)];
         var target = Math.Clamp((int)Math.Round(targetBackground * 255.0), 0, 255);
         var delta = target - currentBackground;
 
