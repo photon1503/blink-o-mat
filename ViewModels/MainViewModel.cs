@@ -125,6 +125,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _showAccepted = value;
             OnPropertyChanged();
             FilteredFrames.Refresh();
+            RefreshPreviewVisibleFrames();
         }
     }
 
@@ -137,6 +138,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _showRejected = value;
             OnPropertyChanged();
             FilteredFrames.Refresh();
+            RefreshPreviewVisibleFrames();
         }
     }
 
@@ -564,6 +566,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (e.PropertyName is nameof(FrameItem.IsRejected) or nameof(FrameItem.ManualRejectedOverride) or nameof(FrameItem.AutomaticRejected))
         {
             FilteredFrames.Refresh();
+            RefreshPreviewVisibleFrames();
         }
     }
 
@@ -1260,9 +1263,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
             NavigatePreviewAsync,
             NavigatePreviewToIndexAsync,
             TogglePreviewReject,
-            () => SkipRejectedInPreview,
-            value => SkipRejectedInPreview = value);
-        vm.UpdateFramePosition(currentIndex, _loadedFrames.Count);
+            () => ShowAccepted,
+            value => ShowAccepted = value,
+            () => ShowRejected,
+            value => ShowRejected = value,
+            GetVisiblePreviewFrameIndices,
+            RefreshPreviewVisibleFrames);
+        var visibleFrameIndices = GetVisiblePreviewFrameIndices();
+        var currentVisibleIndex = FindVisibleFrameIndex(visibleFrameIndices, currentIndex);
+        vm.UpdateFramePosition(currentVisibleIndex, visibleFrameIndices.Count);
         PublishPreviewCacheState(vm);
         _previewVm = vm;
         _previewWindow = new PreviewWindow(vm);
@@ -1302,7 +1311,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task NavigatePreviewAsync(int direction)
     {
-        if (_previewItem is null || direction == 0 || _loadedFrames.Count == 0)
+        if (_previewItem is null || direction == 0)
+        {
+            return;
+        }
+
+        var visibleFrameIndices = GetVisiblePreviewFrameIndices();
+        if (visibleFrameIndices.Count == 0)
         {
             return;
         }
@@ -1313,38 +1328,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var nextIndex = currentIndex;
-        do
+        var currentVisibleIndex = FindVisibleFrameIndex(visibleFrameIndices, currentIndex);
+        if (currentVisibleIndex < 0)
         {
-            nextIndex = Math.Clamp(nextIndex + direction, 0, _loadedFrames.Count - 1);
-            if (nextIndex == currentIndex)
-            {
-                return;
-            }
+            currentVisibleIndex = 0;
+        }
 
-            if (!SkipRejectedInPreview || !_loadedFrames[nextIndex].Item.IsRejected)
-            {
-                break;
-            }
-        } while (true);
-
-        if (nextIndex == currentIndex)
+        var nextVisibleIndex = Math.Clamp(currentVisibleIndex + direction, 0, visibleFrameIndices.Count - 1);
+        if (nextVisibleIndex == currentVisibleIndex)
         {
             return;
         }
 
-        var nextItem = _loadedFrames[nextIndex].Item;
+        var nextItem = _loadedFrames[visibleFrameIndices[nextVisibleIndex]].Item;
         await OpenPreviewAsync(nextItem);
     }
 
     private async Task NavigatePreviewToIndexAsync(int index)
     {
-        if (_loadedFrames.Count == 0)
+        var visibleFrameIndices = GetVisiblePreviewFrameIndices();
+        if (visibleFrameIndices.Count == 0)
         {
             return;
         }
 
         var targetIndex = Math.Clamp(index, 0, _loadedFrames.Count - 1);
+        if (!visibleFrameIndices.Contains(targetIndex))
+        {
+            return;
+        }
+
         var targetItem = _loadedFrames[targetIndex].Item;
         if (targetItem == _previewItem)
         {
@@ -1669,16 +1682,79 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        var visibleFrameIndices = GetVisiblePreviewFrameIndices();
         var cachedIndices = new List<int>();
-        for (var i = 0; i < _loadedFrames.Count; i++)
+        for (var i = 0; i < visibleFrameIndices.Count; i++)
         {
-            if (_loadedFrames[i].FullImage is not null)
+            var loadedFrameIndex = visibleFrameIndices[i];
+            if (_loadedFrames[loadedFrameIndex].FullImage is not null)
             {
                 cachedIndices.Add(i);
             }
         }
 
         vm.UpdateCachedFrameIndices(cachedIndices);
+    }
+
+    private IReadOnlyList<int> GetVisiblePreviewFrameIndices()
+    {
+        var visibleIndices = new List<int>(_loadedFrames.Count);
+        for (var i = 0; i < _loadedFrames.Count; i++)
+        {
+            if (FilterFrame(_loadedFrames[i].Item))
+            {
+                visibleIndices.Add(i);
+            }
+        }
+
+        return visibleIndices;
+    }
+
+    private static int FindVisibleFrameIndex(IReadOnlyList<int> visibleFrameIndices, int loadedFrameIndex)
+    {
+        for (var i = 0; i < visibleFrameIndices.Count; i++)
+        {
+            if (visibleFrameIndices[i] == loadedFrameIndex)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private void RefreshPreviewVisibleFrames()
+    {
+        if (_previewVm is null)
+        {
+            return;
+        }
+
+        var visibleFrameIndices = GetVisiblePreviewFrameIndices();
+        if (visibleFrameIndices.Count == 0)
+        {
+            _previewVm.UpdateFramePosition(0, 0);
+            PublishPreviewCacheState();
+            return;
+        }
+
+        var currentLoadedIndex = _previewItem is null
+            ? -1
+            : _loadedFrames.FindIndex(f => ReferenceEquals(f.Item, _previewItem));
+        var currentVisibleIndex = currentLoadedIndex >= 0
+            ? FindVisibleFrameIndex(visibleFrameIndices, currentLoadedIndex)
+            : -1;
+
+        if (currentVisibleIndex < 0)
+        {
+            var fallbackLoadedIndex = visibleFrameIndices[0];
+            var fallbackItem = _loadedFrames[fallbackLoadedIndex].Item;
+            _ = OpenPreviewAsync(fallbackItem);
+            return;
+        }
+
+        _previewVm.UpdateFramePosition(currentVisibleIndex, visibleFrameIndices.Count);
+        PublishPreviewCacheState();
     }
 
     private void ResetFrameStatistics()

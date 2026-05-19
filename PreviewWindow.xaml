@@ -7,6 +7,66 @@
         Title="Frame Preview" Height="900" Width="1300">
     <Window.Resources>
         <converters:StfSliderValueConverter x:Key="StfSliderValueConverter" />
+        <Style x:Key="AcceptedFilterChipStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="#223A6B46" />
+            <Setter Property="Foreground" Value="#FFE9F8EE" />
+            <Setter Property="BorderBrush" Value="#5CA36E" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="#2F3FAE63" />
+                    <Setter Property="BorderBrush" Value="#7AD68E" />
+                </Trigger>
+                <Trigger Property="IsChecked" Value="False">
+                    <Setter Property="Background" Value="#161616" />
+                    <Setter Property="Foreground" Value="#CCBDBDBD" />
+                    <Setter Property="BorderBrush" Value="#444" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="RejectedFilterChipStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="#224E2A2A" />
+            <Setter Property="Foreground" Value="#FFF9EAEA" />
+            <Setter Property="BorderBrush" Value="#B85C5C" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="#33C45F5F" />
+                    <Setter Property="BorderBrush" Value="#E07A7A" />
+                </Trigger>
+                <Trigger Property="IsChecked" Value="False">
+                    <Setter Property="Background" Value="#161616" />
+                    <Setter Property="Foreground" Value="#CCBDBDBD" />
+                    <Setter Property="BorderBrush" Value="#444" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
     <Grid Margin="10" Background="{StaticResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
@@ -45,7 +105,6 @@
                         <TextBlock Text="+" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
                     </Button>
                     <Button Content="1:1" Width="55" Margin="0,0,10,0" Click="OneToOne_Click" />
-                    <CheckBox VerticalAlignment="Center" Content="Skip rejected" IsChecked="{Binding SkipRejectedInPreview, Mode=TwoWay}" />
                 </StackPanel>
 
                 <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Text="{Binding Zoom, StringFormat=Zoom: {0:F2}x}" />
@@ -118,13 +177,31 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Text="Frames" />
                 <TextBlock Grid.Row="1" Margin="0,4,0,8" HorizontalAlignment="Center" Text="{Binding FramePositionText}" />
-                <Grid Grid.Row="2" Margin="0,0,0,8">
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,8">
+                    <ToggleButton IsChecked="{Binding ShowAccepted, Mode=TwoWay}"
+                                  Style="{StaticResource AcceptedFilterChipStyle}"
+                                  Margin="0,0,6,0"
+                                  Padding="12,4"
+                                  BorderThickness="1"
+                                  FontWeight="SemiBold">
+                        <TextBlock Text="Accepted" />
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowRejected, Mode=TwoWay}"
+                                  Style="{StaticResource RejectedFilterChipStyle}"
+                                  Padding="12,4"
+                                  BorderThickness="1"
+                                  FontWeight="SemiBold">
+                        <TextBlock Text="Rejected" />
+                    </ToggleButton>
+                </StackPanel>
+                <Grid Grid.Row="3" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="8" />
                         <ColumnDefinition Width="Auto" />
@@ -146,7 +223,7 @@
                             IsDirectionReversed="True"
                             SizeChanged="FrameSlider_SizeChanged" />
                 </Grid>
-                <TextBlock Grid.Row="3" HorizontalAlignment="Center" Text="{Binding FrameCount, StringFormat=Total: {0}}" />
+                <TextBlock Grid.Row="4" HorizontalAlignment="Center" Text="{Binding FrameCount, StringFormat=Total: {0}}" />
             </Grid>
         </Border>
 

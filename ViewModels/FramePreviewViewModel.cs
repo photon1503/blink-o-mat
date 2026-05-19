@@ -24,8 +24,12 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Func<int, Task> _navigate;
     private readonly Func<int, Task> _navigateToIndex;
     private readonly Action _toggleReject;
-    private readonly Func<bool> _getSkipRejected;
-    private readonly Action<bool> _setSkipRejected;
+    private readonly Func<bool> _getShowAccepted;
+    private readonly Action<bool> _setShowAccepted;
+    private readonly Func<bool> _getShowRejected;
+    private readonly Action<bool> _setShowRejected;
+    private readonly Func<IReadOnlyList<int>> _getVisibleFrameIndices;
+    private readonly Action _refreshVisibleFrames;
     private readonly Action _beginInteractiveStretch;
     private readonly Action _endInteractiveStretch;
     private FrameItem _item;
@@ -35,6 +39,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private int _frameCount;
     private bool _isSynchronizingFrameSlider;
     private string? _previewStatusMessage;
+    private int _selectedVisibleFrameIndex;
 
     public FrameItem Item
     {
@@ -43,6 +48,28 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         {
             if (ReferenceEquals(_item, value)) return;
             _item = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowAccepted
+    {
+        get => _getShowAccepted();
+        set
+        {
+            if (_getShowAccepted() == value) return;
+            _setShowAccepted(value);
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowRejected
+    {
+        get => _getShowRejected();
+        set
+        {
+            if (_getShowRejected() == value) return;
+            _setShowRejected(value);
             OnPropertyChanged();
         }
     }
@@ -121,17 +148,6 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 
     public Array RoiBiasOptions { get; } = Enum.GetValues(typeof(RoiBias));
 
-    public bool SkipRejectedInPreview
-    {
-        get => _getSkipRejected();
-        set
-        {
-            if (_getSkipRejected() == value) return;
-            _setSkipRejected(value);
-            OnPropertyChanged();
-        }
-    }
-
     public double FrameSliderValue
     {
         get => _frameSliderValue;
@@ -148,7 +164,14 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
                 return;
             }
 
-            _ = _navigateToIndex((int)Math.Round(clamped));
+            var visibleIndices = _getVisibleFrameIndices();
+            if (visibleIndices.Count == 0)
+            {
+                return;
+            }
+
+            var visibleIndex = Math.Clamp((int)Math.Round(clamped), 0, visibleIndices.Count - 1);
+            _ = _navigateToIndex(visibleIndices[visibleIndex]);
         }
     }
 
@@ -156,7 +179,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 
     public int FrameCount => _frameCount;
 
-    public int CurrentFrameIndex => Math.Clamp((int)Math.Round(_frameSliderValue), 0, Math.Max(0, _frameCount - 1));
+    public int CurrentFrameIndex => Math.Clamp(_selectedVisibleFrameIndex, 0, Math.Max(0, _frameCount - 1));
 
     public ObservableCollection<int> CachedFrameIndices { get; } = [];
 
@@ -205,8 +228,12 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Func<int, Task> navigate,
         Func<int, Task> navigateToIndex,
         Action toggleReject,
-        Func<bool> getSkipRejected,
-        Action<bool> setSkipRejected)
+        Func<bool> getShowAccepted,
+        Action<bool> setShowAccepted,
+        Func<bool> getShowRejected,
+        Action<bool> setShowRejected,
+        Func<IReadOnlyList<int>> getVisibleFrameIndices,
+        Action refreshVisibleFrames)
     {
         _item = item;
         _getStfShadows = getStfShadows;
@@ -224,8 +251,12 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _navigate = navigate;
         _navigateToIndex = navigateToIndex;
         _toggleReject = toggleReject;
-        _getSkipRejected = getSkipRejected;
-        _setSkipRejected = setSkipRejected;
+        _getShowAccepted = getShowAccepted;
+        _setShowAccepted = setShowAccepted;
+        _getShowRejected = getShowRejected;
+        _setShowRejected = setShowRejected;
+        _getVisibleFrameIndices = getVisibleFrameIndices;
+        _refreshVisibleFrames = refreshVisibleFrames;
         _image = null;
         AutoStretchCommand = new RelayCommand(_ => ApplyAutoStretchAndRefresh());
     }
@@ -265,22 +296,24 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Item = item;
     }
 
-    public void UpdateFramePosition(int currentIndex, int frameCount)
+    public void UpdateFramePosition(int currentVisibleIndex, int visibleFrameCount)
     {
         _isSynchronizingFrameSlider = true;
-        _frameCount = Math.Max(0, frameCount);
-        _frameSliderValue = Math.Clamp(currentIndex, 0, Math.Max(0, _frameCount - 1));
+        _frameCount = Math.Max(0, visibleFrameCount);
+        _selectedVisibleFrameIndex = Math.Clamp(currentVisibleIndex, 0, Math.Max(0, _frameCount - 1));
+        _frameSliderValue = _selectedVisibleFrameIndex;
         OnPropertyChanged(nameof(FrameCount));
         OnPropertyChanged(nameof(FrameSliderMaximum));
         OnPropertyChanged(nameof(FrameSliderValue));
+        OnPropertyChanged(nameof(CurrentFrameIndex));
         OnPropertyChanged(nameof(FramePositionText));
         _isSynchronizingFrameSlider = false;
     }
 
-    public void UpdateCachedFrameIndices(IEnumerable<int> cachedIndices)
+    public void UpdateCachedFrameIndices(IEnumerable<int> cachedVisibleIndices)
     {
         CachedFrameIndices.Clear();
-        foreach (var index in cachedIndices)
+        foreach (var index in cachedVisibleIndices)
         {
             CachedFrameIndices.Add(index);
         }
