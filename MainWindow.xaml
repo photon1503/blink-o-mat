@@ -137,6 +137,19 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Min SQM" />
+                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding SqmRejectedFrameCount, StringFormat={}Rejects: {0}}" />
+                            </Grid>
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MinSqm, StringFormat=F2}" />
+                                <Slider Minimum="0" Maximum="30" Value="{Binding MinSqm, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
+                            </DockPanel>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Max HFR" />
                                 <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding HfrRejectedFrameCount, StringFormat={}Rejects: {0}}" />
                             </Grid>

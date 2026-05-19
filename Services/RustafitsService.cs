@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using blink_o_mat.Models;
 using XisfSharp;
 
@@ -14,6 +15,7 @@ public sealed class RustafitsService
 {
     private readonly record struct StarPoint(float X, float Y, float Signal);
     private readonly record struct TrailDetectionResult(bool Detected, double X1, double Y1, double X2, double Y2);
+    private static readonly Regex SqmRegex = new(@"(?:%SQM%|SQM[_-])(?<value>\d{1,2}\.\d{1,3})(?:%|(?=[_.-]|$))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public sealed record LoadedFrame(
         float[] Pixels,
@@ -23,7 +25,8 @@ public sealed class RustafitsService
         double? PixelSizeUm = null,
         DateTimeOffset? ExposureDateTime = null,
         double? ExposureSeconds = null,
-        string? FilterName = null);
+        string? FilterName = null,
+        double? Sqm = null);
 
     public async Task<FrameItem> ProcessFrameAsync(string filePath, string thumbnailDirectory, CancellationToken cancellationToken)
     {
@@ -31,7 +34,7 @@ public sealed class RustafitsService
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
 
-            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName);
+            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath));
             var metrics = ComputeMetrics(loadedFrame);
             var previews = await RenderPreviewBitmapsAsync(loadedFrame, 1.0, StretchMode.Default, null, null, metrics, cancellationToken);
 
@@ -54,7 +57,7 @@ public sealed class RustafitsService
         return Task.Run(async () =>
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
-            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName);
+            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath));
         }, cancellationToken);
     }
 
@@ -92,6 +95,23 @@ public sealed class RustafitsService
     public AstroMetrics AnalyzeFrame(LoadedFrame frame)
     {
         return ComputeMetrics(frame);
+    }
+
+    private static double? ParseSqmFromFileName(string filePath)
+    {
+        var fileName = Path.GetFileName(filePath);
+        var match = SqmRegex.Match(fileName);
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        if (double.TryParse(match.Groups["value"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var sqm))
+        {
+            return sqm;
+        }
+
+        return null;
     }
 
     public LoadedFrame NormalizeOrientation(LoadedFrame frame, LoadedFrame reference)
@@ -568,7 +588,7 @@ public sealed class RustafitsService
             pixels[i] = source[source.Length - 1 - i];
         }
 
-        return new LoadedFrame(pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName);
+        return new LoadedFrame(pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, frame.Sqm);
     }
 
     private static float[] CreateOrientationSample(float[] pixels, int width, int height, int sampleSize, bool rotate180)
@@ -1462,6 +1482,7 @@ public sealed class RustafitsService
         {
             Fwhm = fwhm,
             FwhmArcsec = fwhmArcsec,
+            Sqm = frame.Sqm,
             Hfr = hfr,
             StarCount = starCount,
             Eccentricity = eccentricity,

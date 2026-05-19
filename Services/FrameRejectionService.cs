@@ -9,6 +9,7 @@ public sealed class FrameRejectionService
         var m = frame.Metrics;
 
         return m.Fwhm > thresholds.MaxFwhm
+               || (m.Sqm.HasValue && m.Sqm.Value < thresholds.MinSqm)
                || m.Hfr > thresholds.MaxHfr
                || m.Eccentricity > thresholds.MaxEccentricity
                || m.MeanBackground > thresholds.MaxMeanBackground

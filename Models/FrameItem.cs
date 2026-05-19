@@ -189,6 +189,8 @@ public sealed class FrameItem : INotifyPropertyChanged
 
     public string FwhmArcsecDisplay => Metrics.FwhmArcsec is > 0 ? $"{Metrics.FwhmArcsec:F2}\"" : "n/a";
 
+    public string SqmDisplay => Metrics.Sqm is double sqm ? $"{sqm:F3}" : "n/a";
+
     public bool IsRejected => _manualRejectedOverride ?? _autoRejected;
 
     public bool AutomaticRejected => _autoRejected;

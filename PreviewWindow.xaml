@@ -246,6 +246,7 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Text="Date/time" />
@@ -267,35 +268,38 @@
                                 <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="Stars" />
                                 <TextBlock Grid.Row="4" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.StarCount, StringFormat={}{0}}" />
 
-                                <Ellipse Grid.Row="5" Width="8" Height="8" Fill="{Binding Item.EccentricityIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
-                                <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="Eccentricity" />
-                                <TextBlock Grid.Row="5" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Eccentricity, StringFormat={}{0:F3}}" />
+                                <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="SQM" />
+                                <TextBlock Grid.Row="5" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.SqmDisplay}" />
 
-                                <Ellipse Grid.Row="6" Width="8" Height="8" Fill="{Binding Item.MeanBackgroundIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
-                                <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="Mean BG" />
-                                <TextBlock Grid.Row="6" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.MeanBackground, StringFormat={}{0:F1} ADU}" />
+                                <Ellipse Grid.Row="6" Width="8" Height="8" Fill="{Binding Item.EccentricityIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="Eccentricity" />
+                                <TextBlock Grid.Row="6" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Eccentricity, StringFormat={}{0:F3}}" />
 
-                                <TextBlock Grid.Row="7" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,8,10,0" Text="Median" />
-                                <TextBlock Grid.Row="7" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,8,0,0" Text="{Binding Item.Metrics.Median, StringFormat={}{0:F1} ADU}" />
+                                <Ellipse Grid.Row="7" Width="8" Height="8" Fill="{Binding Item.MeanBackgroundIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="7" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="Mean BG" />
+                                <TextBlock Grid.Row="7" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.MeanBackground, StringFormat={}{0:F1} ADU}" />
 
-                                <TextBlock Grid.Row="8" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="MAD" />
-                                <TextBlock Grid.Row="8" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Mad, StringFormat={}{0:F1} ADU}" />
+                                <TextBlock Grid.Row="8" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,8,10,0" Text="Median" />
+                                <TextBlock Grid.Row="8" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,8,0,0" Text="{Binding Item.Metrics.Median, StringFormat={}{0:F1} ADU}" />
 
-                                <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Min" />
-                                <TextBlock Grid.Row="9" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Min, StringFormat={}{0:F1} ADU}" />
+                                <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="MAD" />
+                                <TextBlock Grid.Row="9" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Mad, StringFormat={}{0:F1} ADU}" />
 
-                                <TextBlock Grid.Row="10" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Max" />
-                                <TextBlock Grid.Row="10" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Max, StringFormat={}{0:F1} ADU}" />
+                                <TextBlock Grid.Row="10" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Min" />
+                                <TextBlock Grid.Row="10" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Min, StringFormat={}{0:F1} ADU}" />
 
-                                <TextBlock Grid.Row="11" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Min count" />
-                                <TextBlock Grid.Row="11" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.MinCount, StringFormat={}{0} px}" />
+                                <TextBlock Grid.Row="11" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Max" />
+                                <TextBlock Grid.Row="11" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.Max, StringFormat={}{0:F1} ADU}" />
 
-                                <TextBlock Grid.Row="12" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Max count" />
-                                <TextBlock Grid.Row="12" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.MaxCount, StringFormat={}{0} px}" />
+                                <TextBlock Grid.Row="12" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Min count" />
+                                <TextBlock Grid.Row="12" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.MinCount, StringFormat={}{0} px}" />
 
-                                <Ellipse Grid.Row="13" Width="8" Height="8" Fill="{Binding Item.TrailIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
-                                <TextBlock Grid.Row="13" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="Trail" />
-                                <TextBlock Grid.Row="13" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.PossibleSatelliteTrail, StringFormat={}{0}}" />
+                                <TextBlock Grid.Row="13" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="14,6,10,0" Text="Max count" />
+                                <TextBlock Grid.Row="13" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.MaxCount, StringFormat={}{0} px}" />
+
+                                <Ellipse Grid.Row="14" Width="8" Height="8" Fill="{Binding Item.TrailIndicatorBrush}" Margin="0,6,6,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="14" Grid.Column="1" Style="{StaticResource MetricLabelStyle}" Margin="0,6,10,0" Text="Trail" />
+                                <TextBlock Grid.Row="14" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Margin="0,6,0,0" Text="{Binding Item.Metrics.PossibleSatelliteTrail, StringFormat={}{0}}" />
                             </Grid>
                         </Border>
                     </StackPanel>

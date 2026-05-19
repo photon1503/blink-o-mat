@@ -33,6 +33,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         DateTimeOffset? ExposureDateTime,
         double? ExposureSeconds,
         string? FilterName,
+        double? Sqm,
         BitmapSource? FullImage);
 
     private readonly FrameDiscoveryService _discovery = new();
@@ -67,11 +68,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _rejectedFrameCount;
     private RoiBias _roiBias = RoiBias.Galaxy;
     private int _satelliteTrailRejectedFrameCount;
+    private int _sqmRejectedFrameCount;
     private StretchMode _stretchMode = StretchMode.Default;
     private int _starCountRejectedFrameCount;
     private bool _hasManualRoi;
     private bool _skipRejectedInPreview;
     private FrameItem? _selectedFrame;
+    private double _minSqm;
 
     private readonly List<LoadedFrameContext> _loadedFrames = [];
     private PreviewWindow? _previewWindow;
@@ -142,6 +145,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (_hfrRejectedFrameCount == value) return;
             _hfrRejectedFrameCount = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int SqmRejectedFrameCount
+    {
+        get => _sqmRejectedFrameCount;
+        private set
+        {
+            if (_sqmRejectedFrameCount == value) return;
+            _sqmRejectedFrameCount = value;
             OnPropertyChanged();
         }
     }
@@ -345,6 +359,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (Math.Abs(_maxHfr - value) < double.Epsilon) return;
             _maxHfr = value;
+            OnPropertyChanged();
+            ApplyThresholds();
+        }
+    }
+
+    public double MinSqm
+    {
+        get => _minSqm;
+        set
+        {
+            if (Math.Abs(_minSqm - value) < double.Epsilon) return;
+            _minSqm = value;
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -1096,6 +1122,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var thresholds = new Thresholds
         {
             MaxFwhm = MaxFwhm,
+            MinSqm = MinSqm,
             MaxHfr = MaxHfr,
             MaxEccentricity = MaxEccentricity,
             MaxMeanBackground = MaxMeanBackground,
@@ -1152,6 +1179,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             frame.ExposureDateTime,
             frame.ExposureSeconds,
             frame.FilterName,
+            frame.Sqm,
             null);
     }
 
@@ -1165,7 +1193,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             context.PixelSizeUm,
             context.ExposureDateTime,
             context.ExposureSeconds,
-            context.FilterName);
+            context.FilterName,
+            context.Sqm);
     }
 
     private (int Ahead, int Behind) CalculateAdaptivePreviewCacheWindow(FrameItem centerItem)
@@ -1284,6 +1313,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ApprovedFrameCount = 0;
         FwhmRejectedFrameCount = 0;
         HfrRejectedFrameCount = 0;
+        SqmRejectedFrameCount = 0;
         EccentricityRejectedFrameCount = 0;
         MeanBackgroundRejectedFrameCount = 0;
         StarCountRejectedFrameCount = 0;
@@ -1296,6 +1326,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         RejectedFrameCount = Frames.Count(frame => frame.IsRejected);
         ApprovedFrameCount = Math.Max(0, TotalFrameCount - RejectedFrameCount);
         FwhmRejectedFrameCount = Frames.Count(frame => frame.Metrics.Fwhm > MaxFwhm);
+        SqmRejectedFrameCount = Frames.Count(frame => frame.Metrics.Sqm.HasValue && frame.Metrics.Sqm.Value < MinSqm);
         HfrRejectedFrameCount = Frames.Count(frame => frame.Metrics.Hfr > MaxHfr);
         EccentricityRejectedFrameCount = Frames.Count(frame => frame.Metrics.Eccentricity > MaxEccentricity);
         MeanBackgroundRejectedFrameCount = Frames.Count(frame => frame.Metrics.MeanBackground > MaxMeanBackground);

@@ -4,6 +4,7 @@ public sealed record AstroMetrics
 {
     public double Fwhm { get; init; }
     public double? FwhmArcsec { get; init; }
+    public double? Sqm { get; init; }
     public double Hfr { get; init; }
     public int StarCount { get; init; }
     public double Eccentricity { get; init; }
