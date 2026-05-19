@@ -67,6 +67,8 @@ Designed for fast proofing of weak astro subframes on Windows with a dark-room-f
 
 - FWHM (px)
 - FWHM (arcsec), when focal length and pixel size are available
+- SQM, when available from the filename
+- Sky temperature, when available from FITS/XISF metadata
 - HFR
 - Star count
 - Eccentricity
@@ -89,11 +91,14 @@ The UI also includes:
 - Exposure date/time
 - Exposure length
 - Filter
+- Sky temperature (`SKYTEMP`) from FITS/XISF metadata, when present
 
 ### Rejection and sorting
 
 - Automatic rejection using adjustable thresholds
   - Max FWHM
+	- Min SQM
+  - Max sky temperature
   - Max HFR
   - Max eccentricity
   - Max mean background

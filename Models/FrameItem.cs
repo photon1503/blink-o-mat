@@ -191,6 +191,8 @@ public sealed class FrameItem : INotifyPropertyChanged
 
     public string SqmDisplay => Metrics.Sqm is double sqm ? $"{sqm:F3}" : "n/a";
 
+    public string SkyTempDisplay => Metrics.SkyTemp is double skyTemp ? $"{skyTemp:F1}°" : "n/a";
+
     public bool IsRejected => _manualRejectedOverride ?? _autoRejected;
 
     public bool AutomaticRejected => _autoRejected;

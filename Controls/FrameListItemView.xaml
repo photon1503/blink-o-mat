@@ -233,6 +233,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -240,12 +241,14 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource MetricNameStyle}" Text="Stars" />
                             <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.StarCount}" />
-                            <TextBlock Grid.Row="1" Style="{StaticResource MetricNameStyle}" Text="Min / count" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.MinCount, StringFormat={}{0}}" />
-                            <TextBlock Grid.Row="2" Style="{StaticResource MetricNameStyle}" Text="Max / count" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.MaxCount, StringFormat={}{0}}" />
-                            <TextBlock Grid.Row="3" Style="{StaticResource MetricNameStyle}" Text="Range" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetricValueStyle}">
+                            <TextBlock Grid.Row="1" Style="{StaticResource MetricNameStyle}" Text="Sky temp" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding SkyTempDisplay}" />
+                            <TextBlock Grid.Row="2" Style="{StaticResource MetricNameStyle}" Text="Min / count" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.MinCount, StringFormat={}{0}}" />
+                            <TextBlock Grid.Row="3" Style="{StaticResource MetricNameStyle}" Text="Max / count" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.MaxCount, StringFormat={}{0}}" />
+                            <TextBlock Grid.Row="4" Style="{StaticResource MetricNameStyle}" Text="Range" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource MetricValueStyle}">
                                 <Run Text="{Binding Metrics.Min, StringFormat={}{0:F0}}" />
                                 <Run Text=" / " />
                                 <Run Text="{Binding Metrics.Max, StringFormat={}{0:F0}}" />

@@ -150,6 +150,19 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Max sky temp" />
+                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding SkyTempRejectedFrameCount, StringFormat={}Rejects: {0}}" />
+                            </Grid>
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MaxSkyTemp, StringFormat=F1}" />
+                                <Slider Minimum="-50" Maximum="50" Value="{Binding MaxSkyTemp, UpdateSourceTrigger=PropertyChanged}" TickFrequency="1" IsSnapToTickEnabled="False" />
+                            </DockPanel>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Max HFR" />
                                 <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding HfrRejectedFrameCount, StringFormat={}Rejects: {0}}" />
                             </Grid>

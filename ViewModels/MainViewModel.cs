@@ -34,6 +34,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         double? ExposureSeconds,
         string? FilterName,
         double? Sqm,
+        double? SkyTemp,
         BitmapSource? FullImage);
 
     private readonly FrameDiscoveryService _discovery = new();
@@ -69,12 +70,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private RoiBias _roiBias = RoiBias.Galaxy;
     private int _satelliteTrailRejectedFrameCount;
     private int _sqmRejectedFrameCount;
+    private int _skyTempRejectedFrameCount;
     private StretchMode _stretchMode = StretchMode.Default;
     private int _starCountRejectedFrameCount;
     private bool _hasManualRoi;
     private bool _skipRejectedInPreview;
     private FrameItem? _selectedFrame;
     private double _minSqm;
+    private double _maxSkyTemp = 40.0;
 
     private readonly List<LoadedFrameContext> _loadedFrames = [];
     private PreviewWindow? _previewWindow;
@@ -119,6 +122,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (_approvedFrameCount == value) return;
             _approvedFrameCount = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int SkyTempRejectedFrameCount
+    {
+        get => _skyTempRejectedFrameCount;
+        private set
+        {
+            if (_skyTempRejectedFrameCount == value) return;
+            _skyTempRejectedFrameCount = value;
             OnPropertyChanged();
         }
     }
@@ -347,6 +361,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (Math.Abs(_maxFwhm - value) < double.Epsilon) return;
             _maxFwhm = value;
+            OnPropertyChanged();
+            ApplyThresholds();
+        }
+    }
+
+    public double MaxSkyTemp
+    {
+        get => _maxSkyTemp;
+        set
+        {
+            if (Math.Abs(_maxSkyTemp - value) < double.Epsilon) return;
+            _maxSkyTemp = value;
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -1123,6 +1149,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             MaxFwhm = MaxFwhm,
             MinSqm = MinSqm,
+            MaxSkyTemp = MaxSkyTemp,
             MaxHfr = MaxHfr,
             MaxEccentricity = MaxEccentricity,
             MaxMeanBackground = MaxMeanBackground,
@@ -1180,6 +1207,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             frame.ExposureSeconds,
             frame.FilterName,
             frame.Sqm,
+            frame.SkyTemp,
             null);
     }
 
@@ -1194,7 +1222,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             context.ExposureDateTime,
             context.ExposureSeconds,
             context.FilterName,
-            context.Sqm);
+            context.Sqm,
+            context.SkyTemp);
     }
 
     private (int Ahead, int Behind) CalculateAdaptivePreviewCacheWindow(FrameItem centerItem)
@@ -1314,6 +1343,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         FwhmRejectedFrameCount = 0;
         HfrRejectedFrameCount = 0;
         SqmRejectedFrameCount = 0;
+        SkyTempRejectedFrameCount = 0;
         EccentricityRejectedFrameCount = 0;
         MeanBackgroundRejectedFrameCount = 0;
         StarCountRejectedFrameCount = 0;
@@ -1327,6 +1357,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ApprovedFrameCount = Math.Max(0, TotalFrameCount - RejectedFrameCount);
         FwhmRejectedFrameCount = Frames.Count(frame => frame.Metrics.Fwhm > MaxFwhm);
         SqmRejectedFrameCount = Frames.Count(frame => frame.Metrics.Sqm.HasValue && frame.Metrics.Sqm.Value < MinSqm);
+        SkyTempRejectedFrameCount = Frames.Count(frame => frame.Metrics.SkyTemp.HasValue && frame.Metrics.SkyTemp.Value > MaxSkyTemp);
         HfrRejectedFrameCount = Frames.Count(frame => frame.Metrics.Hfr > MaxHfr);
         EccentricityRejectedFrameCount = Frames.Count(frame => frame.Metrics.Eccentricity > MaxEccentricity);
         MeanBackgroundRejectedFrameCount = Frames.Count(frame => frame.Metrics.MeanBackground > MaxMeanBackground);

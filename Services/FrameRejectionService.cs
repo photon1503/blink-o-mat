@@ -10,6 +10,7 @@ public sealed class FrameRejectionService
 
         return m.Fwhm > thresholds.MaxFwhm
                || (m.Sqm.HasValue && m.Sqm.Value < thresholds.MinSqm)
+               || (m.SkyTemp.HasValue && m.SkyTemp.Value > thresholds.MaxSkyTemp)
                || m.Hfr > thresholds.MaxHfr
                || m.Eccentricity > thresholds.MaxEccentricity
                || m.MeanBackground > thresholds.MaxMeanBackground

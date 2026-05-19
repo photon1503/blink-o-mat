@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using blink_o_mat.Models;
 using XisfSharp;
@@ -26,7 +27,8 @@ public sealed class RustafitsService
         DateTimeOffset? ExposureDateTime = null,
         double? ExposureSeconds = null,
         string? FilterName = null,
-        double? Sqm = null);
+        double? Sqm = null,
+        double? SkyTemp = null);
 
     public async Task<FrameItem> ProcessFrameAsync(string filePath, string thumbnailDirectory, CancellationToken cancellationToken)
     {
@@ -34,7 +36,7 @@ public sealed class RustafitsService
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
 
-            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath));
+            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp);
             var metrics = ComputeMetrics(loadedFrame);
             var previews = await RenderPreviewBitmapsAsync(loadedFrame, 1.0, StretchMode.Default, null, null, metrics, cancellationToken);
 
@@ -57,7 +59,7 @@ public sealed class RustafitsService
         return Task.Run(async () =>
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
-            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath));
+            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp);
         }, cancellationToken);
     }
 
@@ -149,7 +151,7 @@ public sealed class RustafitsService
         return frame;
     }
 
-    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
+    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
     {
         var ext = Path.GetExtension(filePath);
         if (ext.Equals(".fits", StringComparison.OrdinalIgnoreCase) || ext.Equals(".fit", StringComparison.OrdinalIgnoreCase))
@@ -165,7 +167,7 @@ public sealed class RustafitsService
         throw new NotSupportedException($"Unsupported file type: {ext}");
     }
 
-    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName) LoadFits(string filePath)
+    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp) LoadFits(string filePath)
     {
         using var stream = File.OpenRead(filePath);
         while (stream.Position < stream.Length)
@@ -189,7 +191,7 @@ public sealed class RustafitsService
         throw new InvalidOperationException("FITS image data not found.");
     }
 
-    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
+    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
     {
         if (header.Axes.Length < 2)
         {
@@ -267,7 +269,7 @@ public sealed class RustafitsService
             stream.Seek(paddingBytes, SeekOrigin.Current);
         }
 
-        return (result, width, height, header.FocalLengthMm, header.PixelSizeUm, header.ExposureDateTime, header.ExposureSeconds, header.FilterName);
+        return (result, width, height, header.FocalLengthMm, header.PixelSizeUm, header.ExposureDateTime, header.ExposureSeconds, header.FilterName, header.SkyTemp);
     }
 
     private static FitsHeaderInfo ReadFitsHeader(Stream stream)
@@ -298,7 +300,8 @@ public sealed class RustafitsService
                     var exposureDateTime = ResolveExposureDateTime(cards);
                     var exposureSeconds = FirstAvailableDouble(cards, "EXPTIME", "EXPOSURE", "EXPOSURETIME");
                     var filterName = FirstAvailableString(cards, "FILTER", "INSFLNAM", "FILTERID");
-                    return new FitsHeaderInfo(bitPix, axisCount, axes, bScale, bZero, focalLengthMm, pixelSizeUm, exposureDateTime, exposureSeconds, filterName);
+                    var skyTemp = FirstAvailableAnyDouble(cards, "SKYTEMP");
+                    return new FitsHeaderInfo(bitPix, axisCount, axes, bScale, bZero, focalLengthMm, pixelSizeUm, exposureDateTime, exposureSeconds, filterName, skyTemp);
                 }
 
                 if (!card.Contains('='))
@@ -348,30 +351,35 @@ public sealed class RustafitsService
         switch (bitPix)
         {
             case 8:
-            {
-                var b = stream.ReadByte();
-                if (b < 0)
                 {
-                    throw new EndOfStreamException();
-                }
+                    var b = stream.ReadByte();
+                    if (b < 0)
+                    {
+                        throw new EndOfStreamException();
+                    }
 
-                return b;
-            }
+                    return b;
+                }
             case 16:
                 ReadExactly(stream, buf[..2]);
                 return BinaryPrimitives.ReadInt16BigEndian(buf[..2]);
+
             case 32:
                 ReadExactly(stream, buf[..4]);
                 return BinaryPrimitives.ReadInt32BigEndian(buf[..4]);
+
             case 64:
                 ReadExactly(stream, buf[..8]);
                 return BinaryPrimitives.ReadInt64BigEndian(buf[..8]);
+
             case -32:
                 ReadExactly(stream, buf[..4]);
                 return BinaryPrimitives.ReadSingleBigEndian(buf[..4]);
+
             case -64:
                 ReadExactly(stream, buf[..8]);
                 return BinaryPrimitives.ReadDoubleBigEndian(buf[..8]);
+
             default:
                 throw new NotSupportedException($"Unsupported FITS BITPIX: {bitPix}");
         }
@@ -438,7 +446,7 @@ public sealed class RustafitsService
             return fallback;
         }
 
-        var normalized = raw.Replace('D', 'E').Replace('d', 'E');
+        var normalized = raw.Trim().Trim('"', '\'', ' ').Replace('D', 'E').Replace('d', 'E');
         return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
             ? parsed
             : fallback;
@@ -451,7 +459,7 @@ public sealed class RustafitsService
             return null;
         }
 
-        var normalized = raw.Replace('D', 'E').Replace('d', 'E');
+        var normalized = raw.Trim().Trim('"', '\'', ' ').Replace('D', 'E').Replace('d', 'E');
         return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
             ? parsed
             : null;
@@ -463,6 +471,20 @@ public sealed class RustafitsService
         {
             var value = TryParseDouble(cards, key);
             if (value is > 0)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static double? FirstAvailableAnyDouble(Dictionary<string, string> cards, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = TryParseDouble(cards, key);
+            if (value.HasValue)
             {
                 return value;
             }
@@ -539,9 +561,10 @@ public sealed class RustafitsService
         double? PixelSizeUm,
         DateTimeOffset? ExposureDateTime,
         double? ExposureSeconds,
-        string? FilterName);
+        string? FilterName,
+        double? SkyTemp);
 
-    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
+    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
     {
         var image = await XisfImage.LoadAsync(filePath, cancellationToken);
         var bytes = image.Data.Span;
@@ -576,7 +599,144 @@ public sealed class RustafitsService
             luminance[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
         }
 
-        return (luminance, width, height, null, null, null, null, null);
+        var skyTemp = ResolveXisfSkyTemp(image);
+        return (luminance, width, height, null, null, null, null, null, skyTemp);
+    }
+
+    private static double? ResolveXisfSkyTemp(XisfImage image)
+    {
+        if (TryReadXisfNumericMetadata(image, "SKYTEMP", out var value))
+        {
+            return value;
+        }
+
+        return null;
+    }
+
+    private static bool TryReadXisfNumericMetadata(object source, string propertyName, out double value)
+    {
+        value = default;
+
+        if (source is null)
+        {
+            return false;
+        }
+
+        if (TryReadNamedMetadataCollection(source, "Properties", propertyName, out value))
+        {
+            return true;
+        }
+
+        if (TryReadNamedMetadataCollection(source, "FITSKeywords", propertyName, out value))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryReadNamedMetadataCollection(object source, string collectionPropertyName, string key, out double value)
+    {
+        value = default;
+
+        var collectionProperty = source.GetType().GetProperty(collectionPropertyName, BindingFlags.Public | BindingFlags.Instance);
+        if (collectionProperty?.GetValue(source) is not { } collection)
+        {
+            return false;
+        }
+
+        var collectionType = collection.GetType();
+        var tryGetPropertyMethod = collectionType.GetMethod("TryGetProperty", BindingFlags.Public | BindingFlags.Instance, null, [typeof(string), typeof(object).MakeByRefType()], null);
+        if (tryGetPropertyMethod is not null)
+        {
+            var args = new object?[] { key, null };
+            if (tryGetPropertyMethod.Invoke(collection, args) is true && args[1] is not null && TryConvertMetadataValue(args[1], out value))
+            {
+                return true;
+            }
+        }
+
+        var enumerable = collection as System.Collections.IEnumerable;
+        if (enumerable is null)
+        {
+            return false;
+        }
+
+        foreach (var entry in enumerable)
+        {
+            if (entry is null)
+            {
+                continue;
+            }
+
+            if (!TryGetMetadataName(entry, out var name) || !string.Equals(name, key, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (TryConvertMetadataValue(entry, out value))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetMetadataName(object metadata, out string? name)
+    {
+        name = null;
+        foreach (var candidate in new[] { "Name", "Id", "Identifier", "Key" })
+        {
+            var property = metadata.GetType().GetProperty(candidate, BindingFlags.Public | BindingFlags.Instance);
+            if (property?.GetValue(metadata) is string text && !string.IsNullOrWhiteSpace(text))
+            {
+                name = text;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryConvertMetadataValue(object metadata, out double value)
+    {
+        value = default;
+
+        if (metadata is double d)
+        {
+            value = d;
+            return true;
+        }
+
+        if (metadata is float f)
+        {
+            value = f;
+            return true;
+        }
+
+        if (metadata is IConvertible convertible)
+        {
+            try
+            {
+                value = convertible.ToDouble(CultureInfo.InvariantCulture);
+                return true;
+            }
+            catch
+            {
+            }
+        }
+
+        foreach (var candidate in new[] { "ScalarValue", "Value", "NumericValue" })
+        {
+            var property = metadata.GetType().GetProperty(candidate, BindingFlags.Public | BindingFlags.Instance);
+            if (property?.GetValue(metadata) is { } inner && TryConvertMetadataValue(inner, out value))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static LoadedFrame Rotate180(LoadedFrame frame)
@@ -588,7 +748,7 @@ public sealed class RustafitsService
             pixels[i] = source[source.Length - 1 - i];
         }
 
-        return new LoadedFrame(pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, frame.Sqm);
+        return new LoadedFrame(pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, frame.Sqm, frame.SkyTemp);
     }
 
     private static float[] CreateOrientationSample(float[] pixels, int width, int height, int sampleSize, bool rotate180)
@@ -1483,6 +1643,7 @@ public sealed class RustafitsService
             Fwhm = fwhm,
             FwhmArcsec = fwhmArcsec,
             Sqm = frame.Sqm,
+            SkyTemp = frame.SkyTemp,
             Hfr = hfr,
             StarCount = starCount,
             Eccentricity = eccentricity,
