@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -285,39 +287,41 @@ public sealed class RustafitsService
             extraFrames *= Math.Max(1L, header.Axes[i]);
         }
 
-        long consumed = 0;
-        for (var c = 0; c < channels; c++)
+        // Bulk-read all channel data in one allocation and decode in parallel
+        var totalSamples = (long)channels * pixelCount;
+        var rawBytes = new byte[totalSamples * bytesPerSample];
+        ReadExactly(stream, rawBytes);
+
+        if (channels == 1)
         {
-            for (var y = 0; y < height; y++)
+            Parallel.For(0, pixelCount, i =>
             {
-                for (var x = 0; x < width; x++)
+                result[i] = (float)(ReadFitsSampleFromBuffer(rawBytes, i, header.BitPix, bytesPerSample) * header.BScale + header.BZero);
+            });
+        }
+        else
+        {
+            Parallel.For(0, pixelCount, i =>
+            {
+                double sum = 0;
+                for (var c = 0; c < Math.Min(channels, 3); c++)
                 {
-                    var value = ReadFitsSample(stream, header.BitPix);
-                    consumed++;
-
-                    if (channels == 1)
-                    {
-                        result[(y * width) + x] = (float)((value * header.BScale) + header.BZero);
-                        continue;
-                    }
-
-                    if (c < 3)
-                    {
-                        var scaled = (value * header.BScale) + header.BZero;
-                        result[(y * width) + x] += (float)(scaled * weights[c]);
-                    }
+                    var sampleIndex = (long)c * pixelCount + i;
+                    var scaled = ReadFitsSampleFromBuffer(rawBytes, sampleIndex, header.BitPix, bytesPerSample) * header.BScale + header.BZero;
+                    sum += scaled * weights[c];
                 }
-            }
+                result[i] = (float)sum;
+            });
         }
 
-        var totalSamples = Math.Max(1L, axis3) * pixelCount * extraFrames;
-        var remainingSamples = totalSamples - consumed;
+        // Skip any remaining channel data beyond what we decoded
+        var remainingSamples = (long)(channels * extraFrames - channels) * pixelCount;
         if (remainingSamples > 0)
         {
             stream.Seek(remainingSamples * bytesPerSample, SeekOrigin.Current);
         }
 
-        var dataBytes = totalSamples * bytesPerSample;
+        var dataBytes = totalSamples * extraFrames * bytesPerSample;
         var paddingBytes = (2880L - (dataBytes % 2880L)) % 2880L;
         if (paddingBytes > 0)
         {
@@ -325,6 +329,21 @@ public sealed class RustafitsService
         }
 
         return (result, width, height, ComputeFitsNormalizationMax(header), header.FocalLengthMm, header.PixelSizeUm, header.ExposureDateTime, header.ExposureSeconds, header.FilterName, header.SkyTemp);
+    }
+
+    private static double ReadFitsSampleFromBuffer(byte[] buffer, long sampleIndex, int bitPix, int bytesPerSample)
+    {
+        var offset = sampleIndex * bytesPerSample;
+        return bitPix switch
+        {
+            8 => buffer[offset],
+            16 => BinaryPrimitives.ReadInt16BigEndian(buffer.AsSpan((int)offset, 2)),
+            32 => BinaryPrimitives.ReadInt32BigEndian(buffer.AsSpan((int)offset, 4)),
+            64 => BinaryPrimitives.ReadInt64BigEndian(buffer.AsSpan((int)offset, 8)),
+            -32 => BinaryPrimitives.ReadSingleBigEndian(buffer.AsSpan((int)offset, 4)),
+            -64 => BinaryPrimitives.ReadDoubleBigEndian(buffer.AsSpan((int)offset, 8)),
+            _ => throw new NotSupportedException($"Unsupported FITS BITPIX: {bitPix}")
+        };
     }
 
     private static FitsHeaderInfo ReadFitsHeader(Stream stream)
@@ -622,7 +641,9 @@ public sealed class RustafitsService
     private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
     {
         var image = await XisfImage.LoadAsync(filePath, cancellationToken);
-        var bytes = image.Data.Span;
+        // Copy to a regular byte array so it can be captured in Parallel.For lambdas (Span<T> is ref struct)
+        var bytesSpan = image.Data.Span;
+        var rawData = bytesSpan.ToArray();
         var width = image.Width;
         var height = image.Height;
         var channels = Math.Max(1, image.Channels);
@@ -630,28 +651,33 @@ public sealed class RustafitsService
         var pixelCount = width * height;
         var bytesPerSample = GetBytesPerSample(image.SampleFormat);
         var sampleCount = pixelCount * channels;
-        if (bytes.Length < sampleCount * bytesPerSample)
+        if (rawData.Length < sampleCount * bytesPerSample)
         {
             throw new InvalidOperationException("XISF data size mismatch.");
         }
 
         var luminance = new float[pixelCount];
         var planar = image.PixelStorage == PixelStorage.Planar;
-        for (var i = 0; i < pixelCount; i++)
+        var sampleFormat = image.SampleFormat;
+        if (channels == 1)
         {
-            if (channels == 1)
+            Parallel.For(0, pixelCount, i =>
             {
-                luminance[i] = (float)ReadSample(bytes, i, image.SampleFormat);
-                continue;
-            }
+                luminance[i] = (float)ReadSample(rawData, i, sampleFormat);
+            });
+        }
+        else
+        {
+            Parallel.For(0, pixelCount, i =>
+            {
+                var r = planar ? ReadSample(rawData, i, sampleFormat) : ReadSample(rawData, (i * channels), sampleFormat);
+                var g = planar ? ReadSample(rawData, i + pixelCount, sampleFormat) : ReadSample(rawData, (i * channels) + 1, sampleFormat);
+                var b = planar
+                    ? ReadSample(rawData, i + (2 * pixelCount), sampleFormat)
+                    : ReadSample(rawData, (i * channels) + Math.Min(2, channels - 1), sampleFormat);
 
-            var r = planar ? ReadSample(bytes, i, image.SampleFormat) : ReadSample(bytes, (i * channels), image.SampleFormat);
-            var g = planar ? ReadSample(bytes, i + pixelCount, image.SampleFormat) : ReadSample(bytes, (i * channels) + 1, image.SampleFormat);
-            var b = planar
-                ? ReadSample(bytes, i + (2 * pixelCount), image.SampleFormat)
-                : ReadSample(bytes, (i * channels) + Math.Min(2, channels - 1), image.SampleFormat);
-
-            luminance[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
+                luminance[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
+            });
         }
 
         var focalLengthMm = ResolveXisfFocalLengthMm(image);
@@ -1169,6 +1195,9 @@ public sealed class RustafitsService
         };
     }
 
+    private static double ReadSample(byte[] bytes, int sampleIndex, SampleFormat format)
+        => ReadSample(new ReadOnlySpan<byte>(bytes), sampleIndex, format);
+
     private static BitmapSource CreateThumbnailBitmap(float[] pixels, int width, int height, int maxWidth, int maxHeight, StfParameters stf, AstroMetrics? metrics, double normalizationMax)
     {
         var scale = Math.Min(maxWidth / (double)Math.Max(1, width), maxHeight / (double)Math.Max(1, height));
@@ -1509,7 +1538,7 @@ public sealed class RustafitsService
         var data = new byte[targetWidth * targetHeight * 3];
         var useBilinear = width != targetWidth || height != targetHeight;
 
-        for (var y = 0; y < targetHeight; y++)
+        Parallel.For(0, targetHeight, y =>
         {
             var sourceY = MapTargetToSourceCoordinate(y, height, targetHeight);
             for (var x = 0; x < targetWidth; x++)
@@ -1532,7 +1561,7 @@ public sealed class RustafitsService
                 data[index + 1] = b;
                 data[index + 2] = b;
             }
-        }
+        });
 
         return data;
     }
@@ -1763,9 +1792,9 @@ public sealed class RustafitsService
 
         var threshold = background + (5.0 * sigma);
         var minNeighborLevel = background + (2.0 * sigma);
-        var candidates = new List<(double Peak, int X, int Y)>(Math.Min(maxCandidates * 2, 2048));
+        var candidateBag = new System.Collections.Concurrent.ConcurrentBag<(double Peak, int X, int Y)>();
 
-        for (var y = 1; y < analysisHeight - 1; y++)
+        Parallel.For(1, analysisHeight - 1, y =>
         {
             var row = y * analysisWidth;
             for (var x = 1; x < analysisWidth - 1; x++)
@@ -1813,10 +1842,11 @@ public sealed class RustafitsService
 
                 var sourceX = Math.Clamp((int)Math.Round(((x + 0.5) * xScale) - 0.5), 3, width - 4);
                 var sourceY = Math.Clamp((int)Math.Round(((y + 0.5) * yScale) - 0.5), 3, height - 4);
-                candidates.Add((center, sourceX, sourceY));
+                candidateBag.Add((center, sourceX, sourceY));
             }
-        }
+        });
 
+        var candidates = candidateBag;
         var result = new List<(double Peak, double Fwhm, double Hfr, double Eccentricity)>(Math.Min(maxMeasuredStars, candidates.Count));
         if (candidates.Count == 0)
         {

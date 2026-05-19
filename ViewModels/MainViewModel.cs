@@ -693,7 +693,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 var filesToProcess = files.Skip(firstSuccessfulIndex + 1).Select((file, offset) => (File: file, SourceIndex: firstSuccessfulIndex + 1 + offset)).ToList();
                 var orientationReference = ExpandFrame(_loadedFrames[0]);
-                var maxParallelism = Math.Clamp(Environment.ProcessorCount - 1, 2, 8);
+                var maxParallelism = Math.Max(2, Environment.ProcessorCount);
                 using var gate = new SemaphoreSlim(maxParallelism);
 
                 var pending = filesToProcess.Select(async entry =>
@@ -1555,7 +1555,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         return new LoadedFrameContext(
             item,
-            (float[])frame.Pixels.Clone(),
+            frame.Pixels,
             frame.Width,
             frame.Height,
             frame.NormalizationMax,
