@@ -178,7 +178,7 @@
                                     <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
                                                Text="{Binding StfShadows, StringFormat=F3}" />
                                     <Slider Minimum="0" Maximum="1"
-                                            Value="{Binding StfShadows, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource StfSliderValueConverter}, ConverterParameter=low:3}"
+                                            Value="{Binding StfShadows, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource StfSliderValueConverter}, ConverterParameter=low:5}"
                                             TickFrequency="0.001" IsSnapToTickEnabled="False"
                                             Loaded="StfSlider_Loaded" />
                                 </DockPanel>
@@ -187,7 +187,7 @@
                                     <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
                                                Text="{Binding StfMidtones, StringFormat=F3}" />
                                     <Slider Minimum="0" Maximum="1"
-                                            Value="{Binding StfMidtones, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource StfSliderValueConverter}, ConverterParameter=low:3}"
+                                            Value="{Binding StfMidtones, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource StfSliderValueConverter}, ConverterParameter=low:5}"
                                             TickFrequency="0.001" IsSnapToTickEnabled="False"
                                             Loaded="StfSlider_Loaded" />
                                 </DockPanel>
@@ -196,7 +196,7 @@
                                     <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
                                                Text="{Binding StfHighlights, StringFormat=F3}" />
                                     <Slider Minimum="0" Maximum="1"
-                                            Value="{Binding StfHighlights, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource StfSliderValueConverter}, ConverterParameter=high:3}"
+                                            Value="{Binding StfHighlights, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource StfSliderValueConverter}, ConverterParameter=high:5}"
                                             TickFrequency="0.001" IsSnapToTickEnabled="False"
                                             Loaded="StfSlider_Loaded" />
                                 </DockPanel>

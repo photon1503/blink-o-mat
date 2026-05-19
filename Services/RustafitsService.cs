@@ -1182,7 +1182,8 @@ public sealed class RustafitsService
         var contentWidth = Math.Max(1, (int)Math.Round(width * scale));
         var contentHeight = Math.Max(1, (int)Math.Round(height * scale));
 
-        var sample = DownsampleAndStretch(pixels, width, height, contentWidth, contentHeight, stf);
+        var normalizationMax = ComputeNormalizationMax(pixels);
+        var sample = DownsampleAndStretch(pixels, width, height, contentWidth, contentHeight, stf, normalizationMax);
         if (metrics is { PossibleSatelliteTrail: true, TrailX1: not null, TrailY1: not null, TrailX2: not null, TrailY2: not null })
         {
             DrawTrailOverlay(sample, contentWidth, contentHeight, metrics);
@@ -1300,7 +1301,8 @@ public sealed class RustafitsService
             Array.Copy(pixels, sourceOffset, crop, targetOffset, actualWidth);
         }
 
-        var sample = DownsampleAndStretch(crop, actualWidth, actualHeight, roiSize, roiSize, stf);
+        var normalizationMax = ComputeNormalizationMax(pixels);
+        var sample = DownsampleAndStretch(crop, actualWidth, actualHeight, roiSize, roiSize, stf, normalizationMax);
         var stride = roiSize * 3;
         var bitmap = BitmapSource.Create(roiSize, roiSize, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
@@ -1309,7 +1311,7 @@ public sealed class RustafitsService
 
     private static BitmapSource CreateFullFrameBitmap(float[] pixels, int width, int height, StfParameters stf)
     {
-        var sample = DownsampleAndStretch(pixels, width, height, width, height, stf);
+        var sample = DownsampleAndStretch(pixels, width, height, width, height, stf, ComputeNormalizationMax(pixels));
         var stride = width * 3;
         var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
@@ -1320,7 +1322,7 @@ public sealed class RustafitsService
     {
         var safeTargetWidth = Math.Max(1, Math.Min(width, targetWidth));
         var safeTargetHeight = Math.Max(1, Math.Min(height, targetHeight));
-        var sample = DownsampleAndStretch(pixels, width, height, safeTargetWidth, safeTargetHeight, stf);
+        var sample = DownsampleAndStretch(pixels, width, height, safeTargetWidth, safeTargetHeight, stf, ComputeNormalizationMax(pixels));
         var stride = safeTargetWidth * 3;
         var bitmap = BitmapSource.Create(safeTargetWidth, safeTargetHeight, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
@@ -1502,18 +1504,9 @@ public sealed class RustafitsService
         return output;
     }
 
-    private static byte[] DownsampleAndStretch(float[] pixels, int width, int height, int targetWidth, int targetHeight, StfParameters stf)
+    private static byte[] DownsampleAndStretch(float[] pixels, int width, int height, int targetWidth, int targetHeight, StfParameters stf, double normalizationMax)
     {
-        // Determine a stable normalisation ceiling consistent with ComputeAutoStretch.
-        // Scanning the full pixel array ensures we catch sparse bright stars that the sample might miss.
-        double dataMax = 1.0;
-        for (var i = 0; i < pixels.Length; i++)
-        {
-            if (pixels[i] > dataMax)
-            {
-                dataMax = pixels[i];
-            }
-        }
+        var dataMax = Math.Max(1.0, normalizationMax);
 
         // STF clipping bounds in [0,1]
         var c0 = stf.Shadows;    // shadow clipping
@@ -1550,6 +1543,20 @@ public sealed class RustafitsService
         }
 
         return data;
+    }
+
+    private static double ComputeNormalizationMax(float[] pixels)
+    {
+        double dataMax = 1.0;
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            if (pixels[i] > dataMax)
+            {
+                dataMax = pixels[i];
+            }
+        }
+
+        return dataMax;
     }
 
     private static double MapTargetToSourceCoordinate(int targetIndex, int sourceSize, int targetSize)

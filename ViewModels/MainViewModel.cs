@@ -590,6 +590,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
                     var metrics = _rustafits.AnalyzeFrame(raw);
+                    var autoStf = _rustafits.ComputeAutoStretch(raw);
+                    _stfShadows = autoStf.Shadows;
+                    _stfMidtones = autoStf.Midtones;
+                    _stfHighlights = autoStf.Highlights;
+                    OnPropertyChanged(nameof(StfShadows));
+                    OnPropertyChanged(nameof(StfMidtones));
+                    OnPropertyChanged(nameof(StfHighlights));
                     _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(raw, RoiBias);
                     var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, ActiveStf, _globalRoiCenter, metrics, CancellationToken.None);
 
