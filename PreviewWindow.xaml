@@ -1,9 +1,13 @@
 <Window x:Class="blink_o_mat.PreviewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:blink_o_mat.Converters"
          Background="{StaticResource WindowBackgroundBrush}"
          Foreground="{StaticResource TextBrush}"
         Title="Frame Preview" Height="900" Width="1300">
+    <Window.Resources>
+        <converters:StfSliderValueConverter x:Key="StfSliderValueConverter" />
+    </Window.Resources>
     <Grid Margin="10" Background="{StaticResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
@@ -173,7 +177,8 @@
                                 <DockPanel Margin="0,2,0,8">
                                     <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
                                                Text="{Binding StfShadows, StringFormat=F3}" />
-                                    <Slider Minimum="0" Maximum="1" Value="{Binding StfShadows, UpdateSourceTrigger=PropertyChanged}"
+                                    <Slider Minimum="0" Maximum="1"
+                                            Value="{Binding StfShadows, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource StfSliderValueConverter}, ConverterParameter=low:3}"
                                             TickFrequency="0.001" IsSnapToTickEnabled="False"
                                             Loaded="StfSlider_Loaded" />
                                 </DockPanel>
@@ -181,7 +186,8 @@
                                 <DockPanel Margin="0,2,0,8">
                                     <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
                                                Text="{Binding StfMidtones, StringFormat=F3}" />
-                                    <Slider Minimum="0" Maximum="1" Value="{Binding StfMidtones, UpdateSourceTrigger=PropertyChanged}"
+                                    <Slider Minimum="0" Maximum="1"
+                                            Value="{Binding StfMidtones, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource StfSliderValueConverter}, ConverterParameter=low:3}"
                                             TickFrequency="0.001" IsSnapToTickEnabled="False"
                                             Loaded="StfSlider_Loaded" />
                                 </DockPanel>
@@ -189,7 +195,8 @@
                                 <DockPanel Margin="0,2,0,0">
                                     <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
                                                Text="{Binding StfHighlights, StringFormat=F3}" />
-                                    <Slider Minimum="0" Maximum="1" Value="{Binding StfHighlights, UpdateSourceTrigger=PropertyChanged}"
+                                    <Slider Minimum="0" Maximum="1"
+                                            Value="{Binding StfHighlights, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource StfSliderValueConverter}, ConverterParameter=high:3}"
                                             TickFrequency="0.001" IsSnapToTickEnabled="False"
                                             Loaded="StfSlider_Loaded" />
                                 </DockPanel>
