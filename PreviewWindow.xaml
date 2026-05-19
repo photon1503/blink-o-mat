@@ -184,7 +184,7 @@
 
                 <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Text="Frames" />
                 <TextBlock Grid.Row="1" Margin="0,4,0,8" HorizontalAlignment="Center" Text="{Binding FramePositionText}" />
-                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,8">
+                <WrapPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,0,0,8">
                     <ToggleButton IsChecked="{Binding ShowAccepted, Mode=TwoWay}"
                                   Style="{StaticResource AcceptedFilterChipStyle}"
                                   Margin="0,0,6,0"
@@ -195,12 +195,66 @@
                     </ToggleButton>
                     <ToggleButton IsChecked="{Binding ShowRejected, Mode=TwoWay}"
                                   Style="{StaticResource RejectedFilterChipStyle}"
+                                  Margin="0,0,10,0"
                                   Padding="12,4"
                                   BorderThickness="1"
                                   FontWeight="SemiBold">
                         <TextBlock Text="Rejected" />
                     </ToggleButton>
-                </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding FilterChips}">
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasFilterChips}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ItemsControl.Style>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ToggleButton IsChecked="{Binding IsSelected, Mode=TwoWay}" Margin="0,0,8,0" Padding="10,4" BorderThickness="1" FontWeight="SemiBold">
+                                    <ToggleButton.Style>
+                                        <Style TargetType="ToggleButton">
+                                            <Setter Property="Background" Value="#222F426B" />
+                                            <Setter Property="Foreground" Value="#FFE8F0FF" />
+                                            <Setter Property="BorderBrush" Value="#6D88C4" />
+                                            <Setter Property="Cursor" Value="Hand" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ToggleButton">
+                                                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="12" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter Property="Background" Value="#334F78D1" />
+                                                    <Setter Property="BorderBrush" Value="#8FB3FF" />
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="False">
+                                                    <Setter Property="Background" Value="#161616" />
+                                                    <Setter Property="Foreground" Value="#CCBDBDBD" />
+                                                    <Setter Property="BorderBrush" Value="#444" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ToggleButton.Style>
+                                    <TextBlock Text="{Binding DisplayName}" />
+                                </ToggleButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </WrapPanel>
                 <Grid Grid.Row="3" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="8" />

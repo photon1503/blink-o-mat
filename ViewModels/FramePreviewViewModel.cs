@@ -28,6 +28,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Action<bool> _setShowAccepted;
     private readonly Func<bool> _getShowRejected;
     private readonly Action<bool> _setShowRejected;
+    private readonly ObservableCollection<FilterChipViewModel> _filterChips;
     private readonly Func<IReadOnlyList<int>> _getVisibleFrameIndices;
     private readonly Action _refreshVisibleFrames;
     private readonly Action _beginInteractiveStretch;
@@ -51,6 +52,10 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
+
+    public ObservableCollection<FilterChipViewModel> FilterChips => _filterChips;
+
+    public bool HasFilterChips => _filterChips.Count > 0;
 
     public bool ShowAccepted
     {
@@ -233,6 +238,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Action<bool> setShowAccepted,
         Func<bool> getShowRejected,
         Action<bool> setShowRejected,
+        ObservableCollection<FilterChipViewModel> filterChips,
         Func<IReadOnlyList<int>> getVisibleFrameIndices,
         Action refreshVisibleFrames)
     {
@@ -256,10 +262,12 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _setShowAccepted = setShowAccepted;
         _getShowRejected = getShowRejected;
         _setShowRejected = setShowRejected;
+        _filterChips = filterChips;
         _getVisibleFrameIndices = getVisibleFrameIndices;
         _refreshVisibleFrames = refreshVisibleFrames;
         _image = null;
         AutoStretchCommand = new RelayCommand(_ => ApplyAutoStretchAndRefresh());
+        _filterChips.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasFilterChips));
     }
 
     public void SetManualRoi(WpfPoint normalizedPoint)

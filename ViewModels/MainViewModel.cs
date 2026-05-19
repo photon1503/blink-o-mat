@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows.Input;
@@ -82,6 +83,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _skipRejectedInPreview;
     private bool _showAccepted = true;
     private bool _showRejected = true;
+    private bool _isUpdatingFilterSelection;
     private FrameItem? _selectedFrame;
     private double _minSqm;
     private double _maxSkyTemp = 40.0;
@@ -101,6 +103,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public RangeObservableCollection<FrameItem> Frames { get; } = [];
     public ICollectionView FilteredFrames { get; }
+    public ObservableCollection<FilterChipViewModel> FilterChips { get; } = [];
 
     public string? InputFolder
     {
@@ -115,7 +118,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public int TotalFrameCount => Frames.Count;
+    public bool HasFilterChips => FilterChips.Count > 0;
+
+    public int TotalFrameCount => GetVisibleFramesForStatistics().Count();
 
     public bool ShowAccepted
     {
@@ -126,6 +131,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _showAccepted = value;
             OnPropertyChanged();
             FilteredFrames.Refresh();
+            UpdateFrameStatistics();
             RefreshPreviewVisibleFrames();
         }
     }
@@ -139,6 +145,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _showRejected = value;
             OnPropertyChanged();
             FilteredFrames.Refresh();
+            UpdateFrameStatistics();
             RefreshPreviewVisibleFrames();
         }
     }
@@ -559,7 +566,94 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return false;
         }
 
-        return (frame.IsRejected && ShowRejected) || (!frame.IsRejected && ShowAccepted);
+        return IsFrameVisible(frame);
+    }
+
+    private void RebuildFilterChips()
+    {
+        _isUpdatingFilterSelection = true;
+        try
+        {
+            foreach (var chip in FilterChips)
+            {
+                chip.PropertyChanged -= FilterChip_PropertyChanged;
+            }
+
+            FilterChips.Clear();
+
+            var filters = Frames
+                .Select(frame => NormalizeFilterKey(frame.FilterName, out var displayName) ? (Key: NormalizeFilterValue(frame.FilterName), DisplayName: displayName) : default)
+                .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+                .DistinctBy(x => x.Key)
+                .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var filter in filters)
+            {
+                var chip = new FilterChipViewModel(filter.Key!, filter.DisplayName!, isSelected: true);
+                chip.PropertyChanged += FilterChip_PropertyChanged;
+                FilterChips.Add(chip);
+            }
+        }
+        finally
+        {
+            _isUpdatingFilterSelection = false;
+        }
+
+        OnPropertyChanged(nameof(HasFilterChips));
+    }
+
+    private void FilterChip_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isUpdatingFilterSelection || e.PropertyName != nameof(FilterChipViewModel.IsSelected))
+        {
+            return;
+        }
+
+        FilteredFrames.Refresh();
+        UpdateFrameStatistics();
+        RefreshPreviewVisibleFrames();
+    }
+
+    private bool IsFrameVisible(FrameItem frame)
+    {
+        return ((frame.IsRejected && ShowRejected) || (!frame.IsRejected && ShowAccepted))
+               && IsFilterSelected(frame);
+    }
+
+    private IEnumerable<FrameItem> GetVisibleFramesForStatistics()
+    {
+        return Frames.Where(IsFrameVisible);
+    }
+
+    private bool IsFilterSelected(FrameItem frame)
+    {
+        if (FilterChips.Count == 0)
+        {
+            return true;
+        }
+
+        var key = NormalizeFilterValue(frame.FilterName);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        var chip = FilterChips.FirstOrDefault(c => string.Equals(c.Key, key, StringComparison.OrdinalIgnoreCase));
+        return chip?.IsSelected ?? false;
+    }
+
+    private static bool NormalizeFilterKey(string? filterName, out string? displayName)
+    {
+        displayName = NormalizeFilterValue(filterName);
+        return !string.IsNullOrWhiteSpace(displayName);
+    }
+
+    private static string NormalizeFilterValue(string? filterName)
+    {
+        return string.IsNullOrWhiteSpace(filterName)
+            ? string.Empty
+            : filterName.Trim();
     }
 
     private void FrameItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -617,6 +711,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         Frames.Clear();
+        foreach (var chip in FilterChips)
+        {
+            chip.PropertyChanged -= FilterChip_PropertyChanged;
+        }
+        FilterChips.Clear();
+        OnPropertyChanged(nameof(HasFilterChips));
         _loadedFrames.Clear();
         ResetFrameStatistics();
         SelectedFrame = null;
@@ -785,6 +885,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             Status = "Finalizing frame comparisons...";
             UpdateFrameComparisons();
+            Status = "Building filter chips...";
+            RebuildFilterChips();
             Status = "Initializing rejection thresholds...";
             InitializeThresholdsFromLoadedFrames();
             Status = "Applying rejection thresholds...";
@@ -1297,6 +1399,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             value => ShowAccepted = value,
             () => ShowRejected,
             value => ShowRejected = value,
+            FilterChips,
             GetVisiblePreviewFrameIndices,
             RefreshPreviewVisibleFrames);
         var visibleFrameIndices = GetVisiblePreviewFrameIndices();
@@ -1861,18 +1964,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void UpdateFrameStatistics()
     {
+        var visibleFrames = GetVisibleFramesForStatistics().ToList();
         OnPropertyChanged(nameof(TotalFrameCount));
-        RejectedFrameCount = Frames.Count(frame => frame.IsRejected);
+        RejectedFrameCount = visibleFrames.Count(frame => frame.IsRejected);
         ApprovedFrameCount = Math.Max(0, TotalFrameCount - RejectedFrameCount);
-        FwhmRejectedFrameCount = Frames.Count(frame => frame.Metrics.Fwhm > MaxFwhm);
-        SqmRejectedFrameCount = Frames.Count(frame => frame.Metrics.Sqm.HasValue && frame.Metrics.Sqm.Value < MinSqm);
-        SkyTempRejectedFrameCount = Frames.Count(frame => frame.Metrics.SkyTemp.HasValue && frame.Metrics.SkyTemp.Value > MaxSkyTemp);
-        HfrRejectedFrameCount = Frames.Count(frame => frame.Metrics.Hfr > MaxHfr);
-        EccentricityRejectedFrameCount = Frames.Count(frame => frame.Metrics.Eccentricity > MaxEccentricity);
-        MeanBackgroundRejectedFrameCount = Frames.Count(frame => frame.Metrics.MeanBackground > MaxMeanBackground);
-        StarCountRejectedFrameCount = Frames.Count(frame => frame.Metrics.StarCount < MinStars);
+        FwhmRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.Fwhm > MaxFwhm);
+        SqmRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.Sqm.HasValue && frame.Metrics.Sqm.Value < MinSqm);
+        SkyTempRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.SkyTemp.HasValue && frame.Metrics.SkyTemp.Value > MaxSkyTemp);
+        HfrRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.Hfr > MaxHfr);
+        EccentricityRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.Eccentricity > MaxEccentricity);
+        MeanBackgroundRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.MeanBackground > MaxMeanBackground);
+        StarCountRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.StarCount < MinStars);
         SatelliteTrailRejectedFrameCount = RejectSatelliteTrail
-            ? Frames.Count(frame => frame.Metrics.PossibleSatelliteTrail)
+            ? visibleFrames.Count(frame => frame.Metrics.PossibleSatelliteTrail)
             : 0;
     }
 
