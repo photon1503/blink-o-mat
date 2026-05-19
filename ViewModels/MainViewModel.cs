@@ -754,6 +754,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
 
             UpdateFrameComparisons();
+            InitializeThresholdsFromLoadedFrames();
             ApplyThresholds();
             stopwatch.Stop();
             Status = $"Loaded {Frames.Count} frame(s) in {stopwatch.Elapsed.TotalSeconds:F1}s. {skippedCount} skipped.";
@@ -866,6 +867,40 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         var ratio = value / average;
         return Math.Clamp(ratio - 0.5, 0.0, 1.0);
+    }
+
+    private void InitializeThresholdsFromLoadedFrames()
+    {
+        if (Frames.Count == 0)
+        {
+            return;
+        }
+
+        _maxFwhm = Frames.Max(f => f.Metrics.Fwhm);
+        _maxHfr = Frames.Max(f => f.Metrics.Hfr);
+        _maxEccentricity = Frames.Max(f => f.Metrics.Eccentricity);
+        _maxMeanBackground = Frames.Max(f => f.Metrics.MeanBackground);
+        _minStars = Frames.Min(f => (double)f.Metrics.StarCount);
+
+        var sqmValues = Frames
+            .Where(f => f.Metrics.Sqm.HasValue)
+            .Select(f => f.Metrics.Sqm!.Value)
+            .ToList();
+        _minSqm = sqmValues.Count > 0 ? sqmValues.Min() : 0.0;
+
+        var skyTempValues = Frames
+            .Where(f => f.Metrics.SkyTemp.HasValue)
+            .Select(f => f.Metrics.SkyTemp!.Value)
+            .ToList();
+        _maxSkyTemp = skyTempValues.Count > 0 ? skyTempValues.Max() : 40.0;
+
+        OnPropertyChanged(nameof(MaxFwhm));
+        OnPropertyChanged(nameof(MaxHfr));
+        OnPropertyChanged(nameof(MaxEccentricity));
+        OnPropertyChanged(nameof(MaxMeanBackground));
+        OnPropertyChanged(nameof(MinStars));
+        OnPropertyChanged(nameof(MinSqm));
+        OnPropertyChanged(nameof(MaxSkyTemp));
     }
 
     private void ScheduleThumbnailRebuild(bool immediate = false)
