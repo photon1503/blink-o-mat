@@ -599,8 +599,22 @@ public sealed class RustafitsService
             luminance[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
         }
 
+        var focalLengthMm = ResolveXisfFocalLengthMm(image);
         var skyTemp = ResolveXisfSkyTemp(image);
-        return (luminance, width, height, null, null, null, null, null, skyTemp);
+        return (luminance, width, height, focalLengthMm, null, null, null, null, skyTemp);
+    }
+
+    private static double? ResolveXisfFocalLengthMm(XisfImage image)
+    {
+        foreach (var key in new[] { "FOCALLEN", "FOCAL", "FOCAL_LENGTH", "FOCLEN" })
+        {
+            if (TryReadXisfNumericMetadata(image, key, out var value) && value > 0)
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private static double? ResolveXisfSkyTemp(XisfImage image)

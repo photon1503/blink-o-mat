@@ -55,12 +55,30 @@
             </Style>
         </Border.Style>
         <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="310" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="150" />
             </Grid.ColumnDefinitions>
-            <Grid Grid.Column="0" Margin="0,0,10,0">
+
+            <DockPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" LastChildFill="False" Margin="0,0,10,6">
+                <TextBlock DockPanel.Dock="Left"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Foreground="#F0F0F0"
+                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding FileName}"
+                           VerticalAlignment="Center" />
+                <Border DockPanel.Dock="Right" Background="{Binding QualityBackgroundBrush}" CornerRadius="5" Padding="10,3" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <TextBlock Text="{Binding QualityLabel}" Foreground="{Binding QualityBrush}" FontWeight="Bold" FontSize="12" />
+                </Border>
+            </DockPanel>
+
+            <Grid Grid.Row="1" Grid.Column="0" Margin="0,0,10,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="150" />
                     <ColumnDefinition Width="150" />
@@ -85,37 +103,20 @@
                     <Grid>
                         <Image Stretch="UniformToFill" Source="{Binding RoiImage}" ToolTip="Click to open preview" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                         <Border Style="{StaticResource PreviewTagStyle}">
-                            <TextBlock Text="PSF" FontSize="11" FontWeight="SemiBold" Foreground="#EEEEEE" />
+                            <TextBlock Text="ROI" FontSize="11" FontWeight="SemiBold" Foreground="#EEEEEE" />
                         </Border>
                     </Grid>
                 </Border>
             </Grid>
 
-            <Grid Grid.Column="1" Margin="0,0,10,0">
+            <Grid Grid.Row="1" Grid.Column="1" Margin="0,0,10,0">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <DockPanel Grid.Row="0" LastChildFill="False">
-                    <TextBlock DockPanel.Dock="Left"
-                               FontSize="20"
-                               FontWeight="SemiBold"
-                               Foreground="#F0F0F0"
-                               TextTrimming="CharacterEllipsis"
-                               Text="{Binding FileName}"
-                               VerticalAlignment="Center" />
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
-                        <TextBlock Text="{Binding OverallScoreStars}" Foreground="#F7C948" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0" />
-                        <Border Background="{Binding QualityBackgroundBrush}" CornerRadius="5" Padding="10,3" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding QualityLabel}" Foreground="{Binding QualityBrush}" FontWeight="Bold" FontSize="12" />
-                        </Border>
-                    </StackPanel>
-                </DockPanel>
-
-                <WrapPanel Grid.Row="1" Margin="0,6,0,8">
+                <WrapPanel Grid.Row="0" Margin="0,0,0,8">
                     <TextBlock Text="{Binding TimestampDisplay}" Foreground="#BBBBBB" FontSize="12" Margin="0,0,12,0" />
                     <TextBlock Text="•" Foreground="#666666" Margin="0,0,12,0" />
                     <TextBlock Text="{Binding ExposureDisplay}" Foreground="#BBBBBB" FontSize="12" Margin="0,0,12,0" />
@@ -124,7 +125,7 @@
                     <TextBlock Text="{Binding FilterDisplay}" Foreground="#BBBBBB" FontSize="12" Margin="0,0,12,0" />
                 </WrapPanel>
 
-                <WrapPanel Grid.Row="2">
+                <WrapPanel Grid.Row="1">
                     <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding FwhmIndicatorBrush}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="FWHM" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
@@ -163,7 +164,7 @@
                     </Border>
                 </WrapPanel>
 
-                <Grid Grid.Row="3" Margin="0,4,0,0">
+                <Grid Grid.Row="2" Margin="0,4,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="14" />
@@ -177,7 +178,6 @@
                             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="OPTICS" />
                             <Grid>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -244,21 +244,23 @@
                             <TextBlock Grid.Row="1" Style="{StaticResource MetricNameStyle}" Text="Sky temp" />
                             <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding SkyTempDisplay}" />
                             <TextBlock Grid.Row="2" Style="{StaticResource MetricNameStyle}" Text="Min / count" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.MinCount, StringFormat={}{0}}" />
-                            <TextBlock Grid.Row="3" Style="{StaticResource MetricNameStyle}" Text="Max / count" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.MaxCount, StringFormat={}{0}}" />
-                            <TextBlock Grid.Row="4" Style="{StaticResource MetricNameStyle}" Text="Range" />
-                            <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource MetricValueStyle}">
+                            <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricValueStyle}">
                                 <Run Text="{Binding Metrics.Min, StringFormat={}{0:F0}}" />
                                 <Run Text=" / " />
+                                <Run Text="{Binding Metrics.MinCount, StringFormat={}{0}}" />
+                            </TextBlock>
+                            <TextBlock Grid.Row="3" Style="{StaticResource MetricNameStyle}" Text="Max / count" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetricValueStyle}">
                                 <Run Text="{Binding Metrics.Max, StringFormat={}{0:F0}}" />
+                                <Run Text=" / " />
+                                <Run Text="{Binding Metrics.MaxCount, StringFormat={}{0}}" />
                             </TextBlock>
                         </Grid>
                     </StackPanel>
                 </Grid>
             </Grid>
 
-            <Border Grid.Column="2" Background="#1B1D20" BorderBrush="#303338" BorderThickness="1" CornerRadius="4" Padding="12,10">
+            <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Background="#1B1D20" BorderBrush="#303338" BorderThickness="1" CornerRadius="4" Padding="12,10">
                 <StackPanel>
                     <TextBlock Text="SCORE" FontSize="11" Foreground="#9A9A9A" />
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,2">
