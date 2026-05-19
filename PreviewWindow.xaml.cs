@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Windows.Controls.Primitives;
 using blink_o_mat.ViewModels;
 using WpfPoint = System.Windows.Point;
 
@@ -131,6 +132,39 @@ public partial class PreviewWindow : Window
     }
 
     private sealed record ViewState(double Zoom, double CenterXRatio, double CenterYRatio);
+
+    private void StretchSlider_Loaded(object sender, RoutedEventArgs e)
+    {
+        HookSliderThumbEvents(sender as Slider);
+    }
+
+    private void TargetBackgroundSlider_Loaded(object sender, RoutedEventArgs e)
+    {
+        HookSliderThumbEvents(sender as Slider);
+    }
+
+    private void HookSliderThumbEvents(Slider? slider)
+    {
+        if (slider?.Template.FindName("PART_Track", slider) is not Track track || track.Thumb is null)
+        {
+            return;
+        }
+
+        track.Thumb.DragStarted -= StretchThumb_DragStarted;
+        track.Thumb.DragCompleted -= StretchThumb_DragCompleted;
+        track.Thumb.DragStarted += StretchThumb_DragStarted;
+        track.Thumb.DragCompleted += StretchThumb_DragCompleted;
+    }
+
+    private void StretchThumb_DragStarted(object sender, DragStartedEventArgs e)
+    {
+        _vm.BeginInteractiveStretch();
+    }
+
+    private void StretchThumb_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        _vm.EndInteractiveStretch();
+    }
 
     private async void Prev_Click(object sender, RoutedEventArgs e)
     {

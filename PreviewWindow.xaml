@@ -176,7 +176,7 @@
                                                HorizontalAlignment="Right"
                                                TextAlignment="Right"
                                                Text="{Binding Stretch, StringFormat=F2}" />
-                                    <Slider Minimum="0.25" Maximum="5.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
+                                    <Slider x:Name="StretchSlider" Minimum="0.25" Maximum="5.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" Loaded="StretchSlider_Loaded" />
                                 </DockPanel>
                                 <CheckBox Content="Use same target background for all frames" IsChecked="{Binding UseGlobalTargetBackground}" Margin="0,0,0,6" />
                                 <TextBlock FontWeight="SemiBold" Text="Target background" />
@@ -186,7 +186,7 @@
                                                HorizontalAlignment="Right"
                                                TextAlignment="Right"
                                                Text="{Binding TargetBackground, StringFormat=F2}" />
-                                    <Slider Minimum="0.05" Maximum="0.75" Value="{Binding TargetBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
+                                    <Slider x:Name="TargetBackgroundSlider" Minimum="0.05" Maximum="0.75" Value="{Binding TargetBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" Loaded="TargetBackgroundSlider_Loaded" />
                                 </DockPanel>
                             </StackPanel>
                         </Expander>

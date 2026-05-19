@@ -25,6 +25,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Action _toggleReject;
     private readonly Func<bool> _getSkipRejected;
     private readonly Action<bool> _setSkipRejected;
+    private readonly Action _beginInteractiveStretch;
+    private readonly Action _endInteractiveStretch;
     private FrameItem _item;
     private BitmapSource? _image;
     private double _zoom = 1.0;
@@ -207,6 +209,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Action<bool> setUseGlobalTargetBackground,
         Func<double> getTargetBackground,
         Action<double> setTargetBackground,
+        Action beginInteractiveStretch,
+        Action endInteractiveStretch,
         Action<WpfPoint> setManualRoi,
         Func<int, Task> navigate,
         Func<int, Task> navigateToIndex,
@@ -225,6 +229,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _setUseGlobalTargetBackground = setUseGlobalTargetBackground;
         _getTargetBackground = getTargetBackground;
         _setTargetBackground = setTargetBackground;
+        _beginInteractiveStretch = beginInteractiveStretch;
+        _endInteractiveStretch = endInteractiveStretch;
         _setManualRoi = setManualRoi;
         _navigate = navigate;
         _navigateToIndex = navigateToIndex;
@@ -252,6 +258,16 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     public void ToggleReject()
     {
         _toggleReject();
+    }
+
+    public void BeginInteractiveStretch()
+    {
+        _beginInteractiveStretch();
+    }
+
+    public void EndInteractiveStretch()
+    {
+        _endInteractiveStretch();
     }
 
     public void SetItem(FrameItem item)

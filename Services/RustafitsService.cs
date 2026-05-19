@@ -88,6 +88,11 @@ public sealed class RustafitsService
         return Task.Run(() => CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stretchStrength, stretchMode, targetBackground), cancellationToken);
     }
 
+    public Task<BitmapSource> RenderScaledPreviewBitmapAsync(LoadedFrame frame, int targetWidth, int targetHeight, double stretchStrength, StretchMode stretchMode, double? targetBackground, CancellationToken cancellationToken)
+    {
+        return Task.Run(() => CreateScaledFrameBitmap(frame.Pixels, frame.Width, frame.Height, targetWidth, targetHeight, stretchStrength, stretchMode, targetBackground), cancellationToken);
+    }
+
     public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame, RoiBias bias)
     {
         var (x, y) = DetectRoiCenter(frame.Pixels, frame.Width, frame.Height, bias);
@@ -1253,6 +1258,25 @@ public sealed class RustafitsService
         var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
         return bitmap;
+    }
+
+    private static BitmapSource CreateScaledFrameBitmap(float[] pixels, int width, int height, int targetWidth, int targetHeight, double stretchStrength, StretchMode stretchMode, double? targetBackground)
+    {
+        var safeTargetWidth = Math.Max(1, Math.Min(width, targetWidth));
+        var safeTargetHeight = Math.Max(1, Math.Min(height, targetHeight));
+        var sample = DownsampleAndStretch(pixels, width, height, safeTargetWidth, safeTargetHeight, stretchStrength, stretchMode, targetBackground);
+        var stride = safeTargetWidth * 3;
+        var bitmap = BitmapSource.Create(safeTargetWidth, safeTargetHeight, 96, 96, PixelFormats.Rgb24, null, sample, stride);
+        bitmap.Freeze();
+
+        if (safeTargetWidth == width && safeTargetHeight == height)
+        {
+            return bitmap;
+        }
+
+        var scaledBitmap = new TransformedBitmap(bitmap, new ScaleTransform(width / (double)safeTargetWidth, height / (double)safeTargetHeight));
+        scaledBitmap.Freeze();
+        return scaledBitmap;
     }
 
     private static (int X, int Y) DetectRoiCenter(float[] pixels, int width, int height, RoiBias bias)
