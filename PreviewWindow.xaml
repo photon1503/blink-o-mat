@@ -418,20 +418,33 @@
                 Background="{StaticResource PanelBackgroundBrush}"
                 BorderBrush="{StaticResource PanelBorderBrush}"
                 BorderThickness="1">
-            <TextBlock Foreground="Orange"
-                       Text="{Binding PreviewStatusMessage}"
-                       TextTrimming="CharacterEllipsis">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsPreviewStatusVisible}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Foreground="Orange"
+                           Text="{Binding PreviewStatusMessage}"
+                           TextTrimming="CharacterEllipsis">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsPreviewStatusVisible}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Grid.Column="1"
+                           Margin="12,0,0,0"
+                           Foreground="#CCBDBDBD"
+                           Text="{Binding CachedFrameCount, StringFormat=Cached: {0}}" />
+            </Grid>
         </Border>
     </Grid>
 </Window>

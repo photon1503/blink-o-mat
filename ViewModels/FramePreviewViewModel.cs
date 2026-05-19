@@ -182,6 +182,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     public int CurrentFrameIndex => Math.Clamp(_selectedVisibleFrameIndex, 0, Math.Max(0, _frameCount - 1));
 
     public ObservableCollection<int> CachedFrameIndices { get; } = [];
+    public int CachedFrameCount => CachedFrameIndices.Count;
 
     public string FramePositionText
     {
@@ -334,6 +335,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         }
 
         OnPropertyChanged(nameof(CachedFrameIndices));
+        OnPropertyChanged(nameof(CachedFrameCount));
     }
 
     public void SetPreviewStatus(string? message)

@@ -175,6 +175,11 @@ public sealed class RustafitsService
 
     public LoadedFrame NormalizeOrientation(LoadedFrame frame, LoadedFrame reference)
     {
+        return ApplyOrientation(frame, ShouldRotate180ForOrientation(frame, reference));
+    }
+
+    public bool ShouldRotate180ForOrientation(LoadedFrame frame, LoadedFrame reference)
+    {
         const int sampleSize = 256;
         const int maxOffset = 48;
         const double minImprovement = 0.04;
@@ -200,12 +205,12 @@ public sealed class RustafitsService
             rotatedScore = ComputeBestCorrelationWithOffsets(referenceSample, rotatedSample, sampleSize, maxOffset);
         }
 
-        if (rotatedScore > originalScore + minImprovement)
-        {
-            return Rotate180(frame);
-        }
+        return rotatedScore > originalScore + minImprovement;
+    }
 
-        return frame;
+    public LoadedFrame ApplyOrientation(LoadedFrame frame, bool rotate180)
+    {
+        return rotate180 ? Rotate180(frame) : frame;
     }
 
     private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)

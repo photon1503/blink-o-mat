@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Data;
 using System.Windows.Media.Imaging;
@@ -20,19 +21,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private const int StretchRefreshDebounceMs = 180;
     private const int PreviewInteractiveMaxLongSide = 1600;
     private const int PreviewFullResolutionIdleMs = 220;
-    private const int MinimumPreviewCacheAhead = 4;
-    private const int MinimumPreviewCacheBehind = 6;
-    private const int MaximumPreviewCacheAhead = 24;
-    private const int MaximumPreviewCacheBehind = 32;
-    private const long PreviewCacheReservedBytes = 256L * 1024 * 1024;
-    private const long PreviewCacheHardCapBytes = 1024L * 1024 * 1024;
+    private const int MinimumPreviewCacheAhead = 8;
+    private const int MinimumPreviewCacheBehind = 2;
+    private const int MaximumPreviewCacheAhead = 32;
+    private const int MaximumPreviewCacheBehind = 12;
+    private const long PreviewCacheReservedBytes = 1024L * 1024 * 1024;
 
     private sealed record LoadedFrameContext(
         FrameItem Item,
-        float[] Pixels,
+        string FilePath,
         int Width,
         int Height,
         double NormalizationMax,
+        bool Rotate180,
         double? FocalLengthMm,
         double? PixelSizeUm,
         DateTimeOffset? ExposureDateTime,
@@ -518,7 +519,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             _globalRoiCenter = null;
             _hasManualRoi = false;
-            UpdateAutoRoiCenter();
+            _ = UpdateAutoRoiCenterAsync(CancellationToken.None);
             ScheduleThumbnailRebuild(immediate: true);
         }
     }
@@ -544,7 +545,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         MoveRejectedCommand = new RelayCommand(_ => MoveRejected(), _ => !IsBusy && Frames.Any(f => f.IsRejected) && !string.IsNullOrWhiteSpace(RejectedFolder));
         OpenPreviewCommand = new RelayCommand(async p => await OpenPreviewAsync(p as FrameItem));
         ToggleRejectCommand = new RelayCommand(p => ToggleFrameReject(p as FrameItem), p => p is FrameItem);
-        ApplyAutoStretchCommand = new RelayCommand(_ => ApplyAutoStretch(), _ => _loadedFrames.Count > 0);
+        ApplyAutoStretchCommand = new RelayCommand(async _ => await ApplyAutoStretchAsync(), _ => _loadedFrames.Count > 0);
 
         var settings = _settings.Load();
         InputFolder = settings.InputFolder;
@@ -639,6 +640,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
 
             var firstSuccessfulIndex = -1;
+            RustafitsService.LoadedFrame? orientationReference = null;
             for (var i = 0; i < files.Count; i++)
             {
                 var file = files[i];
@@ -672,7 +674,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                     item.PropertyChanged += FrameItem_PropertyChanged;
                     Frames.Add(item);
-                    _loadedFrames.Add(CreateLoadedFrameContext(item, raw));
+                    _loadedFrames.Add(CreateLoadedFrameContext(item, raw, filePath: file, rotate180: false));
+                    orientationReference = raw;
                     SessionFocalLengthMm ??= raw.FocalLengthMm;
                     SessionPixelSizeUm ??= raw.PixelSizeUm;
                     loadedCount++;
@@ -692,7 +695,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (firstSuccessfulIndex >= 0)
             {
                 var filesToProcess = files.Skip(firstSuccessfulIndex + 1).Select((file, offset) => (File: file, SourceIndex: firstSuccessfulIndex + 1 + offset)).ToList();
-                var orientationReference = ExpandFrame(_loadedFrames[0]);
+                if (orientationReference is null)
+                {
+                    throw new InvalidOperationException("Orientation reference frame is not available.");
+                }
                 var maxParallelism = Math.Max(2, Environment.ProcessorCount);
                 using var gate = new SemaphoreSlim(maxParallelism);
 
@@ -702,7 +708,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     try
                     {
                         var raw = await _rustafits.LoadRawFrameAsync(entry.File, CancellationToken.None);
-                        var oriented = _rustafits.NormalizeOrientation(raw, orientationReference);
+                        var rotate180 = _rustafits.ShouldRotate180ForOrientation(raw, orientationReference);
+                        var oriented = _rustafits.ApplyOrientation(raw, rotate180);
                         var metrics = _rustafits.AnalyzeFrame(oriented);
                         var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, ActiveStf, _globalRoiCenter, metrics, CancellationToken.None);
 
@@ -719,11 +726,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         };
 
                         item.PropertyChanged += FrameItem_PropertyChanged;
-                        return (Item: item, Frame: oriented, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: item.FileName);
+                        return (Item: item, Frame: oriented, Rotate180: rotate180, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: item.FileName);
                     }
                     catch (Exception ex)
                     {
-                        return (Item: (FrameItem?)null, Frame: (RustafitsService.LoadedFrame?)null, Error: ex, SourceIndex: entry.SourceIndex, FileName: Path.GetFileName(entry.File));
+                        return (Item: (FrameItem?)null, Frame: (RustafitsService.LoadedFrame?)null, Rotate180: false, Error: ex, SourceIndex: entry.SourceIndex, FileName: Path.GetFileName(entry.File));
                     }
                     finally
                     {
@@ -740,7 +747,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     if (result.Item is not null && result.Frame is not null)
                     {
                         Frames.Add(result.Item);
-                        _loadedFrames.Add(CreateLoadedFrameContext(result.Item, result.Frame));
+                        _loadedFrames.Add(CreateLoadedFrameContext(result.Item, result.Frame, result.Item.FilePath, result.Rotate180));
                         SessionFocalLengthMm ??= result.Frame.FocalLengthMm;
                         SessionPixelSizeUm ??= result.Frame.PixelSizeUm;
                         loadedCount++;
@@ -972,7 +979,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnStretchSettingsChanged();
     }
 
-    private void ApplyAutoStretch()
+    private async Task ApplyAutoStretchAsync()
     {
         if (_loadedFrames.Count == 0) return;
 
@@ -983,7 +990,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             targetIndex = 0;
         }
 
-        var stf = _rustafits.ComputeAutoStretch(ExpandFrame(_loadedFrames[targetIndex]));
+        var stf = _rustafits.ComputeAutoStretch(await MaterializeFrameAsync(_loadedFrames[targetIndex], CancellationToken.None));
         _stfShadows = stf.Shadows;
         _stfMidtones = stf.Midtones;
         _stfHighlights = stf.Highlights;
@@ -1040,7 +1047,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var loaded = _loadedFrames[index];
             var (targetWidth, targetHeight) = GetInteractivePreviewDimensions(loaded);
-            var previewImage = await _rustafits.RenderScaledPreviewBitmapAsync(ExpandFrame(loaded), targetWidth, targetHeight, ActiveStf, cancellationToken);
+            var previewImage = await _rustafits.RenderScaledPreviewBitmapAsync(await MaterializeFrameAsync(loaded, cancellationToken), targetWidth, targetHeight, ActiveStf, cancellationToken);
             if (cancellationToken.IsCancellationRequested ||
                 !ReferenceEquals(_previewWindow, previewWindow) ||
                 !ReferenceEquals(_previewItem, activeItem))
@@ -1088,7 +1095,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             _previewCacheCts?.Cancel();
             var loaded = _loadedFrames[index];
-            var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), ActiveStf, cancellationToken);
+            var fullImage = await _rustafits.RenderFullBitmapAsync(await MaterializeFrameAsync(loaded, cancellationToken), ActiveStf, cancellationToken);
             if (cancellationToken.IsCancellationRequested ||
                 !ReferenceEquals(_previewWindow, previewWindow) ||
                 !ReferenceEquals(_previewItem, activeItem))
@@ -1158,7 +1165,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return;
             }
 
-            UpdateAutoRoiCenter();
+            await UpdateAutoRoiCenterAsync(cancellationToken);
 
             _previewCacheCts?.Cancel();
 
@@ -1175,7 +1182,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 var loaded = _loadedFrames[i];
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
-                var frameData = ExpandFrame(loaded);
+                var frameData = await MaterializeFrameAsync(loaded, cancellationToken);
                 var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, ActiveStf, _globalRoiCenter, loaded.Item.Metrics, cancellationToken);
 
                 loaded.Item.ThumbnailImage = previews.Full;
@@ -1254,7 +1261,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             value => StfMidtones = value,
             () => StfHighlights,
             value => StfHighlights = value,
-            ApplyAutoStretch,
+            () => _ = ApplyAutoStretchAsync(),
             () => RoiBias,
             value => RoiBias = value,
             BeginInteractiveStretch,
@@ -1426,7 +1433,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return loaded.FullImage;
         }
 
-        var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), ActiveStf, CancellationToken.None);
+        var fullImage = await _rustafits.RenderFullBitmapAsync(await MaterializeFrameAsync(loaded, CancellationToken.None), ActiveStf, CancellationToken.None);
         _loadedFrames[index] = loaded with { FullImage = fullImage };
         PublishPreviewCacheState();
         return fullImage;
@@ -1495,7 +1502,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var full = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), ActiveStf, cancellationToken);
+        var full = await _rustafits.RenderFullBitmapAsync(await MaterializeFrameAsync(loaded, cancellationToken), ActiveStf, cancellationToken);
         _loadedFrames[index] = loaded with { FullImage = full };
         PublishPreviewCacheState();
     }
@@ -1541,24 +1548,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private void UpdateAutoRoiCenter()
+    private async Task UpdateAutoRoiCenterAsync(CancellationToken cancellationToken)
     {
         if (_hasManualRoi || _loadedFrames.Count == 0)
         {
             return;
         }
 
-        _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(ExpandFrame(_loadedFrames[0]), RoiBias);
+        _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(await MaterializeFrameAsync(_loadedFrames[0], cancellationToken), RoiBias);
     }
 
-    private static LoadedFrameContext CreateLoadedFrameContext(FrameItem item, RustafitsService.LoadedFrame frame)
+    private static LoadedFrameContext CreateLoadedFrameContext(FrameItem item, RustafitsService.LoadedFrame frame, string filePath, bool rotate180)
     {
         return new LoadedFrameContext(
             item,
-            frame.Pixels,
+            filePath,
             frame.Width,
             frame.Height,
             frame.NormalizationMax,
+            rotate180,
             frame.FocalLengthMm,
             frame.PixelSizeUm,
             frame.ExposureDateTime,
@@ -1569,21 +1577,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             null);
     }
 
-    private static RustafitsService.LoadedFrame ExpandFrame(LoadedFrameContext context)
+    private async Task<RustafitsService.LoadedFrame> MaterializeFrameAsync(LoadedFrameContext context, CancellationToken cancellationToken)
     {
-        // Pixels are treated as read-only by all rendering methods — no clone needed.
-        return new RustafitsService.LoadedFrame(
-            context.Pixels,
-            context.Width,
-            context.Height,
-            context.NormalizationMax,
-            context.FocalLengthMm,
-            context.PixelSizeUm,
-            context.ExposureDateTime,
-            context.ExposureSeconds,
-            context.FilterName,
-            context.Sqm,
-            context.SkyTemp);
+        var raw = await _rustafits.LoadRawFrameAsync(context.FilePath, cancellationToken);
+        return _rustafits.ApplyOrientation(raw, context.Rotate180);
     }
 
     private (int Ahead, int Behind) CalculateAdaptivePreviewCacheWindow(FrameItem centerItem)
@@ -1597,51 +1594,117 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var maxAheadAvailable = Math.Max(0, _loadedFrames.Count - 1 - centerIndex);
         var maxBehindAvailable = Math.Max(0, centerIndex);
 
-        var estimatedFrameBytes = EstimatePreviewFrameBytes(_loadedFrames[centerIndex]);
         var availableCacheBytes = EstimateAvailablePreviewCacheBytes();
-        var budgetedFrames = (int)Math.Clamp(availableCacheBytes / Math.Max(1L, estimatedFrameBytes), 1L, 1L + MaximumPreviewCacheAhead + MaximumPreviewCacheBehind);
-        var extraFrames = Math.Max(0, budgetedFrames - 1);
+        var centerFrameBytes = EstimatePreviewFrameBytes(_loadedFrames[centerIndex]);
+        var remainingBytes = Math.Max(0L, availableCacheBytes - centerFrameBytes);
 
-        var desiredAhead = Math.Min(MaximumPreviewCacheAhead, MinimumPreviewCacheAhead + (extraFrames / 2));
-        var desiredBehind = Math.Min(MaximumPreviewCacheBehind, MinimumPreviewCacheBehind + extraFrames);
+        var ahead = 0;
+        var behind = 0;
+        var preferAhead = true;
 
-        var ahead = Math.Clamp(desiredAhead, Math.Min(MinimumPreviewCacheAhead, maxAheadAvailable), maxAheadAvailable);
-        var behind = Math.Clamp(desiredBehind, Math.Min(MinimumPreviewCacheBehind, maxBehindAvailable), maxBehindAvailable);
-
-        if (centerIndex < MinimumPreviewCacheBehind)
+        while (remainingBytes > 0 && (ahead < maxAheadAvailable || behind < maxBehindAvailable))
         {
-            ahead = Math.Min(MaximumPreviewCacheAhead, ahead + (MinimumPreviewCacheBehind - centerIndex));
-        }
+            var added = false;
 
-        if (maxAheadAvailable < MinimumPreviewCacheAhead)
-        {
-            behind = Math.Min(MaximumPreviewCacheBehind, behind + (MinimumPreviewCacheAhead - maxAheadAvailable));
-        }
+            if ((preferAhead || behind >= MinimumPreviewCacheBehind) && ahead < maxAheadAvailable && ahead < MaximumPreviewCacheAhead)
+            {
+                var aheadBytes = EstimatePreviewFrameBytes(_loadedFrames[centerIndex + ahead + 1]);
+                if (aheadBytes <= remainingBytes)
+                {
+                    remainingBytes -= aheadBytes;
+                    ahead++;
+                    added = true;
+                }
+            }
 
-        ahead = Math.Min(ahead, maxAheadAvailable);
-        behind = Math.Min(behind, maxBehindAvailable);
+            if ((!preferAhead || ahead >= MinimumPreviewCacheAhead) && behind < maxBehindAvailable && behind < MaximumPreviewCacheBehind)
+            {
+                var behindBytes = EstimatePreviewFrameBytes(_loadedFrames[centerIndex - behind - 1]);
+                if (behindBytes <= remainingBytes)
+                {
+                    remainingBytes -= behindBytes;
+                    behind++;
+                    added = true;
+                }
+            }
+
+            if (!added)
+            {
+                if (preferAhead && behind < maxBehindAvailable && behind < MaximumPreviewCacheBehind)
+                {
+                    var behindBytes = EstimatePreviewFrameBytes(_loadedFrames[centerIndex - behind - 1]);
+                    if (behindBytes <= remainingBytes)
+                    {
+                        remainingBytes -= behindBytes;
+                        behind++;
+                        added = true;
+                    }
+                }
+                else if (!preferAhead && ahead < maxAheadAvailable && ahead < MaximumPreviewCacheAhead)
+                {
+                    var aheadBytes = EstimatePreviewFrameBytes(_loadedFrames[centerIndex + ahead + 1]);
+                    if (aheadBytes <= remainingBytes)
+                    {
+                        remainingBytes -= aheadBytes;
+                        ahead++;
+                        added = true;
+                    }
+                }
+            }
+
+            if (!added)
+            {
+                break;
+            }
+
+            preferAhead = ahead < MinimumPreviewCacheAhead || (ahead < maxAheadAvailable && ahead < MaximumPreviewCacheAhead && (ahead - behind) < 6);
+        }
 
         return (ahead, behind);
     }
 
     private static long EstimatePreviewFrameBytes(LoadedFrameContext frame)
     {
-        var pixelBytes = (long)frame.Width * frame.Height * 4L;
-        return Math.Max(8L * 1024 * 1024, pixelBytes + (pixelBytes / 8));
+        var pixelBytes = (long)frame.Width * frame.Height * 3L;
+        return Math.Max(8L * 1024 * 1024, pixelBytes + (pixelBytes / 10));
     }
 
     private static long EstimateAvailablePreviewCacheBytes()
     {
-        var gcInfo = GC.GetGCMemoryInfo();
-        var totalAvailable = gcInfo.TotalAvailableMemoryBytes;
-        if (totalAvailable <= 0)
+        var memoryStatus = MEMORYSTATUSEX.Create();
+        if (!GlobalMemoryStatusEx(ref memoryStatus) || memoryStatus.ullAvailPhys <= 0)
         {
             return 128L * 1024 * 1024;
         }
 
-        var memoryLoadBytes = totalAvailable * gcInfo.MemoryLoadBytes / Math.Max(1L, gcInfo.HighMemoryLoadThresholdBytes);
-        var freeBytes = Math.Max(0L, totalAvailable - memoryLoadBytes - PreviewCacheReservedBytes);
-        return Math.Clamp(freeBytes, 64L * 1024 * 1024, PreviewCacheHardCapBytes);
+        var freeBytes = Math.Max(0L, (long)memoryStatus.ullAvailPhys - PreviewCacheReservedBytes);
+        return Math.Max(64L * 1024 * 1024, freeBytes);
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MEMORYSTATUSEX
+    {
+        public uint dwLength;
+        public uint dwMemoryLoad;
+        public ulong ullTotalPhys;
+        public ulong ullAvailPhys;
+        public ulong ullTotalPageFile;
+        public ulong ullAvailPageFile;
+        public ulong ullTotalVirtual;
+        public ulong ullAvailVirtual;
+        public ulong ullAvailExtendedVirtual;
+
+        public static MEMORYSTATUSEX Create()
+        {
+            return new MEMORYSTATUSEX
+            {
+                dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>()
+            };
+        }
     }
 
     private void TrimFullImageCache(int centerIndex, int ahead, int behind)
