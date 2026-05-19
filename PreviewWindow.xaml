@@ -162,31 +162,36 @@
                 <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                     <StackPanel>
                         <TextBlock FontWeight="SemiBold" Text="Inspection" Margin="0,0,0,6" />
-                        <Expander IsExpanded="False" Margin="0,0,0,8">
+                        <Expander IsExpanded="True" Margin="0,0,0,8">
                             <Expander.Header>
-                                <TextBlock FontWeight="SemiBold" Text="Stretching" />
+                                <TextBlock FontWeight="SemiBold" Text="Stretch (STF)" />
                             </Expander.Header>
                             <StackPanel Margin="0,8,0,0">
-                                <TextBlock FontWeight="SemiBold" Text="Stretch mode" />
-                                <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,2,0,6" />
-                                <TextBlock FontWeight="SemiBold" Text="Stretch" />
-                                <DockPanel Margin="0,0,0,8">
-                                    <TextBlock DockPanel.Dock="Right"
-                                               Width="56"
-                                               HorizontalAlignment="Right"
-                                               TextAlignment="Right"
-                                               Text="{Binding Stretch, StringFormat=F2}" />
-                                    <Slider x:Name="StretchSlider" Minimum="0.25" Maximum="5.0" Value="{Binding Stretch, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" Loaded="StretchSlider_Loaded" />
+                                <Button Content="Auto Stretch" HorizontalAlignment="Left" Padding="8,3" Margin="0,0,0,10"
+                                        Command="{Binding AutoStretchCommand}" />
+                                <TextBlock FontWeight="SemiBold" Text="Shadows" />
+                                <DockPanel Margin="0,2,0,8">
+                                    <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
+                                               Text="{Binding StfShadows, StringFormat=F3}" />
+                                    <Slider Minimum="0" Maximum="1" Value="{Binding StfShadows, UpdateSourceTrigger=PropertyChanged}"
+                                            TickFrequency="0.001" IsSnapToTickEnabled="False"
+                                            Loaded="StfSlider_Loaded" />
                                 </DockPanel>
-                                <CheckBox Content="Use same target background for all frames" IsChecked="{Binding UseGlobalTargetBackground}" Margin="0,0,0,6" />
-                                <TextBlock FontWeight="SemiBold" Text="Target background" />
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Right"
-                                               Width="56"
-                                               HorizontalAlignment="Right"
-                                               TextAlignment="Right"
-                                               Text="{Binding TargetBackground, StringFormat=F2}" />
-                                    <Slider x:Name="TargetBackgroundSlider" Minimum="0.05" Maximum="0.75" Value="{Binding TargetBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" Loaded="TargetBackgroundSlider_Loaded" />
+                                <TextBlock FontWeight="SemiBold" Text="Midtones" />
+                                <DockPanel Margin="0,2,0,8">
+                                    <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
+                                               Text="{Binding StfMidtones, StringFormat=F3}" />
+                                    <Slider Minimum="0" Maximum="1" Value="{Binding StfMidtones, UpdateSourceTrigger=PropertyChanged}"
+                                            TickFrequency="0.001" IsSnapToTickEnabled="False"
+                                            Loaded="StfSlider_Loaded" />
+                                </DockPanel>
+                                <TextBlock FontWeight="SemiBold" Text="Highlights" />
+                                <DockPanel Margin="0,2,0,0">
+                                    <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
+                                               Text="{Binding StfHighlights, StringFormat=F3}" />
+                                    <Slider Minimum="0" Maximum="1" Value="{Binding StfHighlights, UpdateSourceTrigger=PropertyChanged}"
+                                            TickFrequency="0.001" IsSnapToTickEnabled="False"
+                                            Loaded="StfSlider_Loaded" />
                                 </DockPanel>
                             </StackPanel>
                         </Expander>

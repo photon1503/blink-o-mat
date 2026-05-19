@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using blink_o_mat.Infrastructure;
 using blink_o_mat.Models;
 using WpfPoint = System.Windows.Point;
 
@@ -9,17 +11,16 @@ namespace blink_o_mat.ViewModels;
 
 public sealed class FramePreviewViewModel : INotifyPropertyChanged
 {
-    private readonly Action<double> _setStretch;
-    private readonly Func<double> _getStretch;
+    private readonly Func<double> _getStfShadows;
+    private readonly Action<double> _setStfShadows;
+    private readonly Func<double> _getStfMidtones;
+    private readonly Action<double> _setStfMidtones;
+    private readonly Func<double> _getStfHighlights;
+    private readonly Action<double> _setStfHighlights;
+    private readonly Action _applyAutoStretch;
     private readonly Action<WpfPoint> _setManualRoi;
     private readonly Func<RoiBias> _getRoiBias;
     private readonly Action<RoiBias> _setRoiBias;
-    private readonly Func<StretchMode> _getStretchMode;
-    private readonly Action<StretchMode> _setStretchMode;
-    private readonly Func<bool> _getUseGlobalTargetBackground;
-    private readonly Action<bool> _setUseGlobalTargetBackground;
-    private readonly Func<double> _getTargetBackground;
-    private readonly Action<double> _setTargetBackground;
     private readonly Func<int, Task> _navigate;
     private readonly Func<int, Task> _navigateToIndex;
     private readonly Action _toggleReject;
@@ -57,17 +58,43 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         }
     }
 
-    public double Stretch
+    public double StfShadows
     {
-        get => _getStretch();
+        get => _getStfShadows();
         set
         {
-            var clamped = Math.Clamp(value, 0.25, 5.0);
-            if (Math.Abs(clamped - _getStretch()) < 0.0001) return;
-            _setStretch(clamped);
+            var clamped = Math.Clamp(value, 0.0, 1.0);
+            if (Math.Abs(_getStfShadows() - clamped) < 0.0001) return;
+            _setStfShadows(clamped);
             OnPropertyChanged();
         }
     }
+
+    public double StfMidtones
+    {
+        get => _getStfMidtones();
+        set
+        {
+            var clamped = Math.Clamp(value, 0.0, 1.0);
+            if (Math.Abs(_getStfMidtones() - clamped) < 0.0001) return;
+            _setStfMidtones(clamped);
+            OnPropertyChanged();
+        }
+    }
+
+    public double StfHighlights
+    {
+        get => _getStfHighlights();
+        set
+        {
+            var clamped = Math.Clamp(value, 0.0, 1.0);
+            if (Math.Abs(_getStfHighlights() - clamped) < 0.0001) return;
+            _setStfHighlights(clamped);
+            OnPropertyChanged();
+        }
+    }
+
+    public ICommand AutoStretchCommand { get; }
 
     public double Zoom
     {
@@ -93,42 +120,6 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     }
 
     public Array RoiBiasOptions { get; } = Enum.GetValues(typeof(RoiBias));
-
-    public StretchMode StretchMode
-    {
-        get => _getStretchMode();
-        set
-        {
-            if (_getStretchMode() == value) return;
-            _setStretchMode(value);
-            OnPropertyChanged();
-        }
-    }
-
-    public Array StretchModeOptions { get; } = Enum.GetValues(typeof(StretchMode));
-
-    public bool UseGlobalTargetBackground
-    {
-        get => _getUseGlobalTargetBackground();
-        set
-        {
-            if (_getUseGlobalTargetBackground() == value) return;
-            _setUseGlobalTargetBackground(value);
-            OnPropertyChanged();
-        }
-    }
-
-    public double TargetBackground
-    {
-        get => _getTargetBackground();
-        set
-        {
-            var clamped = Math.Clamp(value, 0.05, 0.75);
-            if (Math.Abs(_getTargetBackground() - clamped) < 0.0001) return;
-            _setTargetBackground(clamped);
-            OnPropertyChanged();
-        }
-    }
 
     public bool SkipRejectedInPreview
     {
@@ -199,16 +190,15 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 
     public FramePreviewViewModel(
         FrameItem item,
-        Func<double> getStretch,
-        Action<double> setStretch,
+        Func<double> getStfShadows,
+        Action<double> setStfShadows,
+        Func<double> getStfMidtones,
+        Action<double> setStfMidtones,
+        Func<double> getStfHighlights,
+        Action<double> setStfHighlights,
+        Action applyAutoStretch,
         Func<RoiBias> getRoiBias,
         Action<RoiBias> setRoiBias,
-        Func<StretchMode> getStretchMode,
-        Action<StretchMode> setStretchMode,
-        Func<bool> getUseGlobalTargetBackground,
-        Action<bool> setUseGlobalTargetBackground,
-        Func<double> getTargetBackground,
-        Action<double> setTargetBackground,
         Action beginInteractiveStretch,
         Action endInteractiveStretch,
         Action<WpfPoint> setManualRoi,
@@ -219,16 +209,15 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Action<bool> setSkipRejected)
     {
         _item = item;
-        _getStretch = getStretch;
-        _setStretch = setStretch;
+        _getStfShadows = getStfShadows;
+        _setStfShadows = setStfShadows;
+        _getStfMidtones = getStfMidtones;
+        _setStfMidtones = setStfMidtones;
+        _getStfHighlights = getStfHighlights;
+        _setStfHighlights = setStfHighlights;
+        _applyAutoStretch = applyAutoStretch;
         _getRoiBias = getRoiBias;
         _setRoiBias = setRoiBias;
-        _getStretchMode = getStretchMode;
-        _setStretchMode = setStretchMode;
-        _getUseGlobalTargetBackground = getUseGlobalTargetBackground;
-        _setUseGlobalTargetBackground = setUseGlobalTargetBackground;
-        _getTargetBackground = getTargetBackground;
-        _setTargetBackground = setTargetBackground;
         _beginInteractiveStretch = beginInteractiveStretch;
         _endInteractiveStretch = endInteractiveStretch;
         _setManualRoi = setManualRoi;
@@ -238,6 +227,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _getSkipRejected = getSkipRejected;
         _setSkipRejected = setSkipRejected;
         _image = null;
+        AutoStretchCommand = new RelayCommand(_ => ApplyAutoStretchAndRefresh());
     }
 
     public void SetManualRoi(WpfPoint normalizedPoint)
@@ -301,6 +291,14 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     public void SetPreviewStatus(string? message)
     {
         PreviewStatusMessage = string.IsNullOrWhiteSpace(message) ? null : message;
+    }
+
+    private void ApplyAutoStretchAndRefresh()
+    {
+        _applyAutoStretch();
+        OnPropertyChanged(nameof(StfShadows));
+        OnPropertyChanged(nameof(StfMidtones));
+        OnPropertyChanged(nameof(StfHighlights));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

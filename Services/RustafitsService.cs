@@ -38,7 +38,7 @@ public sealed class RustafitsService
 
             var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp);
             var metrics = ComputeMetrics(loadedFrame);
-            var previews = await RenderPreviewBitmapsAsync(loadedFrame, 1.0, StretchMode.Default, null, null, metrics, cancellationToken);
+            var previews = await RenderPreviewBitmapsAsync(loadedFrame, StfParameters.Default, null, metrics, cancellationToken);
 
             return new FrameItem
             {
@@ -73,24 +73,24 @@ public sealed class RustafitsService
         return Task.CompletedTask;
     }
 
-    public Task<(BitmapSource Full, BitmapSource Roi)> RenderPreviewBitmapsAsync(LoadedFrame frame, double stretchStrength, StretchMode stretchMode, double? targetBackground, (double X, double Y)? roiNormalizedCenter, AstroMetrics? metrics, CancellationToken cancellationToken)
+    public Task<(BitmapSource Full, BitmapSource Roi)> RenderPreviewBitmapsAsync(LoadedFrame frame, StfParameters stf, (double X, double Y)? roiNormalizedCenter, AstroMetrics? metrics, CancellationToken cancellationToken)
     {
         return Task.Run(() =>
         {
-            var full = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stretchStrength, stretchMode, targetBackground, metrics);
-            var roi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stretchStrength, stretchMode, targetBackground, roiNormalizedCenter);
+            var full = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stf, metrics);
+            var roi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stf, roiNormalizedCenter);
             return (full, roi);
         }, cancellationToken);
     }
 
-    public Task<BitmapSource> RenderFullBitmapAsync(LoadedFrame frame, double stretchStrength, StretchMode stretchMode, double? targetBackground, CancellationToken cancellationToken)
+    public Task<BitmapSource> RenderFullBitmapAsync(LoadedFrame frame, StfParameters stf, CancellationToken cancellationToken)
     {
-        return Task.Run(() => CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stretchStrength, stretchMode, targetBackground), cancellationToken);
+        return Task.Run(() => CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stf), cancellationToken);
     }
 
-    public Task<BitmapSource> RenderScaledPreviewBitmapAsync(LoadedFrame frame, int targetWidth, int targetHeight, double stretchStrength, StretchMode stretchMode, double? targetBackground, CancellationToken cancellationToken)
+    public Task<BitmapSource> RenderScaledPreviewBitmapAsync(LoadedFrame frame, int targetWidth, int targetHeight, StfParameters stf, CancellationToken cancellationToken)
     {
-        return Task.Run(() => CreateScaledFrameBitmap(frame.Pixels, frame.Width, frame.Height, targetWidth, targetHeight, stretchStrength, stretchMode, targetBackground), cancellationToken);
+        return Task.Run(() => CreateScaledFrameBitmap(frame.Pixels, frame.Width, frame.Height, targetWidth, targetHeight, stf), cancellationToken);
     }
 
     public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame, RoiBias bias)
@@ -102,6 +102,62 @@ public sealed class RustafitsService
     public AstroMetrics AnalyzeFrame(LoadedFrame frame)
     {
         return ComputeMetrics(frame);
+    }
+
+    public StfParameters ComputeAutoStretch(LoadedFrame frame)
+    {
+        // Use the full pixel array (sampled for speed) to compute statistics in raw ADU
+        var sampled = Sample(frame.Pixels);
+        if (sampled.Length == 0)
+        {
+            return StfParameters.Default;
+        }
+
+        Array.Sort(sampled);
+
+        // Determine a stable normalisation ceiling that is consistent with DownsampleAndStretch.
+        // If the pixel values are raw ADU (> 1.0) we use the actual array maximum so both functions
+        // always divide by the same number regardless of sampling differences.
+        // Scanning the full pixel array (not just the sample) guarantees we catch sparse bright stars.
+        var dataMax = 1.0;
+        for (var i = 0; i < frame.Pixels.Length; i++)
+        {
+            if (frame.Pixels[i] > dataMax)
+            {
+                dataMax = frame.Pixels[i];
+            }
+        }
+
+        // Compute median and MAD in normalised [0,1] space
+        var median = PercentileFromSorted(sampled, 0.5) / dataMax;
+        var absDeviations = new float[sampled.Length];
+        for (var i = 0; i < sampled.Length; i++)
+        {
+            absDeviations[i] = (float)Math.Abs((sampled[i] / dataMax) - median);
+        }
+        Array.Sort(absDeviations);
+        var mad = PercentileFromSorted(absDeviations, 0.5);
+        var sigma = 1.4826 * mad;
+
+        // PixInsight STF defaults: shadowsClipping = -2.8, targetBackground = 0.25
+        const double shadowsClipping = -2.8;
+        const double targetBackground = 0.25;
+
+        // Shadows clipping point (c0) in normalised space — mirrors PixInsight's c0 = median + k*sigma
+        var c0 = Math.Clamp(median + (shadowsClipping * sigma), 0.0, 1.0);
+
+        // Normalised median position after shadow clipping applied
+        var medianNorm = Math.Clamp((median - c0) / (1.0 - c0), 1e-9, 1.0 - 1e-9);
+
+        // Midtones: solve MTF(m, medianNorm) = targetBackground  (PixInsight formula)
+        var midtones = InverseMidtonesTransfer(targetBackground, medianNorm);
+        if (double.IsNaN(midtones) || double.IsInfinity(midtones))
+        {
+            midtones = 0.25;
+        }
+        midtones = Math.Clamp(midtones, 0.0, 1.0);
+
+        return new StfParameters(c0, midtones, 1.0);
     }
 
     private static double? ParseSqmFromFileName(string filePath)
@@ -1119,14 +1175,14 @@ public sealed class RustafitsService
         };
     }
 
-    private static BitmapSource CreateThumbnailBitmap(float[] pixels, int width, int height, int maxWidth, int maxHeight, double stretchStrength, StretchMode stretchMode, double? targetBackground, AstroMetrics? metrics)
+    private static BitmapSource CreateThumbnailBitmap(float[] pixels, int width, int height, int maxWidth, int maxHeight, StfParameters stf, AstroMetrics? metrics)
     {
         var scale = Math.Min(maxWidth / (double)Math.Max(1, width), maxHeight / (double)Math.Max(1, height));
         scale = Math.Min(1.0, scale <= 0 ? 1.0 : scale);
         var contentWidth = Math.Max(1, (int)Math.Round(width * scale));
         var contentHeight = Math.Max(1, (int)Math.Round(height * scale));
 
-        var sample = DownsampleAndStretch(pixels, width, height, contentWidth, contentHeight, stretchStrength, stretchMode, targetBackground);
+        var sample = DownsampleAndStretch(pixels, width, height, contentWidth, contentHeight, stf);
         if (metrics is { PossibleSatelliteTrail: true, TrailX1: not null, TrailY1: not null, TrailX2: not null, TrailY2: not null })
         {
             DrawTrailOverlay(sample, contentWidth, contentHeight, metrics);
@@ -1224,7 +1280,7 @@ public sealed class RustafitsService
         }
     }
 
-    private static BitmapSource CreateRoiBitmap(float[] pixels, int width, int height, int roiSize, double stretchStrength, StretchMode stretchMode, double? targetBackground, (double X, double Y)? roiNormalizedCenter)
+    private static BitmapSource CreateRoiBitmap(float[] pixels, int width, int height, int roiSize, StfParameters stf, (double X, double Y)? roiNormalizedCenter)
     {
         var (cx, cy) = roiNormalizedCenter is { } roi
             ? ((int)Math.Round(Math.Clamp(roi.X, 0, 1) * (width - 1)), (int)Math.Round(Math.Clamp(roi.Y, 0, 1) * (height - 1)))
@@ -1244,27 +1300,27 @@ public sealed class RustafitsService
             Array.Copy(pixels, sourceOffset, crop, targetOffset, actualWidth);
         }
 
-        var sample = DownsampleAndStretch(crop, actualWidth, actualHeight, roiSize, roiSize, stretchStrength, stretchMode, targetBackground);
+        var sample = DownsampleAndStretch(crop, actualWidth, actualHeight, roiSize, roiSize, stf);
         var stride = roiSize * 3;
         var bitmap = BitmapSource.Create(roiSize, roiSize, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
         return bitmap;
     }
 
-    private static BitmapSource CreateFullFrameBitmap(float[] pixels, int width, int height, double stretchStrength, StretchMode stretchMode, double? targetBackground)
+    private static BitmapSource CreateFullFrameBitmap(float[] pixels, int width, int height, StfParameters stf)
     {
-        var sample = DownsampleAndStretch(pixels, width, height, width, height, stretchStrength, stretchMode, targetBackground);
+        var sample = DownsampleAndStretch(pixels, width, height, width, height, stf);
         var stride = width * 3;
         var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
         return bitmap;
     }
 
-    private static BitmapSource CreateScaledFrameBitmap(float[] pixels, int width, int height, int targetWidth, int targetHeight, double stretchStrength, StretchMode stretchMode, double? targetBackground)
+    private static BitmapSource CreateScaledFrameBitmap(float[] pixels, int width, int height, int targetWidth, int targetHeight, StfParameters stf)
     {
         var safeTargetWidth = Math.Max(1, Math.Min(width, targetWidth));
         var safeTargetHeight = Math.Max(1, Math.Min(height, targetHeight));
-        var sample = DownsampleAndStretch(pixels, width, height, safeTargetWidth, safeTargetHeight, stretchStrength, stretchMode, targetBackground);
+        var sample = DownsampleAndStretch(pixels, width, height, safeTargetWidth, safeTargetHeight, stf);
         var stride = safeTargetWidth * 3;
         var bitmap = BitmapSource.Create(safeTargetWidth, safeTargetHeight, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
@@ -1446,102 +1502,27 @@ public sealed class RustafitsService
         return output;
     }
 
-    private static byte[] DownsampleAndStretch(float[] pixels, int width, int height, int targetWidth, int targetHeight, double stretchStrength, StretchMode stretchMode, double? targetBackground)
+    private static byte[] DownsampleAndStretch(float[] pixels, int width, int height, int targetWidth, int targetHeight, StfParameters stf)
     {
-        var sampled = Sample(pixels);
-        if (sampled.Length == 0)
+        // Determine a stable normalisation ceiling consistent with ComputeAutoStretch.
+        // Scanning the full pixel array ensures we catch sparse bright stars that the sample might miss.
+        double dataMax = 1.0;
+        for (var i = 0; i < pixels.Length; i++)
         {
-            return new byte[targetWidth * targetHeight * 3];
-        }
-
-        Array.Sort(sampled);
-        double low = sampled[0];
-        double high = sampled[^1];
-        if (high - low < 1e-12)
-        {
-            low = PercentileFromSorted(sampled, 0.01);
-            high = PercentileFromSorted(sampled, 0.999);
-            if (high - low < 1e-12)
+            if (pixels[i] > dataMax)
             {
-                high = low + 1;
+                dataMax = pixels[i];
             }
         }
 
-        var range = high - low;
-        var median = PercentileFromSorted(sampled, 0.5);
-        var mad = MedianAbsoluteDeviation(sampled, median, alreadySorted: true);
-
-        var medianN = Math.Clamp((median - low) / range, 0.0, 1.0);
-        var madN = mad / range;
+        // STF clipping bounds in [0,1]
+        var c0 = stf.Shadows;    // shadow clipping
+        var m  = stf.Midtones;   // midtones balance
+        var c1 = stf.Highlights; // highlights clipping (typically 1.0)
+        var stretchRange = Math.Max(1e-9, c1 - c0);
 
         var data = new byte[targetWidth * targetHeight * 3];
-        var useBilinearSampling = width != targetWidth || height != targetHeight;
-
-        var normalizedStrength = Math.Clamp(stretchStrength, 0.25, 5.0);
-        if (stretchMode == StretchMode.NinaStyle)
-        {
-            var ninaSigma = Math.Max(1e-9, 1.4826 * mad);
-            var minSigma = Math.Clamp(-1.5 - (1.4 * normalizedStrength), -10.0, -0.4);
-            var maxSigma = Math.Clamp(10.0 - (1.2 * normalizedStrength), 2.5, 12.0);
-            var ninaBlackPoint = median + (minSigma * ninaSigma);
-            var whitePoint = median + (maxSigma * ninaSigma);
-
-            if (whitePoint - ninaBlackPoint < 1e-12)
-            {
-                ninaBlackPoint = low;
-                whitePoint = high;
-            }
-
-            var sigmaRange = Math.Max(1e-9, whitePoint - ninaBlackPoint);
-            var medianSigmaNormalized = Math.Clamp((median - ninaBlackPoint) / sigmaRange, 1e-6, 0.999999);
-            var targetBackgroundValue = Math.Clamp(targetBackground ?? (0.50 - (0.04 * (normalizedStrength - 1.0))), 0.05, 0.75);
-            var gamma = Math.Log(targetBackgroundValue) / Math.Log(medianSigmaNormalized);
-            if (double.IsNaN(gamma) || double.IsInfinity(gamma))
-            {
-                gamma = 0.45;
-            }
-            gamma = Math.Clamp(gamma, 0.18, 1.2);
-
-            for (var y = 0; y < targetHeight; y++)
-            {
-                var sourceY = MapTargetToSourceCoordinate(y, height, targetHeight);
-                for (var x = 0; x < targetWidth; x++)
-                {
-                    var sourceX = MapTargetToSourceCoordinate(x, width, targetWidth);
-                    var value = useBilinearSampling
-                        ? SampleBilinear(pixels, width, height, sourceX, sourceY)
-                        : pixels[((int)sourceY * width) + (int)sourceX];
-                    var normalized = Math.Clamp((value - ninaBlackPoint) / sigmaRange, 0.0, 1.0);
-                    var stretched = Math.Pow(normalized, gamma);
-                    var b = (byte)Math.Clamp((int)Math.Round(stretched * 255.0), 0, 255);
-
-                    var index = ((y * targetWidth) + x) * 3;
-                    data[index] = b;
-                    data[index + 1] = b;
-                    data[index + 2] = b;
-                }
-            }
-
-            if (targetBackground is not null)
-            {
-                NormalizeRenderedBackground(data, targetBackground.Value);
-            }
-
-            return data;
-        }
-
-        var stfSigma = Math.Max(1e-9, 1.4826 * mad);
-        var shadowsClipping = Math.Clamp(-2.8 - (0.9 * (normalizedStrength - 1.0)), -8.0, -1.0);
-        var stfBlackPoint = Math.Clamp(median + (shadowsClipping * stfSigma), low, high - 1e-9);
-        var stretchRange = Math.Max(1e-9, high - stfBlackPoint);
-        var medianPostClip = Math.Clamp((median - stfBlackPoint) / stretchRange, 0.0, 1.0);
-        var stfTargetBackground = Math.Clamp(targetBackground ?? (0.25 + (0.03 * (normalizedStrength - 1.0))), 0.05, 0.75);
-        var midtones = InverseMidtonesTransfer(stfTargetBackground, medianPostClip);
-        if (double.IsNaN(midtones) || double.IsInfinity(midtones))
-        {
-            midtones = 0.25;
-        }
-        midtones = Math.Clamp(midtones, 0.02, 0.98);
+        var useBilinear = width != targetWidth || height != targetHeight;
 
         for (var y = 0; y < targetHeight; y++)
         {
@@ -1549,23 +1530,23 @@ public sealed class RustafitsService
             for (var x = 0; x < targetWidth; x++)
             {
                 var sourceX = MapTargetToSourceCoordinate(x, width, targetWidth);
-                var value = useBilinearSampling
+                var rawValue = useBilinear
                     ? SampleBilinear(pixels, width, height, sourceX, sourceY)
                     : pixels[((int)sourceY * width) + (int)sourceX];
-                var normalized = Math.Clamp((value - stfBlackPoint) / stretchRange, 0.0, 1.0);
-                var stretched = Math.Clamp(MidtonesTransfer(normalized, midtones), 0.0, 1.0);
-                var b = (byte)Math.Clamp((int)Math.Round(stretched * 255.0), 0, 255);
+
+                // Normalise to [0,1]
+                var normalised = rawValue / dataMax;
+
+                // Apply STF: shadows/highlights clip then midtones transfer
+                var clipped = Math.Clamp((normalised - c0) / stretchRange, 0.0, 1.0);
+                var stretched = Math.Clamp(MidtonesTransfer(clipped, m), 0.0, 1.0);
+                var b = (byte)(stretched * 255.0 + 0.5);
 
                 var index = ((y * targetWidth) + x) * 3;
                 data[index] = b;
                 data[index + 1] = b;
                 data[index + 2] = b;
             }
-        }
-
-        if (targetBackground is not null)
-        {
-            NormalizeRenderedBackground(data, targetBackground.Value);
         }
 
         return data;

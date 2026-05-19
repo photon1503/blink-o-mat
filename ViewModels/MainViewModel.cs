@@ -59,9 +59,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _maxMeanBackground = 2000.0;
     private double _minStars;
     private bool _rejectSatelliteTrail = true;
-    private double _stretchStrength = 1.0;
-    private bool _useGlobalTargetBackground;
-    private double _targetBackground = 0.22;
+    private double _stfShadows;
+    private double _stfMidtones = 0.5;
+    private double _stfHighlights = 1.0;
     private double? _sessionFocalLengthMm;
     private double? _sessionPixelSizeUm;
     private int _approvedFrameCount;
@@ -74,7 +74,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _satelliteTrailRejectedFrameCount;
     private int _sqmRejectedFrameCount;
     private int _skyTempRejectedFrameCount;
-    private StretchMode _stretchMode = StretchMode.Default;
     private int _starCountRejectedFrameCount;
     private bool _hasManualRoi;
     private bool _skipRejectedInPreview;
@@ -227,49 +226,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool UseGlobalTargetBackground
+    public double StfShadows
     {
-        get => _useGlobalTargetBackground;
+        get => _stfShadows;
         set
         {
-            if (_useGlobalTargetBackground == value) return;
-            _useGlobalTargetBackground = value;
+            var clamped = Math.Clamp(value, 0.0, 1.0);
+            if (Math.Abs(_stfShadows - clamped) < 0.0001) return;
+            _stfShadows = clamped;
             OnPropertyChanged();
             OnStretchSettingsChanged();
         }
     }
 
-    public double TargetBackground
+    public double StfMidtones
     {
-        get => _targetBackground;
+        get => _stfMidtones;
         set
         {
-            var clamped = Math.Clamp(value, 0.05, 0.75);
-            if (Math.Abs(_targetBackground - clamped) < 0.0001) return;
-            _targetBackground = clamped;
-            OnPropertyChanged();
-            if (UseGlobalTargetBackground)
-            {
-                OnStretchSettingsChanged();
-            }
-        }
-    }
-
-    private double? ActiveTargetBackground => UseGlobalTargetBackground ? TargetBackground : null;
-
-    public StretchMode StretchMode
-    {
-        get => _stretchMode;
-        set
-        {
-            if (_stretchMode == value) return;
-            _stretchMode = value;
+            var clamped = Math.Clamp(value, 0.0, 1.0);
+            if (Math.Abs(_stfMidtones - clamped) < 0.0001) return;
+            _stfMidtones = clamped;
             OnPropertyChanged();
             OnStretchSettingsChanged();
         }
     }
 
-    public Array StretchModeOptions { get; } = Enum.GetValues(typeof(StretchMode));
+    public double StfHighlights
+    {
+        get => _stfHighlights;
+        set
+        {
+            var clamped = Math.Clamp(value, 0.0, 1.0);
+            if (Math.Abs(_stfHighlights - clamped) < 0.0001) return;
+            _stfHighlights = clamped;
+            OnPropertyChanged();
+            OnStretchSettingsChanged();
+        }
+    }
+
+    private StfParameters ActiveStf => new(_stfShadows, _stfMidtones, _stfHighlights);
 
     public bool SkipRejectedInPreview
     {
@@ -459,19 +455,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public double StretchStrength
-    {
-        get => _stretchStrength;
-        set
-        {
-            var clamped = Math.Clamp(value, 0.25, 5.0);
-            if (Math.Abs(_stretchStrength - clamped) < 0.0001) return;
-            _stretchStrength = clamped;
-            OnPropertyChanged();
-            OnStretchSettingsChanged();
-        }
-    }
-
     public double? SessionFocalLengthMm
     {
         get => _sessionFocalLengthMm;
@@ -517,6 +500,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand MoveRejectedCommand { get; }
     public ICommand OpenPreviewCommand { get; }
     public ICommand ToggleRejectCommand { get; }
+    public ICommand ApplyAutoStretchCommand { get; }
 
     public MainViewModel()
     {
@@ -526,6 +510,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         MoveRejectedCommand = new RelayCommand(_ => MoveRejected(), _ => !IsBusy && Frames.Any(f => f.IsRejected) && !string.IsNullOrWhiteSpace(RejectedFolder));
         OpenPreviewCommand = new RelayCommand(async p => await OpenPreviewAsync(p as FrameItem));
         ToggleRejectCommand = new RelayCommand(p => ToggleFrameReject(p as FrameItem), p => p is FrameItem);
+        ApplyAutoStretchCommand = new RelayCommand(_ => ApplyAutoStretch(), _ => _loadedFrames.Count > 0);
 
         var settings = _settings.Load();
         InputFolder = settings.InputFolder;
@@ -606,7 +591,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
                     var metrics = _rustafits.AnalyzeFrame(raw);
                     _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(raw, RoiBias);
-                    var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, StretchStrength, StretchMode, ActiveTargetBackground, _globalRoiCenter, metrics, CancellationToken.None);
+                    var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, ActiveStf, _globalRoiCenter, metrics, CancellationToken.None);
 
                     var item = new FrameItem
                     {
@@ -653,7 +638,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         var raw = await _rustafits.LoadRawFrameAsync(entry.File, CancellationToken.None);
                         var oriented = _rustafits.NormalizeOrientation(raw, orientationReference);
                         var metrics = _rustafits.AnalyzeFrame(oriented);
-                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, StretchStrength, StretchMode, ActiveTargetBackground, _globalRoiCenter, metrics, CancellationToken.None);
+                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, ActiveStf, _globalRoiCenter, metrics, CancellationToken.None);
 
                         var item = new FrameItem
                         {
@@ -885,6 +870,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnStretchSettingsChanged();
     }
 
+    private void ApplyAutoStretch()
+    {
+        if (_loadedFrames.Count == 0) return;
+        var stf = _rustafits.ComputeAutoStretch(ExpandFrame(_loadedFrames[0]));
+        _stfShadows = stf.Shadows;
+        _stfMidtones = stf.Midtones;
+        _stfHighlights = stf.Highlights;
+        OnPropertyChanged(nameof(StfShadows));
+        OnPropertyChanged(nameof(StfMidtones));
+        OnPropertyChanged(nameof(StfHighlights));
+        InvalidateFullImageCaches();
+        OnStretchSettingsChanged();
+    }
+
     private void InvalidateFullImageCaches()
     {
         var anyChanged = false;
@@ -931,7 +930,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var loaded = _loadedFrames[index];
             var (targetWidth, targetHeight) = GetInteractivePreviewDimensions(loaded);
-            var previewImage = await _rustafits.RenderScaledPreviewBitmapAsync(ExpandFrame(loaded), targetWidth, targetHeight, StretchStrength, StretchMode, ActiveTargetBackground, cancellationToken);
+            var previewImage = await _rustafits.RenderScaledPreviewBitmapAsync(ExpandFrame(loaded), targetWidth, targetHeight, ActiveStf, cancellationToken);
             if (cancellationToken.IsCancellationRequested ||
                 !ReferenceEquals(_previewWindow, previewWindow) ||
                 !ReferenceEquals(_previewItem, activeItem))
@@ -979,7 +978,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             _previewCacheCts?.Cancel();
             var loaded = _loadedFrames[index];
-            var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, ActiveTargetBackground, cancellationToken);
+            var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), ActiveStf, cancellationToken);
             if (cancellationToken.IsCancellationRequested ||
                 !ReferenceEquals(_previewWindow, previewWindow) ||
                 !ReferenceEquals(_previewItem, activeItem))
@@ -1067,7 +1066,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
                 var frameData = ExpandFrame(loaded);
-                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, StretchStrength, StretchMode, ActiveTargetBackground, _globalRoiCenter, loaded.Item.Metrics, cancellationToken);
+                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, ActiveStf, _globalRoiCenter, loaded.Item.Metrics, cancellationToken);
 
                 loaded.Item.ThumbnailImage = previews.Full;
                 loaded.Item.RoiImage = previews.Roi;
@@ -1139,16 +1138,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SyncPreviewSelection(item);
         var vm = new FramePreviewViewModel(
             item,
-            () => StretchStrength,
-            value => StretchStrength = value,
+            () => StfShadows,
+            value => StfShadows = value,
+            () => StfMidtones,
+            value => StfMidtones = value,
+            () => StfHighlights,
+            value => StfHighlights = value,
+            ApplyAutoStretch,
             () => RoiBias,
             value => RoiBias = value,
-            () => StretchMode,
-            value => StretchMode = value,
-            () => UseGlobalTargetBackground,
-            value => UseGlobalTargetBackground = value,
-            () => TargetBackground,
-            value => TargetBackground = value,
             BeginInteractiveStretch,
             EndInteractiveStretch,
             SetManualRoi,
@@ -1308,7 +1306,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return loaded.FullImage;
         }
 
-        var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, ActiveTargetBackground, CancellationToken.None);
+        var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), ActiveStf, CancellationToken.None);
         _loadedFrames[index] = loaded with { FullImage = fullImage };
         PublishPreviewCacheState();
         return fullImage;
@@ -1377,7 +1375,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var full = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, ActiveTargetBackground, cancellationToken);
+        var full = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), ActiveStf, cancellationToken);
         _loadedFrames[index] = loaded with { FullImage = full };
         PublishPreviewCacheState();
     }

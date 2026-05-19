@@ -133,12 +133,7 @@ public partial class PreviewWindow : Window
 
     private sealed record ViewState(double Zoom, double CenterXRatio, double CenterYRatio);
 
-    private void StretchSlider_Loaded(object sender, RoutedEventArgs e)
-    {
-        HookSliderThumbEvents(sender as Slider);
-    }
-
-    private void TargetBackgroundSlider_Loaded(object sender, RoutedEventArgs e)
+    private void StfSlider_Loaded(object sender, RoutedEventArgs e)
     {
         HookSliderThumbEvents(sender as Slider);
     }
