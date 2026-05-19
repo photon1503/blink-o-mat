@@ -244,9 +244,81 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <ListView Grid.Column="1"
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                    <ToggleButton IsChecked="{Binding ShowAccepted, Mode=TwoWay}" Margin="0,0,8,0" Padding="12,4" BorderThickness="1" FontWeight="SemiBold">
+                        <ToggleButton.Style>
+                            <Style TargetType="ToggleButton">
+                                <Setter Property="Background" Value="#223A6B46" />
+                                <Setter Property="Foreground" Value="#FFE9F8EE" />
+                                <Setter Property="BorderBrush" Value="#5CA36E" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="12" Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter Property="Background" Value="#2F3FAE63" />
+                                        <Setter Property="BorderBrush" Value="#7AD68E" />
+                                    </Trigger>
+                                    <Trigger Property="IsChecked" Value="False">
+                                        <Setter Property="Background" Value="#161616" />
+                                        <Setter Property="Foreground" Value="#CCBDBDBD" />
+                                        <Setter Property="BorderBrush" Value="#444" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ToggleButton.Style>
+                        <TextBlock Text="Accepted" />
+                    </ToggleButton>
+
+                    <ToggleButton IsChecked="{Binding ShowRejected, Mode=TwoWay}" Padding="12,4" BorderThickness="1" FontWeight="SemiBold">
+                        <ToggleButton.Style>
+                            <Style TargetType="ToggleButton">
+                                <Setter Property="Background" Value="#224E2A2A" />
+                                <Setter Property="Foreground" Value="#FFF9EAEA" />
+                                <Setter Property="BorderBrush" Value="#B85C5C" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="12" Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter Property="Background" Value="#33C45F5F" />
+                                        <Setter Property="BorderBrush" Value="#E07A7A" />
+                                    </Trigger>
+                                    <Trigger Property="IsChecked" Value="False">
+                                        <Setter Property="Background" Value="#161616" />
+                                        <Setter Property="Foreground" Value="#CCBDBDBD" />
+                                        <Setter Property="BorderBrush" Value="#444" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ToggleButton.Style>
+                        <TextBlock Text="Rejected" />
+                    </ToggleButton>
+                </StackPanel>
+
+            <ListView Grid.Row="1"
                       x:Name="FramesListView"
-                      ItemsSource="{Binding Frames}"
+                      ItemsSource="{Binding FilteredFrames}"
                       SelectedItem="{Binding SelectedFrame, Mode=TwoWay}"
                       SelectionChanged="FramesListView_SelectionChanged"
                       HorizontalContentAlignment="Stretch"
@@ -267,6 +339,7 @@
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
+            </Grid>
         </Grid>
 
         <StatusBar Grid.Row="3" Margin="0,10,0,0">

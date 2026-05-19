@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using System.Windows.Data;
 using System.Windows.Media.Imaging;
 using blink_o_mat.Infrastructure;
 using blink_o_mat.Models;
@@ -31,6 +32,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         float[] Pixels,
         int Width,
         int Height,
+        double NormalizationMax,
         double? FocalLengthMm,
         double? PixelSizeUm,
         DateTimeOffset? ExposureDateTime,
@@ -77,6 +79,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _starCountRejectedFrameCount;
     private bool _hasManualRoi;
     private bool _skipRejectedInPreview;
+    private bool _showAccepted = true;
+    private bool _showRejected = true;
     private FrameItem? _selectedFrame;
     private double _minSqm;
     private double _maxSkyTemp = 40.0;
@@ -95,6 +99,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isInteractiveStretchActive;
 
     public RangeObservableCollection<FrameItem> Frames { get; } = [];
+    public ICollectionView FilteredFrames { get; }
 
     public string? InputFolder
     {
@@ -110,6 +115,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public int TotalFrameCount => Frames.Count;
+
+    public bool ShowAccepted
+    {
+        get => _showAccepted;
+        set
+        {
+            if (_showAccepted == value) return;
+            _showAccepted = value;
+            OnPropertyChanged();
+            FilteredFrames.Refresh();
+        }
+    }
+
+    public bool ShowRejected
+    {
+        get => _showRejected;
+        set
+        {
+            if (_showRejected == value) return;
+            _showRejected = value;
+            OnPropertyChanged();
+            FilteredFrames.Refresh();
+        }
+    }
 
     public int RejectedFrameCount
     {
@@ -504,6 +533,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public MainViewModel()
     {
+        FilteredFrames = CollectionViewSource.GetDefaultView(Frames);
+        FilteredFrames.Filter = FilterFrame;
+
         BrowseInputCommand = new RelayCommand(_ => BrowseInput());
         BrowseRejectedCommand = new RelayCommand(_ => BrowseRejected());
         LoadFramesCommand = new RelayCommand(async _ => await LoadFramesAsync(), _ => !IsBusy && !string.IsNullOrWhiteSpace(InputFolder));
@@ -515,6 +547,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var settings = _settings.Load();
         InputFolder = settings.InputFolder;
         RejectedFolder = settings.RejectedFolder;
+    }
+
+    private bool FilterFrame(object item)
+    {
+        if (item is not FrameItem frame)
+        {
+            return false;
+        }
+
+        return (frame.IsRejected && ShowRejected) || (!frame.IsRejected && ShowAccepted);
+    }
+
+    private void FrameItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(FrameItem.IsRejected) or nameof(FrameItem.ManualRejectedOverride) or nameof(FrameItem.AutomaticRejected))
+        {
+            FilteredFrames.Refresh();
+        }
     }
 
     private void BrowseInput()
@@ -557,6 +607,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IsProgressVisible = true;
         ProgressValue = 0;
         Status = "Scanning folder...";
+        foreach (var frame in Frames)
+        {
+            frame.PropertyChanged -= FrameItem_PropertyChanged;
+        }
+
         Frames.Clear();
         _loadedFrames.Clear();
         ResetFrameStatistics();
@@ -612,6 +667,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         Metrics = metrics
                     };
 
+                    item.PropertyChanged += FrameItem_PropertyChanged;
                     Frames.Add(item);
                     _loadedFrames.Add(CreateLoadedFrameContext(item, raw));
                     SessionFocalLengthMm ??= raw.FocalLengthMm;
@@ -659,6 +715,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                             Metrics = metrics
                         };
 
+                        item.PropertyChanged += FrameItem_PropertyChanged;
                         return (Item: item, Frame: oriented, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: item.FileName);
                     }
                     catch (Exception ex)
@@ -880,7 +937,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void ApplyAutoStretch()
     {
         if (_loadedFrames.Count == 0) return;
-        var stf = _rustafits.ComputeAutoStretch(ExpandFrame(_loadedFrames[0]));
+
+        var targetItem = _previewItem ?? SelectedFrame ?? _loadedFrames[0].Item;
+        var targetIndex = _loadedFrames.FindIndex(f => f.Item == targetItem);
+        if (targetIndex < 0)
+        {
+            targetIndex = 0;
+        }
+
+        var stf = _rustafits.ComputeAutoStretch(ExpandFrame(_loadedFrames[targetIndex]));
         _stfShadows = stf.Shadows;
         _stfMidtones = stf.Midtones;
         _stfHighlights = stf.Highlights;
@@ -1445,6 +1510,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             (float[])frame.Pixels.Clone(),
             frame.Width,
             frame.Height,
+            frame.NormalizationMax,
             frame.FocalLengthMm,
             frame.PixelSizeUm,
             frame.ExposureDateTime,
@@ -1461,6 +1527,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             (float[])context.Pixels.Clone(),
             context.Width,
             context.Height,
+            context.NormalizationMax,
             context.FocalLengthMm,
             context.PixelSizeUm,
             context.ExposureDateTime,

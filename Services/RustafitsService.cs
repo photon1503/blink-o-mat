@@ -22,6 +22,7 @@ public sealed class RustafitsService
         float[] Pixels,
         int Width,
         int Height,
+        double NormalizationMax = 1.0,
         double? FocalLengthMm = null,
         double? PixelSizeUm = null,
         DateTimeOffset? ExposureDateTime = null,
@@ -36,7 +37,7 @@ public sealed class RustafitsService
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
 
-            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp);
+            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp);
             var metrics = ComputeMetrics(loadedFrame);
             var previews = await RenderPreviewBitmapsAsync(loadedFrame, StfParameters.Default, null, metrics, cancellationToken);
 
@@ -59,7 +60,7 @@ public sealed class RustafitsService
         return Task.Run(async () =>
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
-            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp);
+            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp);
         }, cancellationToken);
     }
 
@@ -77,20 +78,20 @@ public sealed class RustafitsService
     {
         return Task.Run(() =>
         {
-            var full = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stf, metrics);
-            var roi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stf, roiNormalizedCenter);
+            var full = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stf, metrics, frame.NormalizationMax);
+            var roi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stf, roiNormalizedCenter, frame.NormalizationMax);
             return (full, roi);
         }, cancellationToken);
     }
 
     public Task<BitmapSource> RenderFullBitmapAsync(LoadedFrame frame, StfParameters stf, CancellationToken cancellationToken)
     {
-        return Task.Run(() => CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stf), cancellationToken);
+        return Task.Run(() => CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stf, frame.NormalizationMax), cancellationToken);
     }
 
     public Task<BitmapSource> RenderScaledPreviewBitmapAsync(LoadedFrame frame, int targetWidth, int targetHeight, StfParameters stf, CancellationToken cancellationToken)
     {
-        return Task.Run(() => CreateScaledFrameBitmap(frame.Pixels, frame.Width, frame.Height, targetWidth, targetHeight, stf), cancellationToken);
+        return Task.Run(() => CreateScaledFrameBitmap(frame.Pixels, frame.Width, frame.Height, targetWidth, targetHeight, stf, frame.NormalizationMax), cancellationToken);
     }
 
     public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame, RoiBias bias)
@@ -119,14 +120,7 @@ public sealed class RustafitsService
         // If the pixel values are raw ADU (> 1.0) we use the actual array maximum so both functions
         // always divide by the same number regardless of sampling differences.
         // Scanning the full pixel array (not just the sample) guarantees we catch sparse bright stars.
-        var dataMax = 1.0;
-        for (var i = 0; i < frame.Pixels.Length; i++)
-        {
-            if (frame.Pixels[i] > dataMax)
-            {
-                dataMax = frame.Pixels[i];
-            }
-        }
+        var dataMax = Math.Max(1.0, frame.NormalizationMax);
 
         // Compute median and MAD in normalised [0,1] space
         var median = PercentileFromSorted(sampled, 0.5) / dataMax;
@@ -212,7 +206,7 @@ public sealed class RustafitsService
         return frame;
     }
 
-    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
+    private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
     {
         var ext = Path.GetExtension(filePath);
         if (ext.Equals(".fits", StringComparison.OrdinalIgnoreCase) || ext.Equals(".fit", StringComparison.OrdinalIgnoreCase))
@@ -228,7 +222,7 @@ public sealed class RustafitsService
         throw new NotSupportedException($"Unsupported file type: {ext}");
     }
 
-    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp) LoadFits(string filePath)
+    private static (float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp) LoadFits(string filePath)
     {
         using var stream = File.OpenRead(filePath);
         while (stream.Position < stream.Length)
@@ -252,7 +246,7 @@ public sealed class RustafitsService
         throw new InvalidOperationException("FITS image data not found.");
     }
 
-    private static (float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
+    private static (float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
     {
         if (header.Axes.Length < 2)
         {
@@ -330,7 +324,7 @@ public sealed class RustafitsService
             stream.Seek(paddingBytes, SeekOrigin.Current);
         }
 
-        return (result, width, height, header.FocalLengthMm, header.PixelSizeUm, header.ExposureDateTime, header.ExposureSeconds, header.FilterName, header.SkyTemp);
+        return (result, width, height, ComputeFitsNormalizationMax(header), header.FocalLengthMm, header.PixelSizeUm, header.ExposureDateTime, header.ExposureSeconds, header.FilterName, header.SkyTemp);
     }
 
     private static FitsHeaderInfo ReadFitsHeader(Stream stream)
@@ -625,7 +619,7 @@ public sealed class RustafitsService
         string? FilterName,
         double? SkyTemp);
 
-    private static async Task<(float[] Pixels, int Width, int Height, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
+    private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
     {
         var image = await XisfImage.LoadAsync(filePath, cancellationToken);
         var bytes = image.Data.Span;
@@ -663,7 +657,7 @@ public sealed class RustafitsService
         var focalLengthMm = ResolveXisfFocalLengthMm(image);
         var pixelSizeUm = ResolveXisfPixelSizeUm(image);
         var skyTemp = ResolveXisfSkyTemp(image);
-        return (luminance, width, height, focalLengthMm, pixelSizeUm, null, null, null, skyTemp);
+        return (luminance, width, height, GetNormalizationMax(image.SampleFormat), focalLengthMm, pixelSizeUm, null, null, null, skyTemp);
     }
 
     private static double? ResolveXisfFocalLengthMm(XisfImage image)
@@ -837,7 +831,7 @@ public sealed class RustafitsService
             pixels[i] = source[source.Length - 1 - i];
         }
 
-        return new LoadedFrame(pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, frame.Sqm, frame.SkyTemp);
+        return new LoadedFrame(pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, frame.Sqm, frame.SkyTemp);
     }
 
     private static float[] CreateOrientationSample(float[] pixels, int width, int height, int sampleSize, bool rotate180)
@@ -1175,14 +1169,13 @@ public sealed class RustafitsService
         };
     }
 
-    private static BitmapSource CreateThumbnailBitmap(float[] pixels, int width, int height, int maxWidth, int maxHeight, StfParameters stf, AstroMetrics? metrics)
+    private static BitmapSource CreateThumbnailBitmap(float[] pixels, int width, int height, int maxWidth, int maxHeight, StfParameters stf, AstroMetrics? metrics, double normalizationMax)
     {
         var scale = Math.Min(maxWidth / (double)Math.Max(1, width), maxHeight / (double)Math.Max(1, height));
         scale = Math.Min(1.0, scale <= 0 ? 1.0 : scale);
         var contentWidth = Math.Max(1, (int)Math.Round(width * scale));
         var contentHeight = Math.Max(1, (int)Math.Round(height * scale));
 
-        var normalizationMax = ComputeNormalizationMax(pixels);
         var sample = DownsampleAndStretch(pixels, width, height, contentWidth, contentHeight, stf, normalizationMax);
         if (metrics is { PossibleSatelliteTrail: true, TrailX1: not null, TrailY1: not null, TrailX2: not null, TrailY2: not null })
         {
@@ -1281,7 +1274,7 @@ public sealed class RustafitsService
         }
     }
 
-    private static BitmapSource CreateRoiBitmap(float[] pixels, int width, int height, int roiSize, StfParameters stf, (double X, double Y)? roiNormalizedCenter)
+    private static BitmapSource CreateRoiBitmap(float[] pixels, int width, int height, int roiSize, StfParameters stf, (double X, double Y)? roiNormalizedCenter, double normalizationMax)
     {
         var (cx, cy) = roiNormalizedCenter is { } roi
             ? ((int)Math.Round(Math.Clamp(roi.X, 0, 1) * (width - 1)), (int)Math.Round(Math.Clamp(roi.Y, 0, 1) * (height - 1)))
@@ -1301,7 +1294,6 @@ public sealed class RustafitsService
             Array.Copy(pixels, sourceOffset, crop, targetOffset, actualWidth);
         }
 
-        var normalizationMax = ComputeNormalizationMax(pixels);
         var sample = DownsampleAndStretch(crop, actualWidth, actualHeight, roiSize, roiSize, stf, normalizationMax);
         var stride = roiSize * 3;
         var bitmap = BitmapSource.Create(roiSize, roiSize, 96, 96, PixelFormats.Rgb24, null, sample, stride);
@@ -1309,20 +1301,20 @@ public sealed class RustafitsService
         return bitmap;
     }
 
-    private static BitmapSource CreateFullFrameBitmap(float[] pixels, int width, int height, StfParameters stf)
+    private static BitmapSource CreateFullFrameBitmap(float[] pixels, int width, int height, StfParameters stf, double normalizationMax)
     {
-        var sample = DownsampleAndStretch(pixels, width, height, width, height, stf, ComputeNormalizationMax(pixels));
+        var sample = DownsampleAndStretch(pixels, width, height, width, height, stf, normalizationMax);
         var stride = width * 3;
         var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
         return bitmap;
     }
 
-    private static BitmapSource CreateScaledFrameBitmap(float[] pixels, int width, int height, int targetWidth, int targetHeight, StfParameters stf)
+    private static BitmapSource CreateScaledFrameBitmap(float[] pixels, int width, int height, int targetWidth, int targetHeight, StfParameters stf, double normalizationMax)
     {
         var safeTargetWidth = Math.Max(1, Math.Min(width, targetWidth));
         var safeTargetHeight = Math.Max(1, Math.Min(height, targetHeight));
-        var sample = DownsampleAndStretch(pixels, width, height, safeTargetWidth, safeTargetHeight, stf, ComputeNormalizationMax(pixels));
+        var sample = DownsampleAndStretch(pixels, width, height, safeTargetWidth, safeTargetHeight, stf, normalizationMax);
         var stride = safeTargetWidth * 3;
         var bitmap = BitmapSource.Create(safeTargetWidth, safeTargetHeight, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();
@@ -1545,18 +1537,27 @@ public sealed class RustafitsService
         return data;
     }
 
-    private static double ComputeNormalizationMax(float[] pixels)
+    private static double ComputeFitsNormalizationMax(FitsHeaderInfo header)
     {
-        double dataMax = 1.0;
-        for (var i = 0; i < pixels.Length; i++)
+        var absBitPix = Math.Abs(header.BitPix);
+        if (absBitPix is 8 or 16 or 32)
         {
-            if (pixels[i] > dataMax)
-            {
-                dataMax = pixels[i];
-            }
+            return Math.Pow(2.0, absBitPix) - 1.0;
         }
 
-        return dataMax;
+        return 1.0;
+    }
+
+    private static double GetNormalizationMax(SampleFormat format)
+    {
+        return format switch
+        {
+            SampleFormat.UInt8 => byte.MaxValue,
+            SampleFormat.UInt16 => ushort.MaxValue,
+            SampleFormat.UInt32 => uint.MaxValue,
+            SampleFormat.UInt64 => ulong.MaxValue,
+            _ => 1.0
+        };
     }
 
     private static double MapTargetToSourceCoordinate(int targetIndex, int sourceSize, int targetSize)
