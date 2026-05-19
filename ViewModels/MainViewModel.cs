@@ -632,6 +632,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ProgressMaximum = Math.Max(1, files.Count);
             var loadedCount = 0;
             var skippedCount = 0;
+            IProgress<string> statusProgress = new Progress<string>(message => Status = message);
 
             if (files.Count == 0)
             {
@@ -699,18 +700,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     throw new InvalidOperationException("Orientation reference frame is not available.");
                 }
+
+                var totalBackgroundFrames = filesToProcess.Count;
+                var startedBackgroundFrames = 0;
+                var activeBackgroundFrames = 0;
+                var completedBackgroundFrames = 0;
                 var maxParallelism = Math.Max(2, Environment.ProcessorCount);
                 using var gate = new SemaphoreSlim(maxParallelism);
+
+                statusProgress.Report($"Loaded {loadedCount}/{files.Count}. Queueing {totalBackgroundFrames} remaining frame(s) for decode, orientation, metrics, and preview generation...");
 
                 var pending = filesToProcess.Select(async entry =>
                 {
                     await gate.WaitAsync(CancellationToken.None);
+                    var fileName = Path.GetFileName(entry.File);
+                    var activeCount = Interlocked.Increment(ref activeBackgroundFrames);
+                    var startedCount = Interlocked.Increment(ref startedBackgroundFrames);
+                    statusProgress.Report($"Background processing {startedCount}/{totalBackgroundFrames}: decoding {fileName} (active: {activeCount}, completed: {Volatile.Read(ref completedBackgroundFrames)})");
+
                     try
                     {
                         var raw = await _rustafits.LoadRawFrameAsync(entry.File, CancellationToken.None);
+                        statusProgress.Report($"Background processing {startedCount}/{totalBackgroundFrames}: orienting {fileName} (active: {Volatile.Read(ref activeBackgroundFrames)}, completed: {Volatile.Read(ref completedBackgroundFrames)})");
                         var rotate180 = _rustafits.ShouldRotate180ForOrientation(raw, orientationReference);
                         var oriented = _rustafits.ApplyOrientation(raw, rotate180);
+
+                        statusProgress.Report($"Background processing {startedCount}/{totalBackgroundFrames}: computing metrics for {fileName} (active: {Volatile.Read(ref activeBackgroundFrames)}, completed: {Volatile.Read(ref completedBackgroundFrames)})");
                         var metrics = _rustafits.AnalyzeFrame(oriented);
+
+                        statusProgress.Report($"Background processing {startedCount}/{totalBackgroundFrames}: building previews for {fileName} (active: {Volatile.Read(ref activeBackgroundFrames)}, completed: {Volatile.Read(ref completedBackgroundFrames)})");
                         var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, ActiveStf, _globalRoiCenter, metrics, CancellationToken.None);
 
                         var item = new FrameItem
@@ -734,6 +752,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     }
                     finally
                     {
+                        Interlocked.Decrement(ref activeBackgroundFrames);
                         gate.Release();
                     }
                 }).ToList();
@@ -743,6 +762,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     var completedTask = await Task.WhenAny(pending);
                     pending.Remove(completedTask);
                     var result = await completedTask;
+                    var finishedBackgroundFrames = Interlocked.Increment(ref completedBackgroundFrames);
 
                     if (result.Item is not null && result.Frame is not null)
                     {
@@ -751,20 +771,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         SessionFocalLengthMm ??= result.Frame.FocalLengthMm;
                         SessionPixelSizeUm ??= result.Frame.PixelSizeUm;
                         loadedCount++;
-                        Status = $"Loaded {loadedCount}/{files.Count}: {result.Item.FileName}";
+                        Status = $"Loaded {loadedCount}/{files.Count}. Background processing complete for {finishedBackgroundFrames}/{totalBackgroundFrames}: {result.Item.FileName} (active: {Volatile.Read(ref activeBackgroundFrames)})";
                     }
                     else if (result.Error is not null)
                     {
                         skippedCount++;
-                        Status = $"Skipped {result.FileName} ({skippedCount} skipped): {result.Error.Message}";
+                        Status = $"Skipped {result.FileName} ({skippedCount} skipped). Background processing complete for {finishedBackgroundFrames}/{totalBackgroundFrames} (active: {Volatile.Read(ref activeBackgroundFrames)}): {result.Error.Message}";
                     }
 
                     ProgressValue += 1;
                 }
             }
 
+            Status = "Finalizing frame comparisons...";
             UpdateFrameComparisons();
+            Status = "Initializing rejection thresholds...";
             InitializeThresholdsFromLoadedFrames();
+            Status = "Applying rejection thresholds...";
             ApplyThresholds();
             stopwatch.Stop();
             Status = $"Loaded {Frames.Count} frame(s) in {stopwatch.Elapsed.TotalSeconds:F1}s. {skippedCount} skipped.";

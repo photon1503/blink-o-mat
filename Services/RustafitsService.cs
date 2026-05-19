@@ -687,8 +687,11 @@ public sealed class RustafitsService
 
         var focalLengthMm = ResolveXisfFocalLengthMm(image);
         var pixelSizeUm = ResolveXisfPixelSizeUm(image);
+        var exposureDateTime = ResolveXisfExposureDateTime(image);
+        var exposureSeconds = ResolveXisfExposureSeconds(image);
+        var filterName = ResolveXisfFilterName(image);
         var skyTemp = ResolveXisfSkyTemp(image);
-        return (luminance, width, height, GetNormalizationMax(image.SampleFormat), focalLengthMm, pixelSizeUm, null, null, null, skyTemp);
+        return (luminance, width, height, GetNormalizationMax(image.SampleFormat), focalLengthMm, pixelSizeUm, exposureDateTime, exposureSeconds, filterName, skyTemp);
     }
 
     private static double? ResolveXisfFocalLengthMm(XisfImage image)
@@ -727,9 +730,71 @@ public sealed class RustafitsService
         return null;
     }
 
+    private static DateTimeOffset? ResolveXisfExposureDateTime(XisfImage image)
+    {
+        if (!TryReadXisfStringMetadata(image, "DATE-OBS", out var raw) || string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        if (DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AllowWhiteSpaces, out var dto))
+        {
+            return dto;
+        }
+
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AllowWhiteSpaces, out var dt))
+        {
+            return new DateTimeOffset(dt);
+        }
+
+        return null;
+    }
+
+    private static double? ResolveXisfExposureSeconds(XisfImage image)
+    {
+        if (TryReadXisfNumericMetadata(image, "EXPOSURE", out var value) && value > 0)
+        {
+            return value;
+        }
+
+        return null;
+    }
+
+    private static string? ResolveXisfFilterName(XisfImage image)
+    {
+        if (TryReadXisfStringMetadata(image, "FILTER", out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        return null;
+    }
+
     private static bool TryReadXisfNumericMetadata(object source, string propertyName, out double value)
     {
         value = default;
+
+        if (source is null)
+        {
+            return false;
+        }
+
+        if (TryReadNamedMetadataCollection(source, "Properties", propertyName, out value))
+        {
+            return true;
+        }
+
+        if (TryReadNamedMetadataCollection(source, "FITSKeywords", propertyName, out value))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryReadXisfStringMetadata(object source, string propertyName, out string? value)
+    {
+        value = null;
 
         if (source is null)
         {
@@ -797,6 +862,54 @@ public sealed class RustafitsService
         return false;
     }
 
+    private static bool TryReadNamedMetadataCollection(object source, string collectionPropertyName, string key, out string? value)
+    {
+        value = null;
+
+        var collectionProperty = source.GetType().GetProperty(collectionPropertyName, BindingFlags.Public | BindingFlags.Instance);
+        if (collectionProperty?.GetValue(source) is not { } collection)
+        {
+            return false;
+        }
+
+        var collectionType = collection.GetType();
+        var tryGetPropertyMethod = collectionType.GetMethod("TryGetProperty", BindingFlags.Public | BindingFlags.Instance, null, [typeof(string), typeof(object).MakeByRefType()], null);
+        if (tryGetPropertyMethod is not null)
+        {
+            var args = new object?[] { key, null };
+            if (tryGetPropertyMethod.Invoke(collection, args) is true && args[1] is not null && TryConvertMetadataValue(args[1], out value))
+            {
+                return true;
+            }
+        }
+
+        var enumerable = collection as System.Collections.IEnumerable;
+        if (enumerable is null)
+        {
+            return false;
+        }
+
+        foreach (var entry in enumerable)
+        {
+            if (entry is null)
+            {
+                continue;
+            }
+
+            if (!TryGetMetadataName(entry, out var name) || !string.Equals(name, key, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (TryConvertMetadataValue(entry, out value))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool TryGetMetadataName(object metadata, out string? name)
     {
         name = null;
@@ -811,6 +924,55 @@ public sealed class RustafitsService
         }
 
         return false;
+    }
+
+    private static bool TryConvertMetadataValue(object metadata, out string? value)
+    {
+        value = null;
+
+        if (metadata is string text)
+        {
+            value = NormalizeXisfMetadataString(text);
+            return !string.IsNullOrWhiteSpace(value);
+        }
+
+        foreach (var candidate in new[] { "Value", "StringValue", "Text", "ScalarValue" })
+        {
+            var property = metadata.GetType().GetProperty(candidate, BindingFlags.Public | BindingFlags.Instance);
+            if (property?.GetValue(metadata) is { } inner && TryConvertMetadataValue(inner, out value))
+            {
+                return true;
+            }
+        }
+
+        if (metadata is IFormattable formattable)
+        {
+            value = NormalizeXisfMetadataString(formattable.ToString(null, CultureInfo.InvariantCulture));
+            return !string.IsNullOrWhiteSpace(value);
+        }
+
+        value = NormalizeXisfMetadataString(metadata.ToString());
+        return !string.IsNullOrWhiteSpace(value);
+    }
+
+    private static string? NormalizeXisfMetadataString(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+
+        while (normalized.Length >= 2 &&
+               ((normalized[0] == '\'' && normalized[^1] == '\'') ||
+                (normalized[0] == '"' && normalized[^1] == '"')))
+        {
+            normalized = normalized[1..^1].Trim();
+        }
+
+        normalized = normalized.Trim('"', '\'').Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private static bool TryConvertMetadataValue(object metadata, out double value)
