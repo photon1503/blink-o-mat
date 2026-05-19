@@ -917,7 +917,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await _previewRefreshSemaphore.WaitAsync(cancellationToken);
 
             var activeItem = _previewItem;
-            if (activeItem is null || _previewWindow is null)
+            var previewWindow = _previewWindow;
+            if (activeItem is null || previewWindow is null)
             {
                 return;
             }
@@ -931,7 +932,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var loaded = _loadedFrames[index];
             var (targetWidth, targetHeight) = GetInteractivePreviewDimensions(loaded);
             var previewImage = await _rustafits.RenderScaledPreviewBitmapAsync(ExpandFrame(loaded), targetWidth, targetHeight, StretchStrength, StretchMode, ActiveTargetBackground, cancellationToken);
-            _previewWindow.RefreshImage(previewImage);
+            if (cancellationToken.IsCancellationRequested ||
+                !ReferenceEquals(_previewWindow, previewWindow) ||
+                !ReferenceEquals(_previewItem, activeItem))
+            {
+                return;
+            }
+
+            previewWindow.RefreshImage(previewImage);
         }
         catch (OperationCanceledException)
         {
@@ -957,7 +965,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await _previewRefreshSemaphore.WaitAsync(cancellationToken);
 
             var activeItem = _previewItem;
-            if (activeItem is null || _previewWindow is null)
+            var previewWindow = _previewWindow;
+            if (activeItem is null || previewWindow is null)
             {
                 return;
             }
@@ -971,9 +980,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _previewCacheCts?.Cancel();
             var loaded = _loadedFrames[index];
             var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, ActiveTargetBackground, cancellationToken);
+            if (cancellationToken.IsCancellationRequested ||
+                !ReferenceEquals(_previewWindow, previewWindow) ||
+                !ReferenceEquals(_previewItem, activeItem))
+            {
+                return;
+            }
+
             _loadedFrames[index] = loaded with { FullImage = fullImage };
             PublishPreviewCacheState();
-            _previewWindow.RefreshImage(fullImage);
+            previewWindow.RefreshImage(fullImage);
         }
         catch (OperationCanceledException)
         {
