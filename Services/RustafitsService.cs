@@ -600,13 +600,27 @@ public sealed class RustafitsService
         }
 
         var focalLengthMm = ResolveXisfFocalLengthMm(image);
+        var pixelSizeUm = ResolveXisfPixelSizeUm(image);
         var skyTemp = ResolveXisfSkyTemp(image);
-        return (luminance, width, height, focalLengthMm, null, null, null, null, skyTemp);
+        return (luminance, width, height, focalLengthMm, pixelSizeUm, null, null, null, skyTemp);
     }
 
     private static double? ResolveXisfFocalLengthMm(XisfImage image)
     {
         foreach (var key in new[] { "FOCALLEN", "FOCAL", "FOCAL_LENGTH", "FOCLEN" })
+        {
+            if (TryReadXisfNumericMetadata(image, key, out var value) && value > 0)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static double? ResolveXisfPixelSizeUm(XisfImage image)
+    {
+        foreach (var key in new[] { "XPIXSZ", "YPIXSZ", "PIXSIZE", "PIXELSZ", "PIXSZ", "PIXELSIZE" })
         {
             if (TryReadXisfNumericMetadata(image, key, out var value) && value > 0)
             {
