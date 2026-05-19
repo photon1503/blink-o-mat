@@ -16,6 +16,7 @@ namespace blink_o_mat.ViewModels;
 
 public sealed class MainViewModel : INotifyPropertyChanged
 {
+    private const int StretchRefreshDebounceMs = 180;
     private const int MinimumPreviewCacheAhead = 4;
     private const int MinimumPreviewCacheBehind = 6;
     private const int MaximumPreviewCacheAhead = 24;
@@ -85,6 +86,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private FrameItem? _previewItem;
     private (double X, double Y)? _globalRoiCenter;
     private CancellationTokenSource? _previewCacheCts;
+    private CancellationTokenSource? _stretchRefreshCts;
+    private readonly SemaphoreSlim _thumbnailRefreshSemaphore = new(1, 1);
+    private readonly SemaphoreSlim _previewRefreshSemaphore = new(1, 1);
+    private bool _isThumbnailRefreshRunning;
+    private bool _thumbnailRefreshPendingWhilePreviewOpen;
 
     public RangeObservableCollection<FrameItem> Frames { get; } = [];
 
@@ -226,7 +232,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (_useGlobalTargetBackground == value) return;
             _useGlobalTargetBackground = value;
             OnPropertyChanged();
-            _ = RebuildThumbnailsAsync();
+            OnStretchSettingsChanged();
         }
     }
 
@@ -241,7 +247,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             if (UseGlobalTargetBackground)
             {
-                _ = RebuildThumbnailsAsync();
+                OnStretchSettingsChanged();
             }
         }
     }
@@ -256,7 +262,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (_stretchMode == value) return;
             _stretchMode = value;
             OnPropertyChanged();
-            _ = RebuildThumbnailsAsync();
+            OnStretchSettingsChanged();
         }
     }
 
@@ -459,7 +465,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (Math.Abs(_stretchStrength - clamped) < 0.0001) return;
             _stretchStrength = clamped;
             OnPropertyChanged();
-            _ = RebuildThumbnailsAsync();
+            OnStretchSettingsChanged();
         }
     }
 
@@ -496,7 +502,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _globalRoiCenter = null;
             _hasManualRoi = false;
             UpdateAutoRoiCenter();
-            _ = RebuildThumbnailsAsync();
+            ScheduleThumbnailRebuild(immediate: true);
         }
     }
 
@@ -810,46 +816,174 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return Math.Clamp(ratio - 0.5, 0.0, 1.0);
     }
 
-    private async Task RebuildThumbnailsAsync()
+    private void ScheduleThumbnailRebuild(bool immediate = false)
     {
-        if (IsBusy || _loadedFrames.Count == 0)
+        if (_previewWindow is not null)
+        {
+            _stretchRefreshCts?.Cancel();
+            _stretchRefreshCts?.Dispose();
+            _stretchRefreshCts = null;
+            _thumbnailRefreshPendingWhilePreviewOpen = true;
+            return;
+        }
+
+        _stretchRefreshCts?.Cancel();
+        _stretchRefreshCts?.Dispose();
+
+        var cts = new CancellationTokenSource();
+        _stretchRefreshCts = cts;
+        _ = RebuildThumbnailsDeferredAsync(immediate ? TimeSpan.Zero : TimeSpan.FromMilliseconds(StretchRefreshDebounceMs), cts.Token);
+    }
+
+    private void OnStretchSettingsChanged()
+    {
+        InvalidateFullImageCaches();
+
+        _stretchRefreshCts?.Cancel();
+        _stretchRefreshCts?.Dispose();
+
+        var cts = new CancellationTokenSource();
+        _stretchRefreshCts = cts;
+        _ = ApplyStretchSettingsAsync(cts.Token);
+    }
+
+    private async Task ApplyStretchSettingsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RefreshActivePreviewAsync(cancellationToken);
+            await RebuildThumbnailsDeferredAsync(TimeSpan.FromMilliseconds(StretchRefreshDebounceMs), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void InvalidateFullImageCaches()
+    {
+        var anyChanged = false;
+        for (var i = 0; i < _loadedFrames.Count; i++)
+        {
+            if (_loadedFrames[i].FullImage is null)
+            {
+                continue;
+            }
+
+            _loadedFrames[i] = _loadedFrames[i] with { FullImage = null };
+            anyChanged = true;
+        }
+
+        if (anyChanged)
+        {
+            PublishPreviewCacheState();
+        }
+    }
+
+    private async Task RefreshActivePreviewAsync(CancellationToken cancellationToken)
+    {
+        if (_previewItem is null || _previewWindow is null)
         {
             return;
         }
 
-        UpdateAutoRoiCenter();
+        try
+        {
+            await _previewRefreshSemaphore.WaitAsync(cancellationToken);
 
-        _previewCacheCts?.Cancel();
+            var activeItem = _previewItem;
+            if (activeItem is null || _previewWindow is null)
+            {
+                return;
+            }
 
-        IsBusy = true;
-        IsProgressVisible = true;
-        ProgressValue = 0;
-        ProgressMaximum = _loadedFrames.Count;
+            var index = _loadedFrames.FindIndex(f => f.Item == activeItem);
+            if (index < 0)
+            {
+                return;
+            }
+
+            _previewCacheCts?.Cancel();
+            var loaded = _loadedFrames[index];
+            var fullImage = await _rustafits.RenderFullBitmapAsync(ExpandFrame(loaded), StretchStrength, StretchMode, ActiveTargetBackground, cancellationToken);
+            _loadedFrames[index] = loaded with { FullImage = fullImage };
+            PublishPreviewCacheState();
+            _previewWindow.RefreshImage(fullImage);
+            StartAdaptivePreviewCaching(activeItem);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (_previewRefreshSemaphore.CurrentCount == 0)
+            {
+                _previewRefreshSemaphore.Release();
+            }
+        }
+    }
+
+    private async Task RebuildThumbnailsDeferredAsync(TimeSpan delay, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (delay > TimeSpan.Zero)
+            {
+                await Task.Delay(delay, cancellationToken);
+            }
+
+            await RebuildThumbnailsAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RebuildThumbnailsAsync(CancellationToken cancellationToken)
+    {
+        if (_loadedFrames.Count == 0 || (IsBusy && !_isThumbnailRefreshRunning))
+        {
+            return;
+        }
+
+        await _thumbnailRefreshSemaphore.WaitAsync(cancellationToken);
 
         try
         {
+            if (_loadedFrames.Count == 0 || (IsBusy && !_isThumbnailRefreshRunning))
+            {
+                return;
+            }
+
+            UpdateAutoRoiCenter();
+
+            _previewCacheCts?.Cancel();
+
+            _isThumbnailRefreshRunning = true;
+            IsBusy = true;
+            IsProgressVisible = true;
+            ProgressValue = 0;
+            ProgressMaximum = _loadedFrames.Count;
+
             for (var i = 0; i < _loadedFrames.Count; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var loaded = _loadedFrames[i];
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
                 var frameData = ExpandFrame(loaded);
-                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, StretchStrength, StretchMode, ActiveTargetBackground, _globalRoiCenter, loaded.Item.Metrics, CancellationToken.None);
+                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, StretchStrength, StretchMode, ActiveTargetBackground, _globalRoiCenter, loaded.Item.Metrics, cancellationToken);
 
                 loaded.Item.ThumbnailImage = previews.Full;
                 loaded.Item.RoiImage = previews.Roi;
-
-                if (_previewItem == loaded.Item)
-                {
-                    var fullImage = await _rustafits.RenderFullBitmapAsync(frameData, StretchStrength, StretchMode, ActiveTargetBackground, CancellationToken.None);
-                    _previewWindow?.RefreshImage(fullImage);
-                    _loadedFrames[i] = loaded with { FullImage = fullImage };
-                }
 
                 ProgressValue = i + 1;
             }
 
             Status = "Stretch updated.";
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception ex)
         {
@@ -857,9 +991,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         finally
         {
+            _isThumbnailRefreshRunning = false;
             IsBusy = false;
             IsProgressVisible = false;
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
+            _thumbnailRefreshSemaphore.Release();
         }
     }
 
@@ -940,6 +1076,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _previewWindow = null;
             _previewVm = null;
             _previewItem = null;
+
+            if (_thumbnailRefreshPendingWhilePreviewOpen)
+            {
+                _thumbnailRefreshPendingWhilePreviewOpen = false;
+                ScheduleThumbnailRebuild(immediate: true);
+            }
         };
 
         _previewWindow.Show();
@@ -953,7 +1095,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Math.Clamp(point.Y, 0.0, 1.0));
         _hasManualRoi = true;
         Status = "Manual ROI override set.";
-        _ = RebuildThumbnailsAsync();
+        ScheduleThumbnailRebuild(immediate: true);
     }
 
     private async Task NavigatePreviewAsync(int direction)

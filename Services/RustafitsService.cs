@@ -1456,20 +1456,20 @@ public sealed class RustafitsService
         var normalizedStrength = Math.Clamp(stretchStrength, 0.25, 5.0);
         if (stretchMode == StretchMode.NinaStyle)
         {
-            var sigma = Math.Max(1e-9, 1.4826 * mad);
+            var ninaSigma = Math.Max(1e-9, 1.4826 * mad);
             var minSigma = Math.Clamp(-1.5 - (1.4 * normalizedStrength), -10.0, -0.4);
             var maxSigma = Math.Clamp(10.0 - (1.2 * normalizedStrength), 2.5, 12.0);
-            var blackPoint = median + (minSigma * sigma);
-            var whitePoint = median + (maxSigma * sigma);
+            var ninaBlackPoint = median + (minSigma * ninaSigma);
+            var whitePoint = median + (maxSigma * ninaSigma);
 
-            if (whitePoint - blackPoint < 1e-12)
+            if (whitePoint - ninaBlackPoint < 1e-12)
             {
-                blackPoint = low;
+                ninaBlackPoint = low;
                 whitePoint = high;
             }
 
-            var sigmaRange = Math.Max(1e-9, whitePoint - blackPoint);
-            var medianSigmaNormalized = Math.Clamp((median - blackPoint) / sigmaRange, 1e-6, 0.999999);
+            var sigmaRange = Math.Max(1e-9, whitePoint - ninaBlackPoint);
+            var medianSigmaNormalized = Math.Clamp((median - ninaBlackPoint) / sigmaRange, 1e-6, 0.999999);
             var targetBackgroundValue = Math.Clamp(targetBackground ?? (0.50 - (0.04 * (normalizedStrength - 1.0))), 0.20, 0.75);
             var gamma = Math.Log(targetBackgroundValue) / Math.Log(medianSigmaNormalized);
             if (double.IsNaN(gamma) || double.IsInfinity(gamma))
@@ -1487,7 +1487,7 @@ public sealed class RustafitsService
                     var value = useBilinearSampling
                         ? SampleBilinear(pixels, width, height, sourceX, sourceY)
                         : pixels[((int)sourceY * width) + (int)sourceX];
-                    var normalized = Math.Clamp((value - blackPoint) / sigmaRange, 0.0, 1.0);
+                    var normalized = Math.Clamp((value - ninaBlackPoint) / sigmaRange, 0.0, 1.0);
                     var stretched = Math.Pow(normalized, gamma);
                     var b = (byte)Math.Clamp((int)Math.Round(stretched * 255.0), 0, 255);
 
@@ -1506,11 +1506,13 @@ public sealed class RustafitsService
             return data;
         }
 
-        var shadowsClipping = Math.Clamp(-2.8 * normalizedStrength, -8.0, -0.5);
-        var c0 = Math.Clamp(medianN + (shadowsClipping * 1.4826 * madN), 0.0, 0.99);
-        var medianPostClip = Math.Clamp((medianN - c0) / Math.Max(1e-9, 1.0 - c0), 0.0, 1.0);
-        var targetBackgroundDefault = Math.Clamp(targetBackground ?? (0.22 - (0.06 * (normalizedStrength - 1.0))), 0.05, 0.50);
-        var midtones = InverseMidtonesTransfer(targetBackgroundDefault, medianPostClip);
+        var stfSigma = Math.Max(1e-9, 1.4826 * mad);
+        var shadowsClipping = Math.Clamp(-2.8 - (0.9 * (normalizedStrength - 1.0)), -8.0, -1.0);
+        var stfBlackPoint = Math.Clamp(median + (shadowsClipping * stfSigma), low, high - 1e-9);
+        var stretchRange = Math.Max(1e-9, high - stfBlackPoint);
+        var medianPostClip = Math.Clamp((median - stfBlackPoint) / stretchRange, 0.0, 1.0);
+        var stfTargetBackground = Math.Clamp(targetBackground ?? (0.25 + (0.03 * (normalizedStrength - 1.0))), 0.12, 0.40);
+        var midtones = InverseMidtonesTransfer(stfTargetBackground, medianPostClip);
         if (double.IsNaN(midtones) || double.IsInfinity(midtones))
         {
             midtones = 0.25;
@@ -1526,8 +1528,7 @@ public sealed class RustafitsService
                 var value = useBilinearSampling
                     ? SampleBilinear(pixels, width, height, sourceX, sourceY)
                     : pixels[((int)sourceY * width) + (int)sourceX];
-                var normalized = Math.Clamp((value - low) / range, 0.0, 1.0);
-                normalized = Math.Clamp((normalized - c0) / Math.Max(1e-9, 1.0 - c0), 0.0, 1.0);
+                var normalized = Math.Clamp((value - stfBlackPoint) / stretchRange, 0.0, 1.0);
                 var stretched = Math.Clamp(MidtonesTransfer(normalized, midtones), 0.0, 1.0);
                 var b = (byte)Math.Clamp((int)Math.Round(stretched * 255.0), 0, 255);
 
