@@ -217,14 +217,20 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <WrapPanel Grid.Row="0" Margin="0,0,0,8" VerticalAlignment="Center">
-                    <ToggleButton IsChecked="{Binding ShowAccepted, Mode=TwoWay}" Margin="0,0,8,0" Padding="12,4" BorderThickness="1" FontWeight="SemiBold">
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <WrapPanel Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <ToggleButton IsChecked="{Binding ShowAccepted, Mode=TwoWay}" Margin="0,0,8,0" Padding="12,4" BorderThickness="1" FontWeight="SemiBold">
                         <ToggleButton.Style>
                             <Style TargetType="ToggleButton">
                                 <Setter Property="Background" Value="#223A6B46" />
                                 <Setter Property="Foreground" Value="#FFE9F8EE" />
-                                <Setter Property="BorderBrush" Value="#5CA36E" />
-                                <Setter Property="Cursor" Value="Hand" />
+                                    <Setter Property="BorderBrush" Value="#5CA36E" />
+                                    <Setter Property="Cursor" Value="Hand" />
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ToggleButton">
@@ -248,9 +254,9 @@
                             </Style>
                         </ToggleButton.Style>
                         <TextBlock Text="Accepted" />
-                    </ToggleButton>
+                        </ToggleButton>
 
-                    <ToggleButton IsChecked="{Binding ShowRejected, Mode=TwoWay}" Margin="0,0,10,0" Padding="12,4" BorderThickness="1" FontWeight="SemiBold">
+                        <ToggleButton IsChecked="{Binding ShowRejected, Mode=TwoWay}" Margin="0,0,10,0" Padding="12,4" BorderThickness="1" FontWeight="SemiBold">
                         <ToggleButton.Style>
                             <Style TargetType="ToggleButton">
                                 <Setter Property="Background" Value="#224E2A2A" />
@@ -280,9 +286,9 @@
                             </Style>
                         </ToggleButton.Style>
                         <TextBlock Text="Rejected" />
-                    </ToggleButton>
+                        </ToggleButton>
 
-                    <ItemsControl ItemsSource="{Binding FilterChips}">
+                        <ItemsControl ItemsSource="{Binding FilterChips}">
                         <ItemsControl.Style>
                             <Style TargetType="ItemsControl">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -333,8 +339,56 @@
                                 </ToggleButton>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </WrapPanel>
+                        </ItemsControl>
+                    </WrapPanel>
+
+                    <Border Grid.Column="1" Padding="10,6" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" MinWidth="360" CornerRadius="4">
+                        <StackPanel>
+                            <DockPanel LastChildFill="False">
+                                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Top" FontWeight="SemiBold" Margin="0,10,8,0" Text="Sort" />
+
+                                <ItemsControl ItemsSource="{Binding SortRules}" Margin="0,6,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="180" />
+                                                    <ColumnDefinition Width="110" />
+                                                    <ColumnDefinition Width="32" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <ComboBox Grid.Column="0"
+                                                          Height="28"
+                                                          Margin="0,0,8,0"
+                                                          ItemsSource="{Binding DataContext.SortFieldOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                          SelectedItem="{Binding SelectedField, Mode=TwoWay}"
+                                                          DisplayMemberPath="DisplayName" />
+
+                                                <ComboBox Grid.Column="1"
+                                                          Height="28"
+                                                          Margin="0,0,8,0"
+                                                          ItemsSource="{Binding DataContext.SortDirectionOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                          SelectedItem="{Binding SelectedDirection, Mode=TwoWay}"
+                                                          DisplayMemberPath="DisplayName" />
+
+                                                <Button Grid.Column="2"
+                                                        Height="28"
+                                                        Padding="0"
+                                                        FontWeight="SemiBold"
+                                                        Content="−"
+                                                        Command="{Binding DataContext.RemoveSortRuleCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button DockPanel.Dock="Right" MaxHeight="28" Padding="10,2" Margin="8,0,0,0" Content="+ Field" Command="{Binding AddSortRuleCommand}" />
+                            </DockPanel>
+
+                            
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
             <ListView Grid.Row="1"
                       x:Name="FramesListView"

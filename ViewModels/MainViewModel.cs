@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -27,6 +28,115 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private const int MaximumPreviewCacheAhead = 32;
     private const int MaximumPreviewCacheBehind = 12;
     private const long PreviewCacheReservedBytes = 1024L * 1024 * 1024;
+    private static readonly IReadOnlyList<SortFieldOption> DefaultSortFieldOptions =
+    [
+        new(FrameSortField.ObservationDate, "Observation date"),
+        new(FrameSortField.Fwhm, "FWHM"),
+        new(FrameSortField.FwhmArcsec, "FWHM arcsec"),
+        new(FrameSortField.Sqm, "SQM"),
+        new(FrameSortField.SkyTemp, "Sky temp"),
+        new(FrameSortField.Hfr, "HFR"),
+        new(FrameSortField.StarCount, "Star count"),
+        new(FrameSortField.Eccentricity, "Eccentricity"),
+        new(FrameSortField.MeanBackground, "Mean background"),
+        new(FrameSortField.Median, "Median"),
+        new(FrameSortField.Mad, "MAD"),
+        new(FrameSortField.Min, "Min"),
+        new(FrameSortField.MinCount, "Min count"),
+        new(FrameSortField.Max, "Max"),
+        new(FrameSortField.MaxCount, "Max count")
+    ];
+    private static readonly IReadOnlyList<SortDirectionOption> DefaultSortDirectionOptions =
+    [
+        new(ListSortDirection.Ascending, "Ascending"),
+        new(ListSortDirection.Descending, "Descending")
+    ];
+
+    private readonly record struct SortRuleSnapshot(FrameSortField Field, ListSortDirection Direction);
+
+    private sealed class FrameItemComparer(IReadOnlyList<SortRuleSnapshot> rules) : IComparer
+    {
+        public int Compare(object? x, object? y)
+        {
+            if (ReferenceEquals(x, y))
+            {
+                return 0;
+            }
+
+            if (x is not FrameItem left)
+            {
+                return -1;
+            }
+
+            if (y is not FrameItem right)
+            {
+                return 1;
+            }
+
+            foreach (var rule in rules)
+            {
+                var comparison = CompareByField(left, right, rule.Field, rule.Direction);
+                if (comparison != 0)
+                {
+                    return comparison;
+                }
+            }
+
+            return StringComparer.OrdinalIgnoreCase.Compare(left.FileName, right.FileName);
+        }
+
+        private static int CompareByField(FrameItem left, FrameItem right, FrameSortField field, ListSortDirection direction)
+        {
+            return field switch
+            {
+                FrameSortField.ObservationDate => CompareNullableValues(left.ExposureDateTime, right.ExposureDateTime, direction),
+                FrameSortField.Fwhm => CompareValues(left.Metrics.Fwhm, right.Metrics.Fwhm, direction),
+                FrameSortField.FwhmArcsec => CompareNullableValues(left.Metrics.FwhmArcsec, right.Metrics.FwhmArcsec, direction),
+                FrameSortField.Sqm => CompareNullableValues(left.Metrics.Sqm, right.Metrics.Sqm, direction),
+                FrameSortField.SkyTemp => CompareNullableValues(left.Metrics.SkyTemp, right.Metrics.SkyTemp, direction),
+                FrameSortField.Hfr => CompareValues(left.Metrics.Hfr, right.Metrics.Hfr, direction),
+                FrameSortField.StarCount => CompareValues(left.Metrics.StarCount, right.Metrics.StarCount, direction),
+                FrameSortField.Eccentricity => CompareValues(left.Metrics.Eccentricity, right.Metrics.Eccentricity, direction),
+                FrameSortField.MeanBackground => CompareValues(left.Metrics.MeanBackground, right.Metrics.MeanBackground, direction),
+                FrameSortField.Median => CompareValues(left.Metrics.Median, right.Metrics.Median, direction),
+                FrameSortField.Mad => CompareValues(left.Metrics.Mad, right.Metrics.Mad, direction),
+                FrameSortField.Min => CompareValues(left.Metrics.Min, right.Metrics.Min, direction),
+                FrameSortField.MinCount => CompareValues(left.Metrics.MinCount, right.Metrics.MinCount, direction),
+                FrameSortField.Max => CompareValues(left.Metrics.Max, right.Metrics.Max, direction),
+                FrameSortField.MaxCount => CompareValues(left.Metrics.MaxCount, right.Metrics.MaxCount, direction),
+                _ => 0
+            };
+        }
+
+        private static int CompareValues<T>(T left, T right, ListSortDirection direction)
+            where T : IComparable<T>
+        {
+            var comparison = left.CompareTo(right);
+            return direction == ListSortDirection.Descending ? -comparison : comparison;
+        }
+
+        private static int CompareNullableValues<T>(T? left, T? right, ListSortDirection direction)
+            where T : struct, IComparable<T>
+        {
+            if (!left.HasValue && !right.HasValue)
+            {
+                return 0;
+            }
+
+            if (!left.HasValue)
+            {
+                return 1;
+            }
+
+            if (!right.HasValue)
+            {
+                return -1;
+            }
+
+            var comparison = left.Value.CompareTo(right.Value);
+            return direction == ListSortDirection.Descending ? -comparison : comparison;
+        }
+    }
 
     private sealed record LoadedFrameContext(
         FrameItem Item,
@@ -105,6 +215,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public RangeObservableCollection<FrameItem> Frames { get; } = [];
     public ICollectionView FilteredFrames { get; }
     public ObservableCollection<FilterChipViewModel> FilterChips { get; } = [];
+    public ObservableCollection<FrameSortRuleViewModel> SortRules { get; } = [];
+    public IReadOnlyList<SortFieldOption> SortFieldOptions => DefaultSortFieldOptions;
+    public IReadOnlyList<SortDirectionOption> SortDirectionOptions => DefaultSortDirectionOptions;
 
     public string? InputFolder
     {
@@ -557,6 +670,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand OpenPreviewCommand { get; }
     public ICommand ToggleRejectCommand { get; }
     public ICommand ApplyAutoStretchCommand { get; }
+    public ICommand AddSortRuleCommand { get; }
+    public ICommand RemoveSortRuleCommand { get; }
 
     public MainViewModel()
     {
@@ -570,6 +685,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OpenPreviewCommand = new RelayCommand(async p => await OpenPreviewAsync(p as FrameItem));
         ToggleRejectCommand = new RelayCommand(p => ToggleFrameReject(p as FrameItem), p => p is FrameItem);
         ApplyAutoStretchCommand = new RelayCommand(async _ => await ApplyAutoStretchAsync(), _ => _loadedFrames.Count > 0);
+        AddSortRuleCommand = new RelayCommand(_ => AddSortRule(), _ => SortRules.Count < SortFieldOptions.Count);
+        RemoveSortRuleCommand = new RelayCommand(rule => RemoveSortRule(rule as FrameSortRuleViewModel), rule => rule is FrameSortRuleViewModel && SortRules.Count > 1);
+
+        AddSortRule(initialField: SortFieldOptions[0], initialDirection: SortDirectionOptions[0]);
 
         var settings = _settings.Load();
         InputFolder = settings.InputFolder;
@@ -630,6 +749,66 @@ public sealed class MainViewModel : INotifyPropertyChanged
         FilteredFrames.Refresh();
         UpdateFrameStatistics();
         RefreshPreviewVisibleFrames();
+    }
+
+    private void AddSortRule(SortFieldOption? initialField = null, SortDirectionOption? initialDirection = null)
+    {
+        if (SortRules.Count >= SortFieldOptions.Count)
+        {
+            return;
+        }
+
+        var field = initialField
+            ?? SortFieldOptions.FirstOrDefault(option => SortRules.All(rule => rule.SelectedField.Value != option.Value))
+            ?? SortFieldOptions[0];
+        var direction = initialDirection ?? SortDirectionOptions[0];
+
+        var rule = new FrameSortRuleViewModel(field, direction);
+        rule.PropertyChanged += SortRule_PropertyChanged;
+        SortRules.Add(rule);
+        ApplySorting();
+        RaiseSortCommandStateChanged();
+    }
+
+    private void RemoveSortRule(FrameSortRuleViewModel? rule)
+    {
+        if (rule is null || SortRules.Count <= 1)
+        {
+            return;
+        }
+
+        rule.PropertyChanged -= SortRule_PropertyChanged;
+        SortRules.Remove(rule);
+        ApplySorting();
+        RaiseSortCommandStateChanged();
+    }
+
+    private void SortRule_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(FrameSortRuleViewModel.SelectedField) or nameof(FrameSortRuleViewModel.SelectedDirection))
+        {
+            ApplySorting();
+            RaiseSortCommandStateChanged();
+        }
+    }
+
+    private void ApplySorting()
+    {
+        if (FilteredFrames is ListCollectionView collectionView)
+        {
+            var rules = SortRules
+                .Select(rule => new SortRuleSnapshot(rule.SelectedField.Value, rule.SelectedDirection.Value))
+                .ToArray();
+            collectionView.CustomSort = new FrameItemComparer(rules);
+        }
+
+        FilteredFrames.Refresh();
+    }
+
+    private void RaiseSortCommandStateChanged()
+    {
+        ((RelayCommand)AddSortRuleCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)RemoveSortRuleCommand).RaiseCanExecuteChanged();
     }
 
     private bool IsFrameVisible(FrameItem frame)
