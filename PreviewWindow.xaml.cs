@@ -200,20 +200,45 @@ public partial class PreviewWindow : Window
 
     private void ImageScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Control) == 0)
+        if (PreviewImage.Source is null)
         {
             return;
         }
 
         e.Handled = true;
-        if (e.Delta > 0)
+        var zoomFactor = e.Delta > 0 ? 1.1 : (1.0 / 1.1);
+        ZoomAroundViewerPoint(e.GetPosition(ImageScrollViewer), zoomFactor);
+    }
+
+    private void ZoomAroundViewerPoint(WpfPoint viewerPoint, double zoomFactor)
+    {
+        if (PreviewImage.Source is null
+            || ImageScrollViewer.ViewportWidth <= 0
+            || ImageScrollViewer.ViewportHeight <= 0
+            || zoomFactor <= 0)
         {
-            _vm.Zoom = Math.Min(8.0, _vm.Zoom * 1.1);
+            return;
         }
-        else
+
+        var oldZoom = _vm.Zoom;
+        var newZoom = Math.Clamp(oldZoom * zoomFactor, 0.1, 8.0);
+        if (Math.Abs(newZoom - oldZoom) < 0.0001)
         {
-            _vm.Zoom = Math.Max(0.1, _vm.Zoom / 1.1);
+            return;
         }
+
+        var imageX = (ImageScrollViewer.HorizontalOffset + viewerPoint.X) / oldZoom;
+        var imageY = (ImageScrollViewer.VerticalOffset + viewerPoint.Y) / oldZoom;
+
+        _vm.Zoom = newZoom;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            var targetHorizontalOffset = Math.Max(0, (imageX * newZoom) - viewerPoint.X);
+            var targetVerticalOffset = Math.Max(0, (imageY * newZoom) - viewerPoint.Y);
+            ImageScrollViewer.ScrollToHorizontalOffset(targetHorizontalOffset);
+            ImageScrollViewer.ScrollToVerticalOffset(targetVerticalOffset);
+        }, DispatcherPriority.Loaded);
     }
 
     private void PreviewImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

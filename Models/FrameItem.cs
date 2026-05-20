@@ -195,6 +195,16 @@ public sealed class FrameItem : INotifyPropertyChanged
 
     public string SkyTempDisplay => Metrics.SkyTemp is double skyTemp ? $"{skyTemp:F1}°" : "n/a";
 
+    public string MeanBackgroundDisplay => $"{Metrics.MeanBackground:F0} ADU";
+
+    public string MedianDisplay => $"{Metrics.Median:F0} ADU";
+
+    public string MadDisplay => $"{Metrics.Mad:F0} ADU";
+
+    public string MinDisplay => $"{Metrics.Min:F0} ADU ({Metrics.MinCount}x)";
+
+    public string MaxDisplay => $"{Metrics.Max:F0} ADU ({Metrics.MaxCount}x)";
+
     public bool IsRejected => _manualRejectedOverride ?? _autoRejected;
 
     public bool AutomaticRejected => _autoRejected;
