@@ -43,6 +43,7 @@ public partial class PreviewWindow : Window
         _vm = vm;
         DataContext = _vm;
         _vm.PropertyChanged += Vm_PropertyChanged;
+        AddHandler(Mouse.PreviewMouseUpEvent, new MouseButtonEventHandler(Window_PreviewMouseUp), true);
         Loaded += (_, _) =>
         {
             FitToView();
@@ -431,6 +432,61 @@ public partial class PreviewWindow : Window
         }
 
         return false;
+    }
+
+    private static T? FindVisualAncestor<T>(DependencyObject? child)
+        where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            if (child is T match)
+            {
+                return match;
+            }
+
+            child = VisualTreeHelper.GetParent(child);
+        }
+
+        return null;
+    }
+
+    private void Window_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left || _isPanning || _isLoupeActive)
+        {
+            return;
+        }
+
+        if (e.OriginalSource is not DependencyObject dependencyObject)
+        {
+            return;
+        }
+
+        if (IsVisualDescendantOf(dependencyObject, PreviewImage))
+        {
+            return;
+        }
+
+        if (FindVisualAncestor<System.Windows.Controls.Primitives.ButtonBase>(dependencyObject) is null
+            && FindVisualAncestor<Slider>(dependencyObject) is null
+            && FindVisualAncestor<System.Windows.Controls.ComboBox>(dependencyObject) is null
+            && FindVisualAncestor<Expander>(dependencyObject) is null)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(RestoreKeyboardFocusToWindow, DispatcherPriority.Input);
+    }
+
+    private void RestoreKeyboardFocusToWindow()
+    {
+        if (!IsLoaded || !IsVisible)
+        {
+            return;
+        }
+
+        Focus();
+        Keyboard.Focus(this);
     }
 
     private void FrameSlider_SizeChanged(object sender, SizeChangedEventArgs e)

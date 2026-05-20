@@ -1579,10 +1579,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (_previewWindow is not null)
         {
+            var currentPreviewVisibleFrameIndices = GetVisiblePreviewFrameIndices();
+            var currentPreviewVisibleIndex = FindVisibleFrameIndex(currentPreviewVisibleFrameIndices, currentIndex);
             var cacheMiss = _loadedFrames[currentIndex].FullImage is null;
             if (cacheMiss)
             {
-                var loadMessage = $"Loading frame {currentIndex + 1}/{_loadedFrames.Count} from disk...";
+                var loadPosition = currentPreviewVisibleIndex >= 0 ? currentPreviewVisibleIndex + 1 : currentIndex + 1;
+                var loadCount = currentPreviewVisibleFrameIndices.Count > 0 ? currentPreviewVisibleFrameIndices.Count : _loadedFrames.Count;
+                var loadMessage = $"Loading frame {loadPosition}/{loadCount} from disk...";
                 _previewVm?.SetPreviewStatus(loadMessage);
                 Status = loadMessage;
             }
@@ -1591,14 +1595,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SyncPreviewSelection(item);
             var existingImage = await GetOrCreateFullImageAsync(item);
             _previewVm?.SetItem(item);
-            _previewVm?.UpdateFramePosition(currentIndex, _loadedFrames.Count);
+            _previewVm?.UpdateFramePosition(Math.Max(0, currentPreviewVisibleIndex), currentPreviewVisibleFrameIndices.Count);
             PublishPreviewCacheState();
             _previewWindow.RefreshImage(existingImage);
             StartAdaptivePreviewCaching(item);
             if (cacheMiss)
             {
-                _previewVm?.SetPreviewStatus($"Frame {currentIndex + 1}/{_loadedFrames.Count} loaded from disk.");
-                Status = $"Frame {currentIndex + 1}/{_loadedFrames.Count} loaded from disk.";
+                var loadPosition = currentPreviewVisibleIndex >= 0 ? currentPreviewVisibleIndex + 1 : currentIndex + 1;
+                var loadCount = currentPreviewVisibleFrameIndices.Count > 0 ? currentPreviewVisibleFrameIndices.Count : _loadedFrames.Count;
+                _previewVm?.SetPreviewStatus($"Frame {loadPosition}/{loadCount} loaded from disk.");
+                Status = $"Frame {loadPosition}/{loadCount} loaded from disk.";
             }
             _previewWindow.Activate();
             await Task.CompletedTask;

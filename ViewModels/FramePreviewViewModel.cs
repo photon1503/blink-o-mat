@@ -300,7 +300,14 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 
     public async Task NavigateToIndexAsync(int index)
     {
-        await _navigateToIndex(index);
+        var visibleIndices = _getVisibleFrameIndices();
+        if (visibleIndices.Count == 0)
+        {
+            return;
+        }
+
+        var visibleIndex = Math.Clamp(index, 0, visibleIndices.Count - 1);
+        await _navigateToIndex(visibleIndices[visibleIndex]);
     }
 
     public void ToggleReject()
