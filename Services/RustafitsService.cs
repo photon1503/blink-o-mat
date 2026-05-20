@@ -17,7 +17,7 @@ namespace blink_o_mat.Services;
 public sealed class RustafitsService
 {
     private readonly record struct StarPoint(float X, float Y, float Signal);
-    private readonly record struct TrailDetectionResult(bool Detected, double X1, double Y1, double X2, double Y2);
+    private readonly record struct TrailDetectionResult(int Confidence, double X1, double Y1, double X2, double Y2);
     private static readonly Regex SqmRegex = new(@"(?:%SQM%|SQM[_-])(?<value>\d{1,2}\.\d{1,3})(?:%|(?=[_.-]|$))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public sealed record LoadedFrame(
@@ -1373,7 +1373,7 @@ public sealed class RustafitsService
         var contentHeight = Math.Max(1, (int)Math.Round(height * scale));
 
         var sample = DownsampleAndStretch(pixels, width, height, contentWidth, contentHeight, stf, normalizationMax);
-        if (metrics is { PossibleSatelliteTrail: true, TrailX1: not null, TrailY1: not null, TrailX2: not null, TrailY2: not null })
+        if (metrics is { SatelliteTrailConfidence: > 0, TrailX1: not null, TrailY1: not null, TrailX2: not null, TrailY2: not null })
         {
             DrawTrailOverlay(sample, contentWidth, contentHeight, metrics);
         }
@@ -1894,11 +1894,11 @@ public sealed class RustafitsService
             MaxCount = maxCount,
             FocalLengthMm = frame.FocalLengthMm,
             PixelSizeUm = frame.PixelSizeUm,
-            PossibleSatelliteTrail = trail.Detected,
-            TrailX1 = trail.Detected ? trail.X1 : null,
-            TrailY1 = trail.Detected ? trail.Y1 : null,
-            TrailX2 = trail.Detected ? trail.X2 : null,
-            TrailY2 = trail.Detected ? trail.Y2 : null
+            SatelliteTrailConfidence = trail.Confidence,
+            TrailX1 = trail.Confidence > 0 ? trail.X1 : null,
+            TrailY1 = trail.Confidence > 0 ? trail.Y1 : null,
+            TrailX2 = trail.Confidence > 0 ? trail.X2 : null,
+            TrailY2 = trail.Confidence > 0 ? trail.Y2 : null
         };
     }
 
@@ -2288,85 +2288,83 @@ public sealed class RustafitsService
     private static TrailDetectionResult DetectTrail(float[] pixels, int width, int height)
     {
         if (width < 16 || height < 16)
-        {
-            return new TrailDetectionResult(false, 0, 0, 0, 0);
-        }
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
 
+        // ── Background subtraction ────────────────────────────────────────────
+        // BoxBlur radius 2 removes the DC background; what remains is high-frequency
+        // residuals. A satellite trail is a bright stripe in this residual image.
         var blurred = BoxBlur(pixels, width, height, 2);
         var enhanced = new float[pixels.Length];
         for (var i = 0; i < pixels.Length; i++)
-        {
             enhanced[i] = Math.Max(0f, pixels[i] - blurred[i]);
-        }
 
         var sample = Sample(enhanced);
         if (sample.Length == 0)
-        {
-            return new TrailDetectionResult(false, 0, 0, 0, 0);
-        }
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         Array.Sort(sample);
+
+        // Single strict threshold: only the very top of the residual histogram.
+        // Stars appear here as isolated blobs; a trail appears as a connected stripe.
         var threshold = Math.Max(1e-6, PercentileFromSorted(sample, 0.9975));
 
-        var points = new List<(int X, int Y, double Signal)>(2048);
-        var cx = (width - 1) * 0.5;
+        // ── Directional candidate collection ─────────────────────────────────
+        // A pixel is a candidate only if it has STRONG directional support in
+        // exactly one axis (bestSupport > 2.5 × secondSupport).
+        // Stars are nearly isotropic → they fail this test convincingly.
+        var points = new List<(int X, int Y, double Signal)>(1024);
+        var cx = (width  - 1) * 0.5;
         var cy = (height - 1) * 0.5;
 
-        for (var y = 3; y < height - 3; y++)
+        for (var y = 5; y < height - 5; y++)
         {
             var row = y * width;
-            for (var x = 3; x < width - 3; x++)
+            for (var x = 5; x < width - 5; x++)
             {
                 var center = enhanced[row + x];
                 if (center < threshold)
-                {
                     continue;
-                }
 
-                var horizontal = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, 0);
-                var vertical = ComputeDirectionalTrailSupport(enhanced, width, x, y, 0, 1);
-                var diagonal1 = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, 1);
-                var diagonal2 = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, -1);
+                var h  = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1,  0);
+                var v  = ComputeDirectionalTrailSupport(enhanced, width, x, y, 0,  1);
+                var d1 = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1,  1);
+                var d2 = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, -1);
 
-                var bestSupport = horizontal;
-                var secondSupport = 0.0;
-                UpdateTopTwo(vertical, ref bestSupport, ref secondSupport);
-                UpdateTopTwo(diagonal1, ref bestSupport, ref secondSupport);
-                UpdateTopTwo(diagonal2, ref bestSupport, ref secondSupport);
+                var best   = h;
+                var second = 0.0;
+                UpdateTopTwo(v,  ref best, ref second);
+                UpdateTopTwo(d1, ref best, ref second);
+                UpdateTopTwo(d2, ref best, ref second);
 
-                var signal = bestSupport - (0.72 * secondSupport);
-                if (signal <= threshold * 2.0)
-                {
+                // Hard dominance gate — stars have similar support in all 4 directions.
+                if (best <= 2.5 * Math.Max(0.0, second))
                     continue;
-                }
 
-                if (bestSupport <= secondSupport)
-                {
+                // Signal must also clear the threshold in absolute terms.
+                var signal = best - second;
+                if (signal < threshold * 3.0)
                     continue;
-                }
 
                 points.Add((x, y, signal));
             }
         }
 
-        if (points.Count < 8)
-        {
-            return new TrailDetectionResult(false, 0, 0, 0, 0);
-        }
+        // Hard gate: need a meaningful number of strictly trail-like pixels.
+        if (points.Count < 20)
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        const int maxCandidates = 2500;
+        const int maxCandidates = 2000;
         if (points.Count > maxCandidates)
-        {
             points = points.OrderByDescending(p => p.Signal).Take(maxCandidates).ToList();
-        }
 
-        const int angleBins = 120;
-        var maxRho = Math.Sqrt((cx * cx) + (cy * cy));
+        // ── Hough accumulator (1° resolution) ────────────────────────────────
+        const int angleBins = 180;
+        var maxRho     = Math.Sqrt((cx * cx) + (cy * cy));
         var rhoBinSize = Math.Max(2.0, Math.Min(5.0, Math.Min(width, height) / 180.0));
-        var rhoBins = Math.Max(180, (int)Math.Ceiling((2.0 * maxRho) / rhoBinSize) + 1);
+        var rhoBins    = Math.Max(180, (int)Math.Ceiling((2.0 * maxRho) / rhoBinSize) + 1);
         var accumulator = new int[angleBins * rhoBins];
-        var cosTable = new double[angleBins];
-        var sinTable = new double[angleBins];
+        var cosTable    = new double[angleBins];
+        var sinTable    = new double[angleBins];
 
         for (var a = 0; a < angleBins; a++)
         {
@@ -2379,107 +2377,202 @@ public sealed class RustafitsService
         {
             var dx = p.X - cx;
             var dy = p.Y - cy;
-            var weight = 1 + Math.Clamp((int)Math.Round(p.Signal / Math.Max(1e-6, threshold * 2.5)), 0, 3);
+            var weight = 1 + Math.Clamp((int)Math.Round(p.Signal / Math.Max(1e-6, threshold * 3.0)), 0, 3);
 
             for (var a = 0; a < angleBins; a++)
             {
-                var rho = (dx * cosTable[a]) + (dy * sinTable[a]);
+                var rho      = (dx * cosTable[a]) + (dy * sinTable[a]);
                 var rhoIndex = (int)Math.Round((rho + maxRho) / rhoBinSize);
-                if ((uint)rhoIndex >= (uint)rhoBins)
-                {
-                    continue;
-                }
-
-                accumulator[(a * rhoBins) + rhoIndex] += weight;
+                if ((uint)rhoIndex < (uint)rhoBins)
+                    accumulator[(a * rhoBins) + rhoIndex] += weight;
             }
         }
 
         var bestAngleBin = -1;
-        var bestRhoBin = -1;
-        var bestVotes = 0;
+        var bestRhoBin   = -1;
+        var bestVotes    = 0;
         for (var a = 0; a < angleBins; a++)
         {
-            var row = a * rhoBins;
+            var rowOff = a * rhoBins;
             for (var r = 0; r < rhoBins; r++)
             {
-                var votes = accumulator[row + r];
-                if (votes > bestVotes)
-                {
-                    bestVotes = votes;
-                    bestAngleBin = a;
-                    bestRhoBin = r;
-                }
+                var v = accumulator[rowOff + r];
+                if (v > bestVotes) { bestVotes = v; bestAngleBin = a; bestRhoBin = r; }
             }
         }
 
-        if (bestAngleBin < 0 || bestVotes < Math.Max(10, points.Count / 120))
-        {
-            return new TrailDetectionResult(false, 0, 0, 0, 0);
-        }
+        // Hard gate: the winning bin must hold a large fraction of all votes.
+        // For noise/stars the votes are spread uniformly across all bins.
+        // For a real trail they concentrate strongly in one (angle, rho) cell.
+        if (bestAngleBin < 0 || bestVotes < Math.Max(20, points.Count / 20))
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        var normalX = cosTable[bestAngleBin];
-        var normalY = sinTable[bestAngleBin];
-        var dirX = -normalY;
-        var dirY = normalX;
+        var normalX   = cosTable[bestAngleBin];
+        var normalY   = sinTable[bestAngleBin];
         var rhoCenter = (bestRhoBin * rhoBinSize) - maxRho;
-        var maxDistance = Math.Max(2.5, rhoBinSize * 1.5);
 
-        double refinedRhoSum = 0;
-        var refinedRhoCount = 0;
-        double minT = double.PositiveInfinity;
-        double maxT = double.NegativeInfinity;
-        var inlierCount = 0;
-        var spanBinSize = Math.Max(4.0, Math.Min(width, height) / 90.0);
-        HashSet<int> occupiedSpanBins = [];
+        // ── Pass 1: coarse inliers → PCA ─────────────────────────────────────
+        var pass1Dist      = Math.Max(2.5, rhoBinSize * 1.2);
+        var inlierPositions = new List<(double DX, double DY)>(points.Count);
 
         foreach (var p in points)
         {
             var dx = p.X - cx;
             var dy = p.Y - cy;
-            var rho = (dx * normalX) + (dy * normalY);
-            var distance = Math.Abs(rho - rhoCenter);
-            if (distance > maxDistance)
-            {
-                continue;
-            }
+            if (Math.Abs((dx * normalX) + (dy * normalY) - rhoCenter) <= pass1Dist)
+                inlierPositions.Add((dx, dy));
+        }
 
-            refinedRhoSum += rho;
-            refinedRhoCount++;
+        if (inlierPositions.Count < 16)
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
+
+        // PCA → sub-degree trail direction + elongation ratio.
+        double sumDx = 0, sumDy = 0;
+        foreach (var (dx, dy) in inlierPositions) { sumDx += dx; sumDy += dy; }
+        var centDx = sumDx / inlierPositions.Count;
+        var centDy = sumDy / inlierPositions.Count;
+
+        double cxx = 0, cxy = 0, cyy = 0;
+        foreach (var (dx, dy) in inlierPositions)
+        {
+            var ex = dx - centDx; var ey = dy - centDy;
+            cxx += ex * ex; cxy += ex * ey; cyy += ey * ey;
+        }
+        cxx /= inlierPositions.Count;
+        cxy /= inlierPositions.Count;
+        cyy /= inlierPositions.Count;
+
+        var trace   = cxx + cyy;
+        var disc    = Math.Sqrt(Math.Max(0.0, (trace * trace / 4.0) - (cxx * cyy - cxy * cxy)));
+        var lambda1 = (trace / 2.0) + disc;
+        var lambda2 = (trace / 2.0) - disc;
+
+        // Hard gate: strong elongation required (ratio ≥ 10).
+        // Random noise can score 2–6; a real trail scores 20–1000+.
+        if (lambda2 < 1e-9 || lambda1 / lambda2 < 10.0)
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
+
+        double evX, evY;
+        if (Math.Abs(cxy) > 1e-10) { evX = lambda1 - cyy; evY = cxy; }
+        else                        { evX = cxx >= cyy ? 1.0 : 0.0; evY = cxx >= cyy ? 0.0 : 1.0; }
+
+        var evLen = Math.Sqrt((evX * evX) + (evY * evY));
+        if (evLen < 1e-10) return new TrailDetectionResult(0, 0, 0, 0, 0);
+
+        evX /= evLen; evY /= evLen;
+        var refinedNormalX = -evY;
+        var refinedNormalY =  evX;
+        var refinedRho     = (centDx * refinedNormalX) + (centDy * refinedNormalY);
+
+        // ── Pass 2: tight inliers ─────────────────────────────────────────────
+        // 1.5 px band — real trail pixels are very tightly collinear.
+        var maxDistPass2 = Math.Max(1.5, rhoBinSize * 0.6);
+        var dirX = evX;
+        var dirY = evY;
+
+        double minT = double.PositiveInfinity;
+        double maxT = double.NegativeInfinity;
+        var inlierCount = 0;
+        double rmsSum   = 0;
+        var spanBinSize = Math.Max(4.0, Math.Min(width, height) / 90.0);
+        HashSet<int> occupiedSpanBins = [];
+        var inlierTs = new List<double>(inlierPositions.Count);
+
+        foreach (var p in points)
+        {
+            var dx   = p.X - cx;
+            var dy   = p.Y - cy;
+            var dist = Math.Abs((dx * refinedNormalX) + (dy * refinedNormalY) - refinedRho);
+            if (dist > maxDistPass2) continue;
 
             var t = (dx * dirX) + (dy * dirY);
             if (t < minT) minT = t;
             if (t > maxT) maxT = t;
             occupiedSpanBins.Add((int)Math.Floor(t / spanBinSize));
+            inlierTs.Add(t);
+            rmsSum += dist * dist;
             inlierCount++;
         }
 
-        if (inlierCount < 8 || refinedRhoCount == 0)
-        {
-            return new TrailDetectionResult(false, 0, 0, 0, 0);
-        }
+        if (inlierCount < 16)
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        rhoCenter = refinedRhoSum / refinedRhoCount;
-        var span = maxT - minT;
-        var minRequiredSpan = 0.18 * Math.Min(width, height);
+        var span     = maxT - minT;
+        var imageDim = Math.Min(width, height);
+
+        // ── Hard rejection gates ──────────────────────────────────────────────
+        // These fire for noise/star-cluster patterns that passed earlier tests.
+
+        // 1. Span: trail must cross at least 30 % of the shorter image dimension.
+        if (span < 0.30 * imageDim)
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
+
+        // 2. Coverage: inliers must occupy at least 30 % of the span bins
+        //    (no very gappy, discontinuous patterns).
         var spanBinCount = Math.Max(1, (int)Math.Ceiling(span / spanBinSize));
-        var coverage = occupiedSpanBins.Count / (double)spanBinCount;
-        if (span < minRequiredSpan || coverage < 0.14)
-        {
-            return new TrailDetectionResult(false, 0, 0, 0, 0);
-        }
+        var coverage     = occupiedSpanBins.Count / (double)spanBinCount;
+        if (coverage < 0.30)
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        var baseX = cx + (rhoCenter * normalX);
-        var baseY = cy + (rhoCenter * normalY);
+        // 3. Maximum single gap: must not exceed 20 % of span.
+        inlierTs.Sort();
+        var maxGap = 0.0;
+        for (var i = 1; i < inlierTs.Count; i++)
+        {
+            var gap = inlierTs[i] - inlierTs[i - 1];
+            if (gap > maxGap) maxGap = gap;
+        }
+        if (maxGap > 0.20 * span)
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
+
+        // 4. RMS perpendicular residual: must be ≤ 1.5 px.
+        var rms = Math.Sqrt(rmsSum / inlierCount);
+        if (rms > 1.5)
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
+
+        // 5. Density: at least 1 inlier per 2 span-bins of length.
+        if (inlierCount < span / (spanBinSize * 2.0))
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
+
+        // ── Confidence score (1–100) — only reached after all hard gates pass ─
+        // Scores how strong/clear the trail is, not whether it exists.
+        // Users can tune the rejection threshold slider to taste.
+
+        var elongRatio  = lambda1 / lambda2;
+        var sElongation = Math.Clamp((elongRatio - 10.0) / 90.0, 0.0, 1.0);   // 10→0 … 100→1
+
+        var spanFrac    = span / imageDim;
+        var sSpan       = Math.Clamp((spanFrac - 0.30) / 0.60, 0.0, 1.0);     // 30%→0 … 90%→1
+
+        var sCoverage   = Math.Clamp((coverage - 0.30) / 0.60, 0.0, 1.0);     // 30%→0 … 90%→1
+
+        var gapFrac     = span > 0 ? maxGap / span : 1.0;
+        var sGap        = Math.Clamp(1.0 - gapFrac / 0.20, 0.0, 1.0);        // 0→1 … 20%→0
+
+        var sRms        = Math.Clamp(1.0 - rms / 1.5, 0.0, 1.0);             // 0→1 … 1.5px→0
+
+        var rawScore = (0.25 * sElongation)
+                     + (0.25 * sSpan)
+                     + (0.20 * sCoverage)
+                     + (0.15 * sGap)
+                     + (0.15 * sRms);
+
+        // Minimum score is 1 (passed all gates), maximum is 100 (perfect trail).
+        var confidence = Math.Max(1, (int)Math.Round(rawScore * 100.0));
+
+        // ── Result coordinates ────────────────────────────────────────────────
+        var baseX = cx + (refinedRho * refinedNormalX);
+        var baseY = cy + (refinedRho * refinedNormalY);
         var x1 = baseX + (minT * dirX);
         var y1 = baseY + (minT * dirY);
         var x2 = baseX + (maxT * dirX);
         var y2 = baseY + (maxT * dirY);
 
         return new TrailDetectionResult(
-            true,
-            width <= 1 ? 0.5 : Math.Clamp(x1 / (width - 1), 0.0, 1.0),
+            confidence,
+            width  <= 1 ? 0.5 : Math.Clamp(x1 / (width  - 1), 0.0, 1.0),
             height <= 1 ? 0.5 : Math.Clamp(y1 / (height - 1), 0.0, 1.0),
-            width <= 1 ? 0.5 : Math.Clamp(x2 / (width - 1), 0.0, 1.0),
+            width  <= 1 ? 0.5 : Math.Clamp(x2 / (width  - 1), 0.0, 1.0),
             height <= 1 ? 0.5 : Math.Clamp(y2 / (height - 1), 0.0, 1.0));
     }
 
@@ -2490,27 +2583,34 @@ public sealed class RustafitsService
         var perpX = -dy;
         var perpY = dx;
 
-        for (var step = 1; step <= 3; step++)
+        // Sample 5 steps along the trail direction (longer reach catches faint trails).
+        double[] alongWeights = [1.0, 0.85, 0.70, 0.55, 0.40];
+        for (var step = 1; step <= 5; step++)
         {
-            var weight = step switch
-            {
-                1 => 1.0,
-                2 => 0.8,
-                _ => 0.6
-            };
-            var forward = pixels[((y + (dy * step)) * width) + x + (dx * step)];
-            var backward = pixels[((y - (dy * step)) * width) + x - (dx * step)];
-            sum += weight * forward;
-            sum += weight * backward;
+            var nx = x + (dx * step);
+            var ny = y + (dy * step);
+            if ((uint)nx >= (uint)width || (uint)ny >= (uint)(pixels.Length / width)) break;
+            sum += alongWeights[step - 1] * pixels[(ny * width) + nx];
+
+            nx = x - (dx * step);
+            ny = y - (dy * step);
+            if ((uint)nx >= (uint)width || (uint)ny >= (uint)(pixels.Length / width)) break;
+            sum += alongWeights[step - 1] * pixels[(ny * width) + nx];
         }
 
-        for (var step = 1; step <= 2; step++)
+        // Subtract perpendicular neighbours — suppresses point sources and blobs.
+        double[] perpWeights = [1.0, 0.70, 0.45];
+        for (var step = 1; step <= 3; step++)
         {
-            var weight = step == 1 ? 0.95 : 0.65;
-            var sideA = pixels[((y + (perpY * step)) * width) + x + (perpX * step)];
-            var sideB = pixels[((y - (perpY * step)) * width) + x - (perpX * step)];
-            sum -= weight * sideA;
-            sum -= weight * sideB;
+            var nx = x + (perpX * step);
+            var ny = y + (perpY * step);
+            if ((uint)nx < (uint)width && (uint)ny < (uint)(pixels.Length / width))
+                sum -= perpWeights[step - 1] * pixels[(ny * width) + nx];
+
+            nx = x - (perpX * step);
+            ny = y - (perpY * step);
+            if ((uint)nx < (uint)width && (uint)ny < (uint)(pixels.Length / width))
+                sum -= perpWeights[step - 1] * pixels[(ny * width) + nx];
         }
 
         return sum;

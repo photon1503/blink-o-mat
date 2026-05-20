@@ -179,7 +179,9 @@ public sealed class FrameItem : INotifyPropertyChanged
 
     public double ScoreProgressPercent => Math.Clamp((_overallScore / 5.0) * 100.0, 0.0, 100.0);
 
-    public string TrailText => Metrics.PossibleSatelliteTrail ? "YES" : "NO";
+    public string TrailText => Metrics.SatelliteTrailConfidence > 0
+        ? $"{Metrics.SatelliteTrailConfidence}%"
+        : "–";
 
     public string FilterDisplay => string.IsNullOrWhiteSpace(FilterName) ? "n/a" : FilterName;
 

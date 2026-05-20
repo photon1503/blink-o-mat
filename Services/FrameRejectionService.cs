@@ -15,6 +15,6 @@ public sealed class FrameRejectionService
                || m.Eccentricity > thresholds.MaxEccentricity
                || m.MeanBackground > thresholds.MaxMeanBackground
                || m.StarCount < thresholds.MinStars
-               || (thresholds.RejectSatelliteTrail && m.PossibleSatelliteTrail);
+               || (thresholds.MinSatelliteConfidence > 0 && m.SatelliteTrailConfidence >= thresholds.MinSatelliteConfidence);
     }
 }

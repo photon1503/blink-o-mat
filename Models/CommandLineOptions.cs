@@ -41,7 +41,7 @@ public sealed class CommandLineOptions
                     thresholds.MaxMeanBackground = ParseDouble(ReadValue(args, ref i), thresholds.MaxMeanBackground);
                     break;
                 case "--allow-trails":
-                    thresholds.RejectSatelliteTrail = false;
+                    thresholds.MinSatelliteConfidence = 0;
                     break;
             }
         }

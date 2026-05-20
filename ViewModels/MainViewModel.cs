@@ -173,6 +173,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _maxMeanBackground = 2000.0;
     private double _minStars;
     private bool _rejectSatelliteTrail = true;
+    private int _minSatelliteConfidence = 80;
     private double _stfShadows;
     private double _stfMidtones = 0.5;
     private double _stfHighlights = 1.0;
@@ -619,6 +620,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (_rejectSatelliteTrail == value) return;
             _rejectSatelliteTrail = value;
+            OnPropertyChanged();
+            ApplyThresholds();
+        }
+    }
+
+    public int MinSatelliteConfidence
+    {
+        get => _minSatelliteConfidence;
+        set
+        {
+            if (_minSatelliteConfidence == value) return;
+            _minSatelliteConfidence = value;
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -1126,7 +1139,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             frame.StarsIndicatorBrush = CompareHigherIsBetter(frame.Metrics.StarCount, avgStars, green, yellow, red);
             frame.EccentricityIndicatorBrush = CompareLowerIsBetter(frame.Metrics.Eccentricity, avgEcc, green, yellow, red);
             frame.MeanBackgroundIndicatorBrush = CompareLowerIsBetter(frame.Metrics.MeanBackground, avgBg, green, yellow, red);
-            frame.TrailIndicatorBrush = frame.Metrics.PossibleSatelliteTrail ? red : green;
+            frame.TrailIndicatorBrush = frame.Metrics.SatelliteTrailConfidence >= 60 ? red : green;
 
             const double fwhmWeight = 2.4;
             const double hfrWeight = 2.2;
@@ -1141,7 +1154,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             weightedScore += ScoreHigherIsBetter(frame.Metrics.StarCount, avgStars) * starsWeight;
             weightedScore += ScoreLowerIsBetter(frame.Metrics.Eccentricity, avgEcc) * eccentricityWeight;
             weightedScore += ScoreLowerIsBetter(frame.Metrics.MeanBackground, avgBg) * backgroundWeight;
-            weightedScore += (frame.Metrics.PossibleSatelliteTrail ? 0.0 : 1.0) * trailWeight;
+            weightedScore += (1.0 - (frame.Metrics.SatelliteTrailConfidence / 100.0)) * trailWeight;
 
             var totalWeight = fwhmWeight + hfrWeight + starsWeight + eccentricityWeight + backgroundWeight + trailWeight;
             frame.OverallScore = Math.Clamp((weightedScore / totalWeight) * 5.0, 0.0, 5.0);
@@ -1844,7 +1857,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             MaxEccentricity = MaxEccentricity,
             MaxMeanBackground = MaxMeanBackground,
             MinStars = MinStars,
-            RejectSatelliteTrail = RejectSatelliteTrail
+            MinSatelliteConfidence = RejectSatelliteTrail ? MinSatelliteConfidence : 0
         };
 
         foreach (var frame in Frames)
@@ -2176,7 +2189,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         MeanBackgroundRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.MeanBackground > MaxMeanBackground);
         StarCountRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.StarCount < MinStars);
         SatelliteTrailRejectedFrameCount = RejectSatelliteTrail
-            ? visibleFrames.Count(frame => frame.Metrics.PossibleSatelliteTrail)
+            ? visibleFrames.Count(frame => frame.Metrics.SatelliteTrailConfidence >= MinSatelliteConfidence)
             : 0;
     }
 

@@ -92,7 +92,18 @@
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Automatic rejection" />
-                            <CheckBox Content="Reject possible satellite trails" IsChecked="{Binding RejectSatelliteTrail}" Margin="0,0,0,10" />
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Min. trail confidence" />
+                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding MinSatelliteConfidence, StringFormat={}{0}%}" />
+                            </Grid>
+                            <DockPanel Margin="0,0,0,10">
+                                <Slider Minimum="1" Maximum="100" Value="{Binding MinSatelliteConfidence, UpdateSourceTrigger=PropertyChanged}"
+                                        TickFrequency="5" IsSnapToTickEnabled="False" />
+                            </DockPanel>
 
                             <Grid Margin="0,0,0,6">
                                 <Grid.ColumnDefinitions>

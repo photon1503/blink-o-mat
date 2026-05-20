@@ -92,7 +92,7 @@ Focal length · Pixel size · Exposure date/time · Exposure length · Filter ·
 ### Rejection & Sorting
 
 - **Automatic rejection** with per-threshold sliders:
-  - Max FWHM · Min SQM · Max sky temperature · Max HFR · Max eccentricity · Max mean background · Min stars · Satellite trail (optional)
+  - Max FWHM · Min SQM · Max sky temperature · Max HFR · Max eccentricity · Max mean background · Min stars · Min satellite trail confidence (0 = disabled, 1–100)
 - **Manual keep/reject override** per frame — does not erase the underlying automatic state
 - Color-coded keep/reject labels in the preview window
 - **One-click move** of all rejected frames to the rejected folder
@@ -166,7 +166,7 @@ All rejection thresholds are optional; omitting one leaves it at its default val
 | `--max-hfr <value>` | Reject frames with HFR above this value | `4.5` |
 | `--max-ecc <value>` | Reject frames with eccentricity above this value | `0.6` |
 | `--max-bg <value>` | Reject frames with mean background above this value | `2000` |
-| `--allow-trails` | Do **not** reject frames with detected satellite trails | trails rejected |
+| `--min-trail-confidence <value>` | Reject frames whose trail confidence meets or exceeds this value (0 = disabled) | `80` |
 
 ### Example
 
@@ -194,7 +194,7 @@ dotnet run --project .\blink-o-mat.csproj -- `
 | Max sky temperature | 40 °C |
 | Min SQM | 0 (disabled) |
 | Min stars | 0 (disabled) |
-| Reject satellite trails | Yes |
+| Min satellite trail confidence | 80 |
 
 ---
 
