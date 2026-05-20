@@ -44,6 +44,18 @@ public sealed class FrameSortRuleViewModel : INotifyPropertyChanged
             if (Equals(_selectedDirection, value)) return;
             _selectedDirection = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(IsDescending));
+        }
+    }
+
+    public bool IsDescending
+    {
+        get => _selectedDirection.Value == ListSortDirection.Descending;
+        set
+        {
+            SelectedDirection = value
+                ? new SortDirectionOption(ListSortDirection.Descending, "Descending")
+                : new SortDirectionOption(ListSortDirection.Ascending, "Ascending");
         }
     }
 
