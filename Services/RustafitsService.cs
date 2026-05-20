@@ -2306,7 +2306,7 @@ public sealed class RustafitsService
 
         // Single strict threshold: only the very top of the residual histogram.
         // Stars appear here as isolated blobs; a trail appears as a connected stripe.
-        var threshold = Math.Max(1e-6, PercentileFromSorted(sample, 0.9975));
+        var threshold = Math.Max(1e-6, PercentileFromSorted(sample, 0.997));
 
         // ── Directional candidate collection ─────────────────────────────────
         // A pixel is a candidate only if it has STRONG directional support in
@@ -2337,12 +2337,12 @@ public sealed class RustafitsService
                 UpdateTopTwo(d2, ref best, ref second);
 
                 // Hard dominance gate — stars have similar support in all 4 directions.
-                if (best <= 2.5 * Math.Max(0.0, second))
+                if (best <= 2.0 * Math.Max(0.0, second))
                     continue;
 
                 // Signal must also clear the threshold in absolute terms.
                 var signal = best - second;
-                if (signal < threshold * 3.0)
+                if (signal < threshold * 2.0)
                     continue;
 
                 points.Add((x, y, signal));
@@ -2350,7 +2350,7 @@ public sealed class RustafitsService
         }
 
         // Hard gate: need a meaningful number of strictly trail-like pixels.
-        if (points.Count < 20)
+        if (points.Count < 12)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         const int maxCandidates = 2000;
@@ -2423,7 +2423,7 @@ public sealed class RustafitsService
                 inlierPositions.Add((dx, dy));
         }
 
-        if (inlierPositions.Count < 16)
+        if (inlierPositions.Count < 10)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         // PCA → sub-degree trail direction + elongation ratio.
@@ -2447,9 +2447,9 @@ public sealed class RustafitsService
         var lambda1 = (trace / 2.0) + disc;
         var lambda2 = (trace / 2.0) - disc;
 
-        // Hard gate: strong elongation required (ratio ≥ 10).
+        // Hard gate: strong elongation required (ratio ≥ 7).
         // Random noise can score 2–6; a real trail scores 20–1000+.
-        if (lambda2 < 1e-9 || lambda1 / lambda2 < 10.0)
+        if (lambda2 < 1e-9 || lambda1 / lambda2 < 7.0)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         double evX, evY;
@@ -2465,8 +2465,8 @@ public sealed class RustafitsService
         var refinedRho     = (centDx * refinedNormalX) + (centDy * refinedNormalY);
 
         // ── Pass 2: tight inliers ─────────────────────────────────────────────
-        // 1.5 px band — real trail pixels are very tightly collinear.
-        var maxDistPass2 = Math.Max(1.5, rhoBinSize * 0.6);
+        // 2.0 px band — real trail pixels are very tightly collinear.
+        var maxDistPass2 = Math.Max(2.0, rhoBinSize * 0.7);
         var dirX = evX;
         var dirY = evY;
 
@@ -2494,7 +2494,7 @@ public sealed class RustafitsService
             inlierCount++;
         }
 
-        if (inlierCount < 16)
+        if (inlierCount < 10)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         var span     = maxT - minT;
@@ -2503,18 +2503,18 @@ public sealed class RustafitsService
         // ── Hard rejection gates ──────────────────────────────────────────────
         // These fire for noise/star-cluster patterns that passed earlier tests.
 
-        // 1. Span: trail must cross at least 30 % of the shorter image dimension.
-        if (span < 0.30 * imageDim)
+        // 1. Span: trail must cross at least 20 % of the shorter image dimension.
+        if (span < 0.20 * imageDim)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        // 2. Coverage: inliers must occupy at least 30 % of the span bins
+        // 2. Coverage: inliers must occupy at least 20 % of the span bins
         //    (no very gappy, discontinuous patterns).
         var spanBinCount = Math.Max(1, (int)Math.Ceiling(span / spanBinSize));
         var coverage     = occupiedSpanBins.Count / (double)spanBinCount;
-        if (coverage < 0.30)
+        if (coverage < 0.20)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        // 3. Maximum single gap: must not exceed 20 % of span.
+        // 3. Maximum single gap: must not exceed 35 % of span.
         inlierTs.Sort();
         var maxGap = 0.0;
         for (var i = 1; i < inlierTs.Count; i++)
@@ -2522,12 +2522,12 @@ public sealed class RustafitsService
             var gap = inlierTs[i] - inlierTs[i - 1];
             if (gap > maxGap) maxGap = gap;
         }
-        if (maxGap > 0.20 * span)
+        if (maxGap > 0.35 * span)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        // 4. RMS perpendicular residual: must be ≤ 1.5 px.
+        // 4. RMS perpendicular residual: must be ≤ 2.0 px.
         var rms = Math.Sqrt(rmsSum / inlierCount);
-        if (rms > 1.5)
+        if (rms > 2.0)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         // 5. Density: at least 1 inlier per 2 span-bins of length.
@@ -2539,17 +2539,17 @@ public sealed class RustafitsService
         // Users can tune the rejection threshold slider to taste.
 
         var elongRatio  = lambda1 / lambda2;
-        var sElongation = Math.Clamp((elongRatio - 10.0) / 90.0, 0.0, 1.0);   // 10→0 … 100→1
+        var sElongation = Math.Clamp((elongRatio - 7.0) / 93.0, 0.0, 1.0);    // 7→0 … 100→1
 
         var spanFrac    = span / imageDim;
-        var sSpan       = Math.Clamp((spanFrac - 0.30) / 0.60, 0.0, 1.0);     // 30%→0 … 90%→1
+        var sSpan       = Math.Clamp((spanFrac - 0.20) / 0.70, 0.0, 1.0);     // 20%→0 … 90%→1
 
-        var sCoverage   = Math.Clamp((coverage - 0.30) / 0.60, 0.0, 1.0);     // 30%→0 … 90%→1
+        var sCoverage   = Math.Clamp((coverage - 0.20) / 0.70, 0.0, 1.0);     // 20%→0 … 90%→1
 
         var gapFrac     = span > 0 ? maxGap / span : 1.0;
-        var sGap        = Math.Clamp(1.0 - gapFrac / 0.20, 0.0, 1.0);        // 0→1 … 20%→0
+        var sGap        = Math.Clamp(1.0 - gapFrac / 0.35, 0.0, 1.0);        // 0→1 … 35%→0
 
-        var sRms        = Math.Clamp(1.0 - rms / 1.5, 0.0, 1.0);             // 0→1 … 1.5px→0
+        var sRms        = Math.Clamp(1.0 - rms / 2.0, 0.0, 1.0);             // 0→1 … 2.0px→0
 
         var rawScore = (0.25 * sElongation)
                      + (0.25 * sSpan)

@@ -25,7 +25,7 @@ public sealed class HeadlessRunner
             return 0;
         }
 
-        var tempThumbs = Path.Combine(Path.GetTempPath(), "blink-o-mat-thumbs", DateTime.Now.ToString("yyyyMMddHHmmss"));
+        var tempThumbs = Path.Combine(Path.GetTempPath(), "Rejector-thumbs", DateTime.Now.ToString("yyyyMMddHHmmss"));
         var processed = new List<FrameItem>(frames.Count);
 
         foreach (var framePath in frames)

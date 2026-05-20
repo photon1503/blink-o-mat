@@ -191,7 +191,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _skyTempRejectedFrameCount;
     private int _starCountRejectedFrameCount;
     private bool _hasManualRoi;
-    private bool _autoStretchPerFrame;
+    private bool _autoStretchPerFrame = true;
     private bool _skipRejectedInPreview;
     private bool _showAccepted = true;
     private bool _showRejected = true;
@@ -285,6 +285,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (_approvedFrameCount == value) return;
             _approvedFrameCount = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(ApprovedFramePercentageText));
         }
     }
 
@@ -302,6 +303,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string RejectedFramePercentageText => TotalFrameCount == 0
         ? "0.0%"
         : $"{(double)RejectedFrameCount / TotalFrameCount:P1}";
+
+    public string ApprovedFramePercentageText => TotalFrameCount == 0
+        ? "0.0%"
+        : $"{(double)ApprovedFrameCount / TotalFrameCount:P1}";
 
     public int FwhmRejectedFrameCount
     {

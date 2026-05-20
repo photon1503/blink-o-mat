@@ -12,7 +12,7 @@ public sealed class AppSettingsService
 
     private readonly string _settingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "blink-o-mat",
+        "Rejector",
         "settings.json");
 
     public AppSettings Load()

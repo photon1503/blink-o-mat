@@ -1,4 +1,4 @@
-# blink-o-mat
+# Rejector
 
 > **Fast subframe quality sorter and blinker for astronomical FITS/XISF images.**
 
@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)](https://www.microsoft.com/windows)
 [![License](https://img.shields.io/github/license/photon1503/blink-o-mat)](LICENSE.txt)
 
-blink-o-mat is a Windows desktop tool for rapidly reviewing and culling astrophotography light frames. It loads FITS and XISF subframes, measures quality metrics on each frame, lets you blink through them side-by-side, and moves rejects to a separate folder — all with a dark-room-friendly UI.
+Rejector is a Windows desktop tool for rapidly reviewing and culling astrophotography light frames. It loads FITS and XISF subframes, measures quality metrics on each frame, lets you blink through them side-by-side, and moves rejects to a separate folder — all with a dark-room-friendly UI.
 
 ---
 

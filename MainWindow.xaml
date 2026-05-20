@@ -7,7 +7,7 @@
         mc:Ignorable="d"
          Background="{StaticResource WindowBackgroundBrush}"
          Foreground="{StaticResource TextBrush}"
-        Title="blink-o-mat" Height="820" Width="1200">
+        Title="Rejector" Height="820" Width="1200">
     <Grid Margin="12" Background="{StaticResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -65,7 +65,7 @@
 
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
-                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Frame summary" />
+                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Frame summary" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -75,16 +75,23 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Text="Total frames" />
                                 <TextBlock Grid.Row="0" Grid.Column="1" FontWeight="SemiBold" Text="{Binding TotalFrameCount}" />
                                 <TextBlock Grid.Row="1" Text="Rejected frames" Margin="0,4,0,0" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding RejectedFrameCount}" />
-                                <TextBlock Grid.Row="2" Text="Rejected %" Margin="0,4,0,0" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding RejectedFramePercentageText}" />
-                                <TextBlock Grid.Row="3" Text="Approved frames" Margin="0,4,0,0" />
-                                <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding ApprovedFrameCount}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,4,0,0" FontWeight="SemiBold">
+                                    <Run Text="{Binding RejectedFrameCount, Mode=OneWay}" />
+                                    <Run Text=" (" />
+                                    <Run Text="{Binding RejectedFramePercentageText, Mode=OneWay}" />
+                                    <Run Text=")" />
+                                </TextBlock>
+                                <TextBlock Grid.Row="2" Text="Approved frames" Margin="0,4,0,0" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,4,0,0" FontWeight="SemiBold">
+                                    <Run Text="{Binding ApprovedFrameCount, Mode=OneWay}" />
+                                    <Run Text=" (" />
+                                    <Run Text="{Binding ApprovedFramePercentageText, Mode=OneWay}" />
+                                    <Run Text=")" />
+                                </TextBlock>
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -98,9 +105,10 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Min. trail confidence" />
-                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding MinSatelliteConfidence, StringFormat={}{0}%}" />
+                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding SatelliteTrailRejectedFrameCount, StringFormat={}Rejects: {0}}" />
                             </Grid>
-                            <DockPanel Margin="0,0,0,10">
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MinSatelliteConfidence, StringFormat={}{0}%}" />
                                 <Slider Minimum="1" Maximum="100" Value="{Binding MinSatelliteConfidence, UpdateSourceTrigger=PropertyChanged}"
                                         TickFrequency="5" IsSnapToTickEnabled="False" />
                             </DockPanel>
@@ -195,8 +203,6 @@
                                 <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MinStars, StringFormat=F0}" />
                                 <Slider Minimum="0" Maximum="1000" Value="{Binding MinStars, UpdateSourceTrigger=PropertyChanged}" TickFrequency="5" IsSnapToTickEnabled="False" />
                             </DockPanel>
-
-                            <TextBlock Margin="0,8,0,0" Opacity="0.78" Text="{Binding SatelliteTrailRejectedFrameCount, StringFormat=Satellite trail rejects: {0}}" />
                         </StackPanel>
                     </Border>
 
