@@ -7,7 +7,7 @@
         mc:Ignorable="d"
          Background="{StaticResource WindowBackgroundBrush}"
          Foreground="{StaticResource TextBrush}"
-        Title="Rejector" Height="820" Width="1200">
+        Title="Rejector" Height="1000" Width="1550">
     <Grid Margin="12" Background="{StaticResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -467,7 +467,7 @@
                     </Border>
                 </Grid>
 
-            <ListView Grid.Row="1"
+                <ListView Grid.Row="1"
                       x:Name="FramesListView"
                       ItemsSource="{Binding FilteredFrames}"
                       SelectedItem="{Binding SelectedFrame, Mode=TwoWay}"
@@ -479,17 +479,17 @@
                       VirtualizingPanel.ScrollUnit="Pixel"
                       VirtualizingPanel.CacheLengthUnit="Item"
                       VirtualizingPanel.CacheLength="1">
-                <ListView.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <VirtualizingStackPanel />
-                    </ItemsPanelTemplate>
-                </ListView.ItemsPanel>
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <controls:FrameListItemView />
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <controls:FrameListItemView />
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
             </Grid>
         </Grid>
 

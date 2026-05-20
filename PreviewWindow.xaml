@@ -4,7 +4,7 @@
         xmlns:converters="clr-namespace:blink_o_mat.Converters"
          Background="{StaticResource WindowBackgroundBrush}"
          Foreground="{StaticResource TextBrush}"
-        Title="Frame Preview" Height="900" Width="1300">
+        Title="Frame Preview" Height="1000" Width="1500">
     <Window.Resources>
         <converters:StfSliderValueConverter x:Key="StfSliderValueConverter" />
         <Style x:Key="AcceptedFilterChipStyle" TargetType="ToggleButton">
@@ -322,6 +322,8 @@
                 <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                     <Grid>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
