@@ -195,15 +195,7 @@
                                 <TextBlock FontWeight="SemiBold" Text="Preview and ROI" />
                             </Expander.Header>
                             <StackPanel Margin="0,8,0,0">
-                                <TextBlock Text="Stretch mode" />
-                                <ComboBox ItemsSource="{Binding StretchModeOptions}" SelectedItem="{Binding StretchMode}" Margin="0,2,0,8" />
-                                <TextBlock Text="Stretch" />
-                                <Slider Minimum="0.25" Maximum="5.0" Value="{Binding StretchStrength, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
-                                <TextBlock Margin="0,0,0,8" Text="{Binding StretchStrength, StringFormat=F2}" />
-                                <CheckBox Content="Use same target background for all frames" IsChecked="{Binding UseGlobalTargetBackground}" Margin="0,0,0,6" />
-                                <TextBlock Text="Target background" />
-                                <Slider Minimum="0.05" Maximum="0.75" Value="{Binding TargetBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
-                                <TextBlock Margin="0,0,0,8" Text="{Binding TargetBackground, StringFormat=F2}" />
+                                <CheckBox Content="Auto-stretch each frame individually" IsChecked="{Binding AutoStretchPerFrame}" Margin="0,0,0,8" />
                                 <TextBlock Text="ROI bias" />
                                 <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,0" />
                             </StackPanel>

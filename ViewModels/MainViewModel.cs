@@ -80,6 +80,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _skyTempRejectedFrameCount;
     private int _starCountRejectedFrameCount;
     private bool _hasManualRoi;
+    private bool _autoStretchPerFrame;
     private bool _skipRejectedInPreview;
     private bool _showAccepted = true;
     private bool _showRejected = true;
@@ -316,6 +317,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
+
+    public bool AutoStretchPerFrame
+    {
+        get => _autoStretchPerFrame;
+        set
+        {
+            if (_autoStretchPerFrame == value) return;
+            _autoStretchPerFrame = value;
+            OnPropertyChanged();
+            InvalidateFullImageCaches();
+            OnStretchSettingsChanged();
+        }
+    }
+
+    private StfParameters GetStfForFrame(RustafitsService.LoadedFrame frame) =>
+        _autoStretchPerFrame ? _rustafits.ComputeAutoStretch(frame) : ActiveStf;
 
     public string? RejectedFolder
     {
@@ -759,7 +776,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     OnPropertyChanged(nameof(StfMidtones));
                     OnPropertyChanged(nameof(StfHighlights));
                     _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(raw, RoiBias);
-                    var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, ActiveStf, _globalRoiCenter, metrics, CancellationToken.None);
+                    var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, GetStfForFrame(raw), _globalRoiCenter, metrics, CancellationToken.None);
 
                     var item = new FrameItem
                     {
@@ -829,7 +846,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         var metrics = _rustafits.AnalyzeFrame(oriented);
 
                         statusProgress.Report($"Background processing {startedCount}/{totalBackgroundFrames}: building previews for {fileName} (active: {Volatile.Read(ref activeBackgroundFrames)}, completed: {Volatile.Read(ref completedBackgroundFrames)})");
-                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, ActiveStf, _globalRoiCenter, metrics, CancellationToken.None);
+                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, GetStfForFrame(oriented), _globalRoiCenter, metrics, CancellationToken.None);
 
                         var item = new FrameItem
                         {
@@ -1172,7 +1189,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var loaded = _loadedFrames[index];
             var (targetWidth, targetHeight) = GetInteractivePreviewDimensions(loaded);
-            var previewImage = await _rustafits.RenderScaledPreviewBitmapAsync(await MaterializeFrameAsync(loaded, cancellationToken), targetWidth, targetHeight, ActiveStf, cancellationToken);
+            var materialized = await MaterializeFrameAsync(loaded, cancellationToken);
+            var previewImage = await _rustafits.RenderScaledPreviewBitmapAsync(materialized, targetWidth, targetHeight, GetStfForFrame(materialized), cancellationToken);
             if (cancellationToken.IsCancellationRequested ||
                 !ReferenceEquals(_previewWindow, previewWindow) ||
                 !ReferenceEquals(_previewItem, activeItem))
@@ -1220,7 +1238,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             _previewCacheCts?.Cancel();
             var loaded = _loadedFrames[index];
-            var fullImage = await _rustafits.RenderFullBitmapAsync(await MaterializeFrameAsync(loaded, cancellationToken), ActiveStf, cancellationToken);
+            var materializedFull = await MaterializeFrameAsync(loaded, cancellationToken);
+            var fullImage = await _rustafits.RenderFullBitmapAsync(materializedFull, GetStfForFrame(materializedFull), cancellationToken);
             if (cancellationToken.IsCancellationRequested ||
                 !ReferenceEquals(_previewWindow, previewWindow) ||
                 !ReferenceEquals(_previewItem, activeItem))
@@ -1308,7 +1327,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
                 var frameData = await MaterializeFrameAsync(loaded, cancellationToken);
-                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, ActiveStf, _globalRoiCenter, loaded.Item.Metrics, cancellationToken);
+                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, GetStfForFrame(frameData), _globalRoiCenter, loaded.Item.Metrics, cancellationToken);
 
                 loaded.Item.ThumbnailImage = previews.Full;
                 loaded.Item.RoiImage = previews.Roi;
@@ -1559,7 +1578,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return loaded.FullImage;
         }
 
-        var fullImage = await _rustafits.RenderFullBitmapAsync(await MaterializeFrameAsync(loaded, CancellationToken.None), ActiveStf, CancellationToken.None);
+        var materializedForFull = await MaterializeFrameAsync(loaded, CancellationToken.None);
+        var fullImage = await _rustafits.RenderFullBitmapAsync(materializedForFull, GetStfForFrame(materializedForFull), CancellationToken.None);
         _loadedFrames[index] = loaded with { FullImage = fullImage };
         PublishPreviewCacheState();
         return fullImage;
@@ -1628,7 +1648,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var full = await _rustafits.RenderFullBitmapAsync(await MaterializeFrameAsync(loaded, cancellationToken), ActiveStf, cancellationToken);
+        var materializedCached = await MaterializeFrameAsync(loaded, cancellationToken);
+        var full = await _rustafits.RenderFullBitmapAsync(materializedCached, GetStfForFrame(materializedCached), cancellationToken);
         _loadedFrames[index] = loaded with { FullImage = full };
         PublishPreviewCacheState();
     }

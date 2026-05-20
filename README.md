@@ -1,181 +1,206 @@
 # blink-o-mat
 
-Blinker and subframe quality sorter for astronomical FITS/XISF images.
+> **Fast subframe quality sorter and blinker for astronomical FITS/XISF images.**
 
-Designed for fast proofing of weak astro subframes on Windows with a dark-room-friendly UI, fast blinking workflow, ROI inspection, and automatic rejection support.
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)](https://www.microsoft.com/windows)
+[![License](https://img.shields.io/github/license/photon1503/blink-o-mat)](LICENSE.txt)
+
+blink-o-mat is a Windows desktop tool for rapidly reviewing and culling astrophotography light frames. It loads FITS and XISF subframes, measures quality metrics on each frame, lets you blink through them side-by-side, and moves rejects to a separate folder — all with a dark-room-friendly UI.
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Build](#build)
+- [Usage — GUI](#usage--gui)
+- [Usage — Headless](#usage--headless)
+- [Headless Arguments](#headless-arguments)
+- [Default Thresholds](#default-thresholds)
+- [Notes](#notes)
+
+---
 
 ## Features
 
-### File loading and session workflow
+### Loading & Session Workflow
 
-- Browse a folder of light frames (`.fit`, `.fits`, `.xisf`)
-- Native .NET FITS/XISF loading on Windows
-- Async first-frame loading followed by parallel background processing for the remaining frames
-- Progress and status updates during scanning, loading, stretching, and preview refresh operations
-- Early thumbnail/ROI availability while the session is still loading
-- Skips unreadable frames and continues loading the rest of the session
-- Remembers the last used input and rejected folders between runs
+| Capability | Details |
+|---|---|
+| Supported formats | `.fit`, `.fits`, `.xisf` |
+| Loading strategy | First frame sync, remaining frames in parallel background tasks |
+| Progress feedback | Status updates during scanning, loading, stretching, and preview refresh |
+| Fault tolerance | Unreadable frames are skipped; loading continues |
+| Persistence | Last-used input and rejected folder paths are remembered between runs |
 
-### Display and preview
+### Display & Preview
 
-- Dark, mid-gray UI theme for low-glare night-time use
-- Main list with per-frame full thumbnail and ROI preview
-- Active preview frame is highlighted in the main list
-- Per-frame score summary in the main list with stars and numeric rating
-- Dedicated frame preview window for blinking and inspection
-  - Default zoom-to-fit
-  - Prev/Next buttons
-	- Direct frame scrubbing with a vertical frame slider
-	- Accepted/Rejected filter chips matching the main window
-  - Instant preview-list and slider updates when filters change
-  - Keyboard navigation with `Left` / `Right`
-  - Reject toggle with `R`
-	- Navigation follows the currently visible filtered frame list
-  - Keeps zoom level and pan position while stepping between frames
-  - Left mouse drag pans the image
-  - `Ctrl + Mouse Wheel` zooms
-  - `1:1`, fit, zoom-in, and zoom-out controls
-  - Shows preview cache coverage beside the frame slider
-  - Shows transient status text when a full frame is loaded from disk
-- Right-click loupe in the preview window
-  - Visible only while RMB is held down
-  - Follows the mouse
-  - Shows local pixel stats (`X`, `Y`, `K`, `Min`, `Max`, `Mean`)
+- **Dark, mid-gray UI** — low-glare theme for night-time use
+- **Main list** — per-frame thumbnail, ROI preview, star rating, and numeric score at a glance
+- **Dedicated preview window** for blinking and close inspection:
+  - Default zoom-to-fit; `1:1`, zoom-in, zoom-out controls
+  - Pan with **left mouse drag**, zoom with **Ctrl + Mouse Wheel**
+  - Prev / Next buttons and a **vertical frame slider** for direct scrubbing
+  - **Accepted / Rejected filter chips** — list and slider update instantly when filters change
+  - Keyboard navigation: `←` / `→` to step, `R` to toggle reject
+  - Zoom level and pan position are preserved while stepping between frames
+  - Cache coverage indicator beside the slider
+  - Transient status message when a full-resolution frame is loaded from disk
+- **Right-click loupe** — visible while RMB is held, follows the cursor, shows local pixel stats (`X`, `Y`, `K`, `Min`, `Max`, `Mean`)
 
-### Stretching and normalization
+### Stretch & Normalization
 
-- Global stretch control (`0.25` to `5.0`)
-- Stretch mode selector
-  - `Default`
-  - `NinaStyle`
-- Global same-background normalization option
-  - `Use same target background for all frames`
-  - Adjustable target background slider
-  - Enabled by default
+- Global stretch factor: `0.25×` to `5.0×`
+- Stretch modes: **Default** · **NinaStyle**
+- **Same-background normalization** — aligns all frames to a common target background level (enabled by default, target level adjustable)
+- Stretch and ROI controls are mirrored in both the main window and the preview window
 
-### ROI and orientation handling
+### ROI & Orientation
 
-- ROI preview plus full-frame preview for every frame
-- ROI bias modes:
-  - `Galaxy`
-  - `Core`
-  - `Starfield`
-- Manual ROI override with `Ctrl+Click` in the preview window
-  - Persists for the currently loaded set
-- Stretch/ROI controls are available both in the main window and in the preview window
-- Automatic orientation normalization to align meridian-flipped / rotated frames
+- ROI preview alongside a full-frame preview for every frame
+- ROI bias presets: **Galaxy** · **Core** · **Starfield**
+- **Ctrl+Click** in the preview window to set a manual ROI (persists for the session)
+- Automatic orientation normalization to align meridian-flipped and rotated frames
 
-### Per-frame quality metrics
+### Quality Metrics
 
-- FWHM (px)
-- FWHM (arcsec), when focal length and pixel size are available
-- SQM, when available from the filename
-- Sky temperature, when available from FITS/XISF metadata
-- HFR
-- Star count
-- Eccentricity
-- Mean background
-- Median
-- MAD (median absolute deviation)
-- Min and Max, including occurrence counters
-- Possible satellite trail flag
+Each frame is measured for:
 
-The UI also includes:
+| Metric | Notes |
+|---|---|
+| FWHM (px) | |
+| FWHM (arcsec) | When focal length and pixel size are available |
+| HFR | |
+| Star count | |
+| Eccentricity | |
+| SQM | Parsed from filename when present |
+| Sky temperature | From FITS/XISF `SKYTEMP` keyword |
+| Mean background | |
+| Median | |
+| MAD | Median absolute deviation |
+| Min / Max | Including per-value occurrence counters |
+| Satellite trail flag | Heuristic detection |
 
-- Colored red/yellow/green metric indicators relative to the loaded session
-- Weighted overall score with star display
-- Quality labeling (`GOOD`, `FAIR`, `POOR`) and score-driven visual emphasis in the preview details
+The UI color-codes each metric (🟢 / 🟡 / 🔴) relative to the session, shows a weighted overall score as a star rating, and labels each frame **GOOD**, **FAIR**, or **POOR**.
 
-### Metadata extraction
+### Metadata Extraction
 
-- Focal length
-- Pixel size
-- Exposure date/time
-- Exposure length
-- Filter
-- Sky temperature (`SKYTEMP`) from FITS/XISF metadata, when present
+Focal length · Pixel size · Exposure date/time · Exposure length · Filter · Sky temperature
 
-### Rejection and sorting
+### Rejection & Sorting
 
-- Automatic rejection using adjustable thresholds
-  - Max FWHM
-	- Min SQM
-  - Max sky temperature
-  - Max HFR
-  - Max eccentricity
-  - Max mean background
-  - Min stars
-  - Optional reject on possible satellite trails
-- Manual keep/reject override per frame without losing the underlying automatic rejection state
-- Preview window keep/reject action uses clear stateful labeling and color coding
-- One-click move rejected subframes to another folder
-- Collision-safe renaming during move operations
+- **Automatic rejection** with per-threshold sliders:
+  - Max FWHM · Min SQM · Max sky temperature · Max HFR · Max eccentricity · Max mean background · Min stars · Satellite trail (optional)
+- **Manual keep/reject override** per frame — does not erase the underlying automatic state
+- Color-coded keep/reject labels in the preview window
+- **One-click move** of all rejected frames to the rejected folder
+- Collision-safe rename on move to prevent overwrite
 
-### Satellite trail detection
+### Satellite Trail Detection
 
-- Heuristic satellite trail detection
-- Trail state shown in the metrics
-- Trail overlay shown on thumbnails when detected
+- Heuristic trail detection built in
+- Trail state visible in per-frame metrics
+- Trail overlay rendered on thumbnails when a trail is detected
 
-### Performance-oriented behavior
+### Performance
 
-- Async processing to keep the UI responsive
-- Batched collection updates and virtualized frame list
-- Adaptive preview caching for faster frame-to-frame blinking
-- Lower-latency preview iteration with reduced redraw and allocation overhead while stepping through frames
-- Reused preview-slider cache-indicator brushes to reduce UI allocation churn
-- Automatic trimming of cached full-resolution preview images to stay memory-conscious
-- Memory-conscious frame handling for large sessions
+- Fully async processing — UI stays responsive throughout
+- Batched collection updates and virtualized frame list for large sessions
+- Adaptive preview cache for low-latency frame-to-frame blinking
+- Reduced redraw and allocation overhead during fast preview stepping
+- Automatic eviction of cached full-resolution previews to cap memory use
 
-### Headless mode
+### Headless / CLI Mode
 
-- CLI/headless mode for automated filtering and moving of rejected frames
+Automated filtering and rejection without launching the UI — scriptable from any shell or CI pipeline.
+
+---
 
 ## Requirements
 
-- Windows
-- .NET 10 SDK/runtime
+- **Windows** (WPF-based UI; headless mode also Windows-only)
+- **.NET 10** SDK or runtime
+
+---
 
 ## Build
-
-From the solution root:
 
 ```powershell
 dotnet build
 ```
 
-## Run (GUI)
+---
+
+## Usage — GUI
 
 ```powershell
 dotnet run --project .\blink-o-mat.csproj
 ```
 
-## Run (Headless)
+1. Click **Browse** and select the folder containing your light frames.
+2. Wait for the session to finish loading (progress shown in the status bar).
+3. Adjust stretch, ROI bias, and rejection thresholds as needed.
+4. Blink through frames in the preview window; press `R` to reject individual frames.
+5. Click **Move Rejected** to relocate all rejected frames to the configured rejected folder.
+
+---
+
+## Usage — Headless
 
 ```powershell
 dotnet run --project .\blink-o-mat.csproj -- --headless --input "D:\lights" --rejected "D:\lights\rejected"
 ```
 
-### Headless arguments
+All rejection thresholds are optional; omitting one leaves it at its default value.
 
-- `--headless` : run without UI
-- `--input <folder>` : source frames folder
-- `--rejected <folder>` : destination for rejected frames
-- `--max-fwhm <value>` : rejection threshold
-- `--max-hfr <value>` : rejection threshold
-- `--max-ecc <value>` : rejection threshold
-- `--max-bg <value>` : rejection threshold
-- `--allow-trails` : do not reject on detected satellite trails
+### Headless Arguments
 
-## Example
+| Argument | Description | Default |
+|---|---|---|
+| `--headless` | Run without UI (required for headless mode) | — |
+| `--input <folder>` | Source frames folder | — |
+| `--rejected <folder>` | Destination folder for rejected frames | — |
+| `--max-fwhm <value>` | Reject frames with FWHM above this value | `8.0` |
+| `--max-hfr <value>` | Reject frames with HFR above this value | `4.5` |
+| `--max-ecc <value>` | Reject frames with eccentricity above this value | `0.6` |
+| `--max-bg <value>` | Reject frames with mean background above this value | `2000` |
+| `--allow-trails` | Do **not** reject frames with detected satellite trails | trails rejected |
+
+### Example
 
 ```powershell
-dotnet run --project .\blink-o-mat.csproj -- --headless --input "D:\lights" --rejected "D:\lights\rejected" --max-fwhm 5.5 --max-hfr 3.5 --max-ecc 0.55 --max-bg 1800
+dotnet run --project .\blink-o-mat.csproj -- `
+  --headless `
+  --input    "D:\lights" `
+  --rejected "D:\lights\rejected" `
+  --max-fwhm 5.5 `
+  --max-hfr  3.5 `
+  --max-ecc  0.55 `
+  --max-bg   1800
 ```
+
+---
+
+## Default Thresholds
+
+| Threshold | Default |
+|---|---|
+| Max FWHM | 8.0 px |
+| Max HFR | 4.5 |
+| Max eccentricity | 0.60 |
+| Max mean background | 2000 |
+| Max sky temperature | 40 °C |
+| Min SQM | 0 (disabled) |
+| Min stars | 0 (disabled) |
+| Reject satellite trails | Yes |
+
+---
 
 ## Notes
 
-- Metrics, trail detection, ROI selection, scoring, and orientation normalization are heuristic and intended for fast subframe sorting.
-- The preview loupe statistics are based on the currently rendered preview image.
-- Manual keep/reject overrides affect the effective rejection state shown in the UI and used for move operations.
-- Rejected-frame move operations rename on collision to avoid overwrite.
+- All metrics, trail detection, ROI selection, scoring, and orientation normalization are **heuristic** and optimized for speed rather than scientific precision. They are intended for fast subframe culling, not final calibration.
+- Loupe pixel statistics are derived from the currently rendered (stretched) preview image, not the raw sensor data.
+- Manual keep/reject overrides are independent of automatic thresholds — changing a threshold after a manual override does not clear the override.
+- Move operations rename files on collision (`_1`, `_2`, …) to prevent accidental overwrites.
