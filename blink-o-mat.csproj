@@ -7,6 +7,7 @@
     <AssemblyName>Rejector</AssemblyName>
     <Product>Rejector</Product>
     <Title>Rejector</Title>
+    <ApplicationIcon>Icon\6dd39f16-9f8b-454e-86c4-b44c409cb647.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -23,6 +24,14 @@
     <None Remove="BenchmarkSuite1\**" />
     <Content Remove="BenchmarkSuite1\**" />
     <EmbeddedResource Remove="BenchmarkSuite1\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="6dd39f16-9f8b-454e-86c4-b44c409cb647.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="6dd39f16-9f8b-454e-86c4-b44c409cb647.png" />
   </ItemGroup>
 
 </Project>

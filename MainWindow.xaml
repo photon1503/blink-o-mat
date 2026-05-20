@@ -7,7 +7,7 @@
         mc:Ignorable="d"
          Background="{StaticResource WindowBackgroundBrush}"
          Foreground="{StaticResource TextBrush}"
-        Title="Rejector" Height="1000" Width="1550">
+        Title="Rejector" Height="1000" Width="1550" Icon="/6dd39f16-9f8b-454e-86c4-b44c409cb647.png">
     <Grid Margin="12" Background="{StaticResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
