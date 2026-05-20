@@ -76,12 +76,12 @@ public sealed class RustafitsService
         return Task.CompletedTask;
     }
 
-    public Task<(BitmapSource Full, BitmapSource Roi)> RenderPreviewBitmapsAsync(LoadedFrame frame, StfParameters stf, (double X, double Y)? roiNormalizedCenter, AstroMetrics? metrics, CancellationToken cancellationToken)
+    public Task<(BitmapSource Full, BitmapSource Roi)> RenderPreviewBitmapsAsync(LoadedFrame frame, StfParameters stf, (double Left, double Top, double Width, double Height)? roiNormalizedRect, AstroMetrics? metrics, CancellationToken cancellationToken)
     {
         return Task.Run(() =>
         {
             var full = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stf, metrics, frame.NormalizationMax);
-            var roi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stf, roiNormalizedCenter, frame.NormalizationMax);
+            var roi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stf, roiNormalizedRect, frame.NormalizationMax);
             return (full, roi);
         }, cancellationToken);
     }
@@ -1469,27 +1469,41 @@ public sealed class RustafitsService
         }
     }
 
-    private static BitmapSource CreateRoiBitmap(float[] pixels, int width, int height, int roiSize, StfParameters stf, (double X, double Y)? roiNormalizedCenter, double normalizationMax)
+    private static BitmapSource CreateRoiBitmap(float[] pixels, int width, int height, int roiSize, StfParameters stf, (double Left, double Top, double Width, double Height)? roiNormalizedRect, double normalizationMax)
     {
-        var (cx, cy) = roiNormalizedCenter is { } roi
-            ? ((int)Math.Round(Math.Clamp(roi.X, 0, 1) * (width - 1)), (int)Math.Round(Math.Clamp(roi.Y, 0, 1) * (height - 1)))
-            : DetectRoiCenter(pixels, width, height, RoiBias.Galaxy);
-
-        var half = roiSize / 2;
-        var startX = Math.Clamp(cx - half, 0, Math.Max(0, width - roiSize));
-        var startY = Math.Clamp(cy - half, 0, Math.Max(0, height - roiSize));
-        var actualWidth = Math.Min(roiSize, width);
-        var actualHeight = Math.Min(roiSize, height);
-
-        var crop = new float[actualWidth * actualHeight];
-        for (var y = 0; y < actualHeight; y++)
+        int startX, startY, cropW, cropH;
+        if (roiNormalizedRect is { } rect)
         {
-            var sourceOffset = ((startY + y) * width) + startX;
-            var targetOffset = y * actualWidth;
-            Array.Copy(pixels, sourceOffset, crop, targetOffset, actualWidth);
+            // Convert normalized rect to pixel coordinates
+            startX = (int)Math.Round(Math.Clamp(rect.Left, 0, 1) * (width - 1));
+            startY = (int)Math.Round(Math.Clamp(rect.Top, 0, 1) * (height - 1));
+            cropW = Math.Max(1, (int)Math.Round(Math.Clamp(rect.Width, 0, 1) * width));
+            cropH = Math.Max(1, (int)Math.Round(Math.Clamp(rect.Height, 0, 1) * height));
+            // Clamp to image bounds
+            startX = Math.Clamp(startX, 0, Math.Max(0, width - 1));
+            startY = Math.Clamp(startY, 0, Math.Max(0, height - 1));
+            cropW = Math.Min(cropW, width - startX);
+            cropH = Math.Min(cropH, height - startY);
+        }
+        else
+        {
+            var (cx, cy) = DetectRoiCenter(pixels, width, height, RoiBias.Galaxy);
+            var half = roiSize / 2;
+            startX = Math.Clamp(cx - half, 0, Math.Max(0, width - roiSize));
+            startY = Math.Clamp(cy - half, 0, Math.Max(0, height - roiSize));
+            cropW = Math.Min(roiSize, width);
+            cropH = Math.Min(roiSize, height);
         }
 
-        var sample = DownsampleAndStretch(crop, actualWidth, actualHeight, roiSize, roiSize, stf, normalizationMax);
+        var crop = new float[cropW * cropH];
+        for (var y = 0; y < cropH; y++)
+        {
+            var sourceOffset = ((startY + y) * width) + startX;
+            var targetOffset = y * cropW;
+            Array.Copy(pixels, sourceOffset, crop, targetOffset, cropW);
+        }
+
+        var sample = DownsampleAndStretch(crop, cropW, cropH, roiSize, roiSize, stf, normalizationMax);
         var stride = roiSize * 3;
         var bitmap = BitmapSource.Create(roiSize, roiSize, 96, 96, PixelFormats.Rgb24, null, sample, stride);
         bitmap.Freeze();

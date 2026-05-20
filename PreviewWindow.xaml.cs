@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.Windows.Controls.Primitives;
+using System.Windows.Shapes;
 using blink_o_mat.ViewModels;
 using WpfPoint = System.Windows.Point;
 
@@ -33,6 +34,9 @@ public partial class PreviewWindow : Window
     private WpfPoint _panStartPoint;
     private double _panStartHorizontalOffset;
     private double _panStartVerticalOffset;
+    private bool _isRoiDragging;
+    private WpfPoint _roiDragOriginImage;
+    private System.Windows.Shapes.Rectangle? _roiDragOverlay;
     private int? _queuedKeyboardNavigationIndex;
     private const int LoupeSampleSize = 31;
     private const int LoupeZoomScale = 4;
@@ -253,17 +257,12 @@ public partial class PreviewWindow : Window
 
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
         {
-            var point = e.GetPosition(PreviewImage);
-            if (PreviewImage.ActualWidth <= 0 || PreviewImage.ActualHeight <= 0)
-            {
-                return;
-            }
-
-            var normalized = new WpfPoint(
-                point.X / PreviewImage.ActualWidth,
-                point.Y / PreviewImage.ActualHeight);
-
-            _vm.SetManualRoi(normalized);
+            _isRoiDragging = true;
+            _roiDragOriginImage = e.GetPosition(PreviewImage);
+            PreviewImage.CaptureMouse();
+            Cursor = System.Windows.Input.Cursors.Cross;
+            EnsureRoiDragOverlay();
+            UpdateRoiDragOverlay(_roiDragOriginImage, _roiDragOriginImage);
             e.Handled = true;
             return;
         }
@@ -279,6 +278,13 @@ public partial class PreviewWindow : Window
 
     private void PreviewImage_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        if (_isRoiDragging)
+        {
+            CommitRoiDrag(e.GetPosition(PreviewImage));
+            e.Handled = true;
+            return;
+        }
+
         if (!_isPanning)
         {
             return;
@@ -308,6 +314,19 @@ public partial class PreviewWindow : Window
 
     private void PreviewImage_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        if (_isRoiDragging)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed || (Keyboard.Modifiers & ModifierKeys.Control) == 0)
+            {
+                CancelRoiDrag();
+                return;
+            }
+
+            UpdateRoiDragOverlay(_roiDragOriginImage, e.GetPosition(PreviewImage));
+            e.Handled = true;
+            return;
+        }
+
         if (!_isLoupeActive)
         {
             if (!_isPanning)
@@ -445,6 +464,127 @@ public partial class PreviewWindow : Window
         Cursor = null;
     }
 
+    private void EnsureRoiDragOverlay()
+    {
+        if (_roiDragOverlay is not null)
+        {
+            return;
+        }
+
+        _roiDragOverlay = new System.Windows.Shapes.Rectangle
+        {
+            Stroke = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xA5, 0x00)),
+            StrokeThickness = 1.5,
+            StrokeDashArray = [4, 2],
+            Fill = new SolidColorBrush(System.Windows.Media.Color.FromArgb(30, 0xFF, 0xA5, 0x00)),
+            IsHitTestVisible = false
+        };
+        LoupeCanvas.Children.Add(_roiDragOverlay);
+    }
+
+    // origin and current are in PreviewImage logical coordinates (unscaled by zoom)
+    private void UpdateRoiDragOverlay(WpfPoint origin, WpfPoint current)
+    {
+        if (_roiDragOverlay is null || PreviewImage.ActualWidth <= 0 || PreviewImage.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        // Compute square: side = min of |dx|, |dy| in image pixels
+        var dx = current.X - origin.X;
+        var dy = current.Y - origin.Y;
+        var side = Math.Min(Math.Abs(dx), Math.Abs(dy));
+        var signX = dx >= 0 ? 1 : -1;
+        var signY = dy >= 0 ? 1 : -1;
+
+        // Clamp so rect stays within image bounds
+        var x1 = origin.X;
+        var y1 = origin.Y;
+        var x2 = Math.Clamp(x1 + signX * side, 0, PreviewImage.ActualWidth);
+        var y2 = Math.Clamp(y1 + signY * side, 0, PreviewImage.ActualHeight);
+        x1 = Math.Clamp(x1, 0, PreviewImage.ActualWidth);
+        y1 = Math.Clamp(y1, 0, PreviewImage.ActualHeight);
+
+        var rectX = Math.Min(x1, x2);
+        var rectY = Math.Min(y1, y2);
+        var rectW = Math.Abs(x2 - x1);
+        var rectH = Math.Abs(y2 - y1);
+
+        // Translate from PreviewImage coords to LoupeCanvas coords (accounts for zoom + scroll)
+        var topLeft = PreviewImage.TranslatePoint(new WpfPoint(rectX, rectY), LoupeCanvas);
+
+        // The rectangle is drawn in canvas space; width/height are in zoomed display pixels
+        _roiDragOverlay.Width = rectW * _vm.Zoom;
+        _roiDragOverlay.Height = rectH * _vm.Zoom;
+        Canvas.SetLeft(_roiDragOverlay, topLeft.X);
+        Canvas.SetTop(_roiDragOverlay, topLeft.Y);
+        _roiDragOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void CommitRoiDrag(WpfPoint current)
+    {
+        _isRoiDragging = false;
+        if (Mouse.Captured == PreviewImage)
+        {
+            Mouse.Capture(null);
+        }
+
+        Cursor = null;
+
+        if (PreviewImage.ActualWidth <= 0 || PreviewImage.ActualHeight <= 0)
+        {
+            RemoveRoiDragOverlay();
+            return;
+        }
+
+        var dx = current.X - _roiDragOriginImage.X;
+        var dy = current.Y - _roiDragOriginImage.Y;
+        var side = Math.Min(Math.Abs(dx), Math.Abs(dy));
+
+        if (side < 4)
+        {
+            // Too small — ignore
+            RemoveRoiDragOverlay();
+            return;
+        }
+
+        var signX = dx >= 0 ? 1 : -1;
+        var signY = dy >= 0 ? 1 : -1;
+        var x1 = Math.Clamp(_roiDragOriginImage.X, 0, PreviewImage.ActualWidth);
+        var y1 = Math.Clamp(_roiDragOriginImage.Y, 0, PreviewImage.ActualHeight);
+        var x2 = Math.Clamp(x1 + signX * side, 0, PreviewImage.ActualWidth);
+        var y2 = Math.Clamp(y1 + signY * side, 0, PreviewImage.ActualHeight);
+
+        var left = Math.Min(x1, x2) / PreviewImage.ActualWidth;
+        var top = Math.Min(y1, y2) / PreviewImage.ActualHeight;
+        var width = Math.Abs(x2 - x1) / PreviewImage.ActualWidth;
+        var height = Math.Abs(y2 - y1) / PreviewImage.ActualHeight;
+
+        RemoveRoiDragOverlay();
+        _vm.SetManualRoi((left, top, width, height));
+    }
+
+    private void CancelRoiDrag()
+    {
+        _isRoiDragging = false;
+        if (Mouse.Captured == PreviewImage)
+        {
+            Mouse.Capture(null);
+        }
+
+        Cursor = null;
+        RemoveRoiDragOverlay();
+    }
+
+    private void RemoveRoiDragOverlay()
+    {
+        if (_roiDragOverlay is not null)
+        {
+            LoupeCanvas.Children.Remove(_roiDragOverlay);
+            _roiDragOverlay = null;
+        }
+    }
+
     private static bool IsVisualDescendantOf(DependencyObject? child, DependencyObject ancestor)
     {
         while (child is not null)
@@ -478,7 +618,7 @@ public partial class PreviewWindow : Window
 
     private void Window_PreviewMouseUp(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton != MouseButton.Left || _isPanning || _isLoupeActive)
+        if (e.ChangedButton != MouseButton.Left || _isPanning || _isLoupeActive || _isRoiDragging)
         {
             return;
         }
@@ -592,6 +732,13 @@ public partial class PreviewWindow : Window
     protected override async void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
     {
         base.OnPreviewKeyDown(e);
+
+        if (e.Key == Key.Escape && _isRoiDragging)
+        {
+            e.Handled = true;
+            CancelRoiDrag();
+            return;
+        }
 
         if (e.Key == Key.Left)
         {

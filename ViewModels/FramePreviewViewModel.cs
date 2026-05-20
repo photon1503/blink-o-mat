@@ -5,7 +5,6 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using blink_o_mat.Infrastructure;
 using blink_o_mat.Models;
-using WpfPoint = System.Windows.Point;
 
 namespace blink_o_mat.ViewModels;
 
@@ -20,7 +19,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Func<double> _getStfTargetBackground;
     private readonly Action<double> _setStfTargetBackground;
     private readonly Action _applyAutoStretch;
-    private readonly Action<WpfPoint> _setManualRoi;
+    private readonly Action<(double Left, double Top, double Width, double Height)> _setManualRoi;
     private readonly Func<RoiBias> _getRoiBias;
     private readonly Action<RoiBias> _setRoiBias;
     private readonly Func<int, Task> _navigate;
@@ -246,7 +245,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Action<RoiBias> setRoiBias,
         Action beginInteractiveStretch,
         Action endInteractiveStretch,
-        Action<WpfPoint> setManualRoi,
+        Action<(double Left, double Top, double Width, double Height)> setManualRoi,
         Func<int, Task> navigate,
         Func<int, Task> navigateToIndex,
         Action toggleReject,
@@ -288,9 +287,9 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _filterChips.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasFilterChips));
     }
 
-    public void SetManualRoi(WpfPoint normalizedPoint)
+    public void SetManualRoi((double Left, double Top, double Width, double Height) rect)
     {
-        _setManualRoi(normalizedPoint);
+        _setManualRoi(rect);
     }
 
     public async Task NavigateAsync(int direction)

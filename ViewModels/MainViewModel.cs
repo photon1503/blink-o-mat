@@ -205,7 +205,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private PreviewWindow? _previewWindow;
     private FramePreviewViewModel? _previewVm;
     private FrameItem? _previewItem;
-    private (double X, double Y)? _globalRoiCenter;
+    private (double Left, double Top, double Width, double Height)? _manualRoiRect;
     private CancellationTokenSource? _previewCacheCts;
     private CancellationTokenSource? _stretchRefreshCts;
     private readonly SemaphoreSlim _thumbnailRefreshSemaphore = new(1, 1);
@@ -685,7 +685,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (_roiBias == value) return;
             _roiBias = value;
             OnPropertyChanged();
-            _globalRoiCenter = null;
+            _manualRoiRect = null;
             _hasManualRoi = false;
             _ = UpdateAutoRoiCenterAsync(CancellationToken.None);
             ScheduleThumbnailRebuild(immediate: true);
@@ -947,7 +947,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _loadedFrames.Clear();
         ResetFrameStatistics();
         SelectedFrame = null;
-        _globalRoiCenter = null;
+        _manualRoiRect = null;
         _hasManualRoi = false;
         SessionFocalLengthMm = null;
         SessionPixelSizeUm = null;
@@ -985,8 +985,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     OnPropertyChanged(nameof(StfShadows));
                     OnPropertyChanged(nameof(StfMidtones));
                     OnPropertyChanged(nameof(StfHighlights));
-                    _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(raw, RoiBias);
-                    var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, GetStfForFrame(raw), _globalRoiCenter, metrics, CancellationToken.None);
+                    var roiCenter = _rustafits.DetectRoiNormalizedCenter(raw, RoiBias);
+                    var longestSide = Math.Max(raw.Width, raw.Height);
+                    var roiSize = longestSide > 0 ? 160.0 / longestSide : 0.25;
+                    _manualRoiRect = (Math.Clamp(roiCenter.X - roiSize / 2, 0, 1 - roiSize), Math.Clamp(roiCenter.Y - roiSize / 2, 0, 1 - roiSize), roiSize, roiSize);
+                    var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, GetStfForFrame(raw), _manualRoiRect, metrics, CancellationToken.None);
 
                     var item = new FrameItem
                     {
@@ -1056,7 +1059,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         var metrics = _rustafits.AnalyzeFrame(oriented);
 
                         statusProgress.Report($"Background processing {startedCount}/{totalBackgroundFrames}: building previews for {fileName} (active: {Volatile.Read(ref activeBackgroundFrames)}, completed: {Volatile.Read(ref completedBackgroundFrames)})");
-                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, GetStfForFrame(oriented), _globalRoiCenter, metrics, CancellationToken.None);
+                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, GetStfForFrame(oriented), _manualRoiRect, metrics, CancellationToken.None);
 
                         var item = new FrameItem
                         {
@@ -1537,7 +1540,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
 
                 var frameData = await MaterializeFrameAsync(loaded, cancellationToken);
-                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, GetStfForFrame(frameData), _globalRoiCenter, loaded.Item.Metrics, cancellationToken);
+                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, GetStfForFrame(frameData), _manualRoiRect, loaded.Item.Metrics, cancellationToken);
 
                 loaded.Item.ThumbnailImage = previews.Full;
                 loaded.Item.RoiImage = previews.Roi;
@@ -1669,13 +1672,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         await Task.CompletedTask;
     }
 
-    private void SetManualRoi(WpfPoint point)
+    private void SetManualRoi((double Left, double Top, double Width, double Height) rect)
     {
-        _globalRoiCenter = (
-            Math.Clamp(point.X, 0.0, 1.0),
-            Math.Clamp(point.Y, 0.0, 1.0));
+        _manualRoiRect = (
+            Math.Clamp(rect.Left, 0.0, 1.0),
+            Math.Clamp(rect.Top, 0.0, 1.0),
+            Math.Clamp(rect.Width, 0.0, 1.0),
+            Math.Clamp(rect.Height, 0.0, 1.0));
         _hasManualRoi = true;
-        Status = "Manual ROI override set.";
+        Status = "Manual ROI set.";
         ScheduleThumbnailRebuild(immediate: true);
     }
 
@@ -1920,7 +1925,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        _globalRoiCenter = _rustafits.DetectRoiNormalizedCenter(await MaterializeFrameAsync(_loadedFrames[0], cancellationToken), RoiBias);
+        // Auto-detect a center point and build a normalized square ROI from it
+        var center = _rustafits.DetectRoiNormalizedCenter(await MaterializeFrameAsync(_loadedFrames[0], cancellationToken), RoiBias);
+        var frame = _loadedFrames[0];
+        var longest = Math.Max(frame.Width, frame.Height);
+        var size = longest > 0 ? 160.0 / longest : 0.25;
+        var left = Math.Clamp(center.X - size / 2, 0, 1 - size);
+        var top = Math.Clamp(center.Y - size / 2, 0, 1 - size);
+        _manualRoiRect = (left, top, size, size);
     }
 
     private static LoadedFrameContext CreateLoadedFrameContext(FrameItem item, RustafitsService.LoadedFrame frame, string filePath, bool rotate180)

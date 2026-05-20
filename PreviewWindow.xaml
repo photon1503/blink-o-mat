@@ -423,7 +423,7 @@
                             <StackPanel Margin="0,8,0,0">
                                 <TextBlock FontWeight="SemiBold" Text="ROI bias" />
                                 <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,6" />
-                                <TextBlock Text="Mouse wheel zooms at the cursor position. Ctrl+Click image sets manual ROI override (persists for loaded set). Left/Right arrow keys navigate frames." TextWrapping="Wrap" FontSize="11" />
+                                <TextBlock Text="Hold Ctrl and drag on the image to draw a square ROI. Release to confirm. The selected region is rescaled for the ROI preview in the main window. Escape cancels." TextWrapping="Wrap" FontSize="11" />
                             </StackPanel>
                         </Expander>
                     </StackPanel>
@@ -534,8 +534,9 @@
                         <TextBlock FontWeight="SemiBold" Text="Keyboard shortcuts" Margin="0,0,0,6" />
                         <TextBlock Text="Left / Right: previous or next frame" TextWrapping="Wrap" FontSize="11" />
                         <TextBlock Text="R: reject or unreject current frame" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
-                        <TextBlock Text="Ctrl + Mouse Wheel: zoom" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
-                        <TextBlock Text="Ctrl + Click: set manual ROI" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
+                        <TextBlock Text="Mouse Wheel: zoom at cursor position" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
+                        <TextBlock Text="Ctrl + Drag: draw square ROI (1:1, release to confirm)" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
+                        <TextBlock Text="Escape: cancel ROI drag" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" />
                     </StackPanel>
                 </Border>
             </StackPanel>
