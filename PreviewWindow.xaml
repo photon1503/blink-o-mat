@@ -333,11 +333,14 @@
                 <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                     <StackPanel>
                         <TextBlock FontWeight="SemiBold" FontSize="15" Text="{Binding Item.FileName}" TextWrapping="Wrap" Margin="0,0,0,8" />
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Score:" FontWeight="SemiBold" Margin="0,0,6,0" />
-                            <TextBlock Text="{Binding Item.OverallScoreStars}" Foreground="Gold" Margin="0,0,6,0" />
-                            <TextBlock Text="{Binding Item.OverallScoreText}" />
+                        <TextBlock Text="SCORE" FontSize="11" Foreground="#9A9A9A" />
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,2">
+                            <TextBlock Text="{Binding Item.ScoreValueText}" FontSize="28" FontWeight="Bold" Foreground="{Binding Item.QualityBrush}" />
+                            <TextBlock Text=" / 5" FontSize="14" Foreground="#C8C8C8" VerticalAlignment="Bottom" Margin="4,0,0,3" />
                         </StackPanel>
+                        <ProgressBar Height="10" Margin="0,4,0,0" Minimum="0" Maximum="100"
+                                     Value="{Binding Item.ScoreProgressPercent, Mode=OneWay}"
+                                     Foreground="{Binding Item.QualityBrush}" Background="#303338" />
                     </StackPanel>
                 </Border>
 
@@ -370,13 +373,21 @@
                                             Loaded="StfSlider_Loaded" />
                                 </DockPanel>
                                 <TextBlock FontWeight="SemiBold" Text="Highlights" />
-                                <DockPanel Margin="0,2,0,0">
+                                <DockPanel Margin="0,2,0,8">
                                     <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
                                                Text="{Binding StfHighlights, StringFormat=F3}" />
                                     <Slider Minimum="0" Maximum="1"
                                             Value="{Binding StfHighlights, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource StfSliderValueConverter}, ConverterParameter=high:5}"
                                             TickFrequency="0.001" IsSnapToTickEnabled="False"
                                             Loaded="StfSlider_Loaded" />
+                                </DockPanel>
+                                <TextBlock FontWeight="SemiBold" Text="Target Background" />
+                                <DockPanel Margin="0,2,0,0">
+                                    <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
+                                               Text="{Binding StfTargetBackground, StringFormat=F2}" />
+                                    <Slider Minimum="0.01" Maximum="0.5"
+                                            Value="{Binding StfTargetBackground, UpdateSourceTrigger=PropertyChanged}"
+                                            TickFrequency="0.01" IsSnapToTickEnabled="False" />
                                 </DockPanel>
                             </StackPanel>
                         </Expander>

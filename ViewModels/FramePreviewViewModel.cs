@@ -17,6 +17,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Action<double> _setStfMidtones;
     private readonly Func<double> _getStfHighlights;
     private readonly Action<double> _setStfHighlights;
+    private readonly Func<double> _getStfTargetBackground;
+    private readonly Action<double> _setStfTargetBackground;
     private readonly Action _applyAutoStretch;
     private readonly Action<WpfPoint> _setManualRoi;
     private readonly Func<RoiBias> _getRoiBias;
@@ -126,6 +128,18 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         }
     }
 
+    public double StfTargetBackground
+    {
+        get => _getStfTargetBackground();
+        set
+        {
+            var clamped = Math.Clamp(value, 0.01, 0.5);
+            if (Math.Abs(_getStfTargetBackground() - clamped) < 0.001) return;
+            _setStfTargetBackground(clamped);
+            OnPropertyChanged();
+        }
+    }
+
     public ICommand AutoStretchCommand { get; }
 
     public double Zoom
@@ -225,6 +239,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Action<double> setStfMidtones,
         Func<double> getStfHighlights,
         Action<double> setStfHighlights,
+        Func<double> getStfTargetBackground,
+        Action<double> setStfTargetBackground,
         Action applyAutoStretch,
         Func<RoiBias> getRoiBias,
         Action<RoiBias> setRoiBias,
@@ -249,6 +265,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _setStfMidtones = setStfMidtones;
         _getStfHighlights = getStfHighlights;
         _setStfHighlights = setStfHighlights;
+        _getStfTargetBackground = getStfTargetBackground;
+        _setStfTargetBackground = setStfTargetBackground;
         _applyAutoStretch = applyAutoStretch;
         _getRoiBias = getRoiBias;
         _setRoiBias = setRoiBias;
@@ -357,6 +375,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(StfShadows));
         OnPropertyChanged(nameof(StfMidtones));
         OnPropertyChanged(nameof(StfHighlights));
+        OnPropertyChanged(nameof(StfTargetBackground));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

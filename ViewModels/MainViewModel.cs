@@ -177,6 +177,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _stfShadows;
     private double _stfMidtones = 0.5;
     private double _stfHighlights = 1.0;
+    private double _stfTargetBackground = 0.25;
     private double? _sessionFocalLengthMm;
     private double? _sessionPixelSizeUm;
     private int _approvedFrameCount;
@@ -426,6 +427,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private StfParameters ActiveStf => new(_stfShadows, _stfMidtones, _stfHighlights);
 
+    public double StfTargetBackground
+    {
+        get => _stfTargetBackground;
+        set
+        {
+            var clamped = Math.Clamp(value, 0.01, 0.5);
+            if (Math.Abs(_stfTargetBackground - clamped) < 0.001) return;
+            _stfTargetBackground = clamped;
+            OnPropertyChanged();
+        }
+    }
+
     public bool SkipRejectedInPreview
     {
         get => _skipRejectedInPreview;
@@ -451,7 +464,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     private StfParameters GetStfForFrame(RustafitsService.LoadedFrame frame) =>
-        _autoStretchPerFrame ? _rustafits.ComputeAutoStretch(frame) : ActiveStf;
+        _autoStretchPerFrame ? _rustafits.ComputeAutoStretch(frame, _stfTargetBackground) : ActiveStf;
 
     public string? RejectedFolder
     {
@@ -965,7 +978,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
                     var metrics = _rustafits.AnalyzeFrame(raw);
-                    var autoStf = _rustafits.ComputeAutoStretch(raw);
+                    var autoStf = _rustafits.ComputeAutoStretch(raw, _stfTargetBackground);
                     _stfShadows = autoStf.Shadows;
                     _stfMidtones = autoStf.Midtones;
                     _stfHighlights = autoStf.Highlights;
@@ -1329,7 +1342,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             targetIndex = 0;
         }
 
-        var stf = _rustafits.ComputeAutoStretch(await MaterializeFrameAsync(_loadedFrames[targetIndex], CancellationToken.None));
+        var stf = _rustafits.ComputeAutoStretch(await MaterializeFrameAsync(_loadedFrames[targetIndex], CancellationToken.None), _stfTargetBackground);
         _stfShadows = stf.Shadows;
         _stfMidtones = stf.Midtones;
         _stfHighlights = stf.Highlights;
@@ -1602,6 +1615,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             value => StfMidtones = value,
             () => StfHighlights,
             value => StfHighlights = value,
+            () => StfTargetBackground,
+            value => StfTargetBackground = value,
             () => _ = ApplyAutoStretchAsync(),
             () => RoiBias,
             value => RoiBias = value,

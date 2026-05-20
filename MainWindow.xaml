@@ -213,6 +213,14 @@
                             </Expander.Header>
                             <StackPanel Margin="0,8,0,0">
                                 <CheckBox Content="Auto-stretch each frame individually" IsChecked="{Binding AutoStretchPerFrame}" Margin="0,0,0,8" />
+                                <TextBlock FontWeight="SemiBold" Text="STF Target Background" Margin="0,0,0,2" />
+                                <DockPanel Margin="0,0,0,8">
+                                    <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
+                                               Text="{Binding StfTargetBackground, StringFormat=F2}" />
+                                    <Slider Minimum="0.01" Maximum="0.5"
+                                            Value="{Binding StfTargetBackground, UpdateSourceTrigger=PropertyChanged}"
+                                            TickFrequency="0.01" IsSnapToTickEnabled="False" />
+                                </DockPanel>
                                 <TextBlock Text="ROI bias" />
                                 <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,0" />
                             </StackPanel>

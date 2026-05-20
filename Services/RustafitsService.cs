@@ -107,7 +107,7 @@ public sealed class RustafitsService
         return ComputeMetrics(frame);
     }
 
-    public StfParameters ComputeAutoStretch(LoadedFrame frame)
+    public StfParameters ComputeAutoStretch(LoadedFrame frame, double targetBackground = 0.25)
     {
         // Use the full pixel array (sampled for speed) to compute statistics in raw ADU
         var sampled = Sample(frame.Pixels);
@@ -137,7 +137,6 @@ public sealed class RustafitsService
 
         // PixInsight STF defaults: shadowsClipping = -2.8, targetBackground = 0.25
         const double shadowsClipping = -2.8;
-        const double targetBackground = 0.25;
 
         // Shadows clipping point (c0) in normalised space — mirrors PixInsight's c0 = median + k*sigma
         var c0 = Math.Clamp(median + (shadowsClipping * sigma), 0.0, 1.0);
