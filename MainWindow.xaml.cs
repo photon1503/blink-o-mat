@@ -13,6 +13,7 @@ namespace blink_o_mat
         {
             InitializeComponent();
             DataContext = new MainViewModel();
+            SourceInitialized += (_, _) => WindowTitleBarStyler.Apply(this);
         }
 
         private void FramesListView_SelectionChanged(object sender, SelectionChangedEventArgs e)

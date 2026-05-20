@@ -43,6 +43,7 @@ public partial class PreviewWindow : Window
         _vm = vm;
         DataContext = _vm;
         _vm.PropertyChanged += Vm_PropertyChanged;
+        SourceInitialized += (_, _) => WindowTitleBarStyler.Apply(this);
         AddHandler(Mouse.PreviewMouseUpEvent, new MouseButtonEventHandler(Window_PreviewMouseUp), true);
         Loaded += (_, _) =>
         {
