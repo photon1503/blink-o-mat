@@ -159,6 +159,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly FrameRejectionService _rejection = new();
     private readonly FrameMoveService _move = new();
     private readonly AppSettingsService _settings = new();
+    private readonly SessionService _session = new();
 
     private string? _inputFolder;
     private string? _rejectedFolder;
@@ -524,6 +525,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             ((RelayCommand)LoadFramesCommand).RaiseCanExecuteChanged();
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)SaveSessionCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)LoadSessionCommand).RaiseCanExecuteChanged();
         }
     }
 
@@ -716,6 +719,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand ApplyAutoStretchCommand { get; }
     public ICommand AddSortRuleCommand { get; }
     public ICommand RemoveSortRuleCommand { get; }
+    public ICommand SaveSessionCommand { get; }
+    public ICommand LoadSessionCommand { get; }
 
     public MainViewModel()
     {
@@ -731,6 +736,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ApplyAutoStretchCommand = new RelayCommand(async _ => await ApplyAutoStretchAsync(), _ => _loadedFrames.Count > 0);
         AddSortRuleCommand = new RelayCommand(_ => AddSortRule(), _ => SortRules.Count < SortFieldOptions.Count);
         RemoveSortRuleCommand = new RelayCommand(rule => RemoveSortRule(rule as FrameSortRuleViewModel), rule => rule is FrameSortRuleViewModel && SortRules.Count > 1);
+        SaveSessionCommand = new RelayCommand(_ => SaveSession(), _ => Frames.Count > 0 && !IsBusy);
+        LoadSessionCommand = new RelayCommand(async _ => await LoadSessionAsync(), _ => !IsBusy);
 
         AddSortRule(initialField: SortFieldOptions[0], initialDirection: SortDirectionOptions[0]);
 
@@ -1162,6 +1169,438 @@ public sealed class MainViewModel : INotifyPropertyChanged
             IsBusy = false;
             IsProgressVisible = false;
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
+        }
+    }
+
+    private void SaveSession()
+    {
+        using var dialog = new System.Windows.Forms.SaveFileDialog
+        {
+            Title = "Save Session",
+            Filter = "Blink-o-mat Session (*.boms)|*.boms|All files (*.*)|*.*",
+            DefaultExt = "boms",
+            FileName = "session.boms"
+        };
+
+        if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            var session = new SessionData
+            {
+                SavedAt = DateTimeOffset.Now,
+                InputFolder = InputFolder,
+                RejectedFolder = RejectedFolder,
+                IncludeSubfolders = IncludeSubfolders,
+                MaxFwhm = MaxFwhm,
+                MaxHfr = MaxHfr,
+                MaxEccentricity = MaxEccentricity,
+                MaxMeanBackground = MaxMeanBackground,
+                MinStars = MinStars,
+                MinSqm = MinSqm,
+                MaxSkyTemp = MaxSkyTemp,
+                MinSatelliteConfidence = MinSatelliteConfidence,
+                RejectSatelliteTrail = RejectSatelliteTrail,
+                StfShadows = StfShadows,
+                StfMidtones = StfMidtones,
+                StfHighlights = StfHighlights,
+                StfTargetBackground = StfTargetBackground,
+                AutoStretchPerFrame = AutoStretchPerFrame,
+                RoiBias = RoiBias.ToString(),
+                ShowAccepted = ShowAccepted,
+                ShowRejected = ShowRejected,
+                ManualRoi = _manualRoiRect is { } roi
+                    ? new SessionRoiRect { Left = roi.Left, Top = roi.Top, Width = roi.Width, Height = roi.Height }
+                    : null,
+                SortRules = SortRules
+                    .Select(r => new SessionSortRule { Field = r.SelectedField.Value.ToString(), Direction = r.SelectedDirection.Value.ToString() })
+                    .ToList(),
+                FilterChips = FilterChips
+                    .Select(c => new SessionFilterChip { Key = c.Key, IsSelected = c.IsSelected })
+                    .ToList(),
+                Frames = _loadedFrames
+                    .Select(ctx => new SessionFrameEntry
+                    {
+                        FilePath = ctx.FilePath,
+                        FileName = ctx.Item.FileName,
+                        RelativePath = ctx.Item.RelativePath,
+                        AutoRejected = ctx.Item.AutomaticRejected,
+                        ManualRejectedOverride = ctx.Item.ManualRejectedOverride,
+                        OverallScore = ctx.Item.OverallScore,
+                        Fwhm = ctx.Item.Metrics.Fwhm,
+                        FwhmArcsec = ctx.Item.Metrics.FwhmArcsec,
+                        Sqm = ctx.Item.Metrics.Sqm,
+                        SkyTemp = ctx.Item.Metrics.SkyTemp,
+                        Hfr = ctx.Item.Metrics.Hfr,
+                        StarCount = ctx.Item.Metrics.StarCount,
+                        Eccentricity = ctx.Item.Metrics.Eccentricity,
+                        MeanBackground = ctx.Item.Metrics.MeanBackground,
+                        Median = ctx.Item.Metrics.Median,
+                        Mad = ctx.Item.Metrics.Mad,
+                        Min = ctx.Item.Metrics.Min,
+                        MinCount = ctx.Item.Metrics.MinCount,
+                        Max = ctx.Item.Metrics.Max,
+                        MaxCount = ctx.Item.Metrics.MaxCount,
+                        SatelliteTrailConfidence = ctx.Item.Metrics.SatelliteTrailConfidence,
+                        TrailX1 = ctx.Item.Metrics.TrailX1,
+                        TrailY1 = ctx.Item.Metrics.TrailY1,
+                        TrailX2 = ctx.Item.Metrics.TrailX2,
+                        TrailY2 = ctx.Item.Metrics.TrailY2,
+                        ExposureDateTime = ctx.ExposureDateTime,
+                        ExposureSeconds = ctx.ExposureSeconds,
+                        FilterName = ctx.FilterName,
+                        FocalLengthMm = ctx.FocalLengthMm,
+                        PixelSizeUm = ctx.PixelSizeUm,
+                        Width = ctx.Width,
+                        Height = ctx.Height,
+                        Rotate180 = ctx.Rotate180,
+                        NormalizationMax = ctx.NormalizationMax,
+                        ThumbnailPng = SessionService.EncodeBitmap(ctx.Item.ThumbnailImage),
+                        RoiPng = SessionService.EncodeBitmap(ctx.Item.RoiImage)
+                    })
+                    .ToList()
+            };
+
+            _session.Save(dialog.FileName, session);
+            Status = $"Session saved: {Path.GetFileName(dialog.FileName)}";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Save session failed: {ex.Message}";
+        }
+    }
+
+    private async Task LoadSessionAsync()
+    {
+        using var dialog = new System.Windows.Forms.OpenFileDialog
+        {
+            Title = "Load Session",
+            Filter = "Blink-o-mat Session (*.boms)|*.boms|All files (*.*)|*.*",
+            DefaultExt = "boms"
+        };
+
+        if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        {
+            return;
+        }
+
+        SessionData session;
+        try
+        {
+            var loaded = _session.Load(dialog.FileName);
+            if (loaded is null)
+            {
+                Status = "Failed to load session: invalid file.";
+                return;
+            }
+
+            session = loaded;
+        }
+        catch (Exception ex)
+        {
+            Status = $"Load session failed: {ex.Message}";
+            return;
+        }
+
+        IsBusy = true;
+        IsProgressVisible = true;
+        ProgressValue = 0;
+        Status = "Restoring session...";
+
+        foreach (var frame in Frames)
+        {
+            frame.PropertyChanged -= FrameItem_PropertyChanged;
+        }
+
+        Frames.Clear();
+        foreach (var chip in FilterChips)
+        {
+            chip.PropertyChanged -= FilterChip_PropertyChanged;
+        }
+
+        FilterChips.Clear();
+        OnPropertyChanged(nameof(HasFilterChips));
+        _loadedFrames.Clear();
+        ResetFrameStatistics();
+        SelectedFrame = null;
+        _manualRoiRect = null;
+        _hasManualRoi = false;
+        SessionFocalLengthMm = null;
+        SessionPixelSizeUm = null;
+
+        try
+        {
+            // Restore global settings without triggering threshold recalculation mid-restore
+            _inputFolder = session.InputFolder;
+            OnPropertyChanged(nameof(InputFolder));
+            _rejectedFolder = session.RejectedFolder;
+            OnPropertyChanged(nameof(RejectedFolder));
+            _includeSubfolders = session.IncludeSubfolders;
+            OnPropertyChanged(nameof(IncludeSubfolders));
+            _showAccepted = session.ShowAccepted;
+            OnPropertyChanged(nameof(ShowAccepted));
+            _showRejected = session.ShowRejected;
+            OnPropertyChanged(nameof(ShowRejected));
+            _maxFwhm = session.MaxFwhm;
+            OnPropertyChanged(nameof(MaxFwhm));
+            _maxHfr = session.MaxHfr;
+            OnPropertyChanged(nameof(MaxHfr));
+            _maxEccentricity = session.MaxEccentricity;
+            OnPropertyChanged(nameof(MaxEccentricity));
+            _maxMeanBackground = session.MaxMeanBackground;
+            OnPropertyChanged(nameof(MaxMeanBackground));
+            _minStars = session.MinStars;
+            OnPropertyChanged(nameof(MinStars));
+            _minSqm = session.MinSqm;
+            OnPropertyChanged(nameof(MinSqm));
+            _maxSkyTemp = session.MaxSkyTemp;
+            OnPropertyChanged(nameof(MaxSkyTemp));
+            _minSatelliteConfidence = session.MinSatelliteConfidence;
+            OnPropertyChanged(nameof(MinSatelliteConfidence));
+            _rejectSatelliteTrail = session.RejectSatelliteTrail;
+            OnPropertyChanged(nameof(RejectSatelliteTrail));
+            _stfShadows = session.StfShadows;
+            OnPropertyChanged(nameof(StfShadows));
+            _stfMidtones = session.StfMidtones;
+            OnPropertyChanged(nameof(StfMidtones));
+            _stfHighlights = session.StfHighlights;
+            OnPropertyChanged(nameof(StfHighlights));
+            _stfTargetBackground = session.StfTargetBackground;
+            OnPropertyChanged(nameof(StfTargetBackground));
+            _autoStretchPerFrame = session.AutoStretchPerFrame;
+            OnPropertyChanged(nameof(AutoStretchPerFrame));
+
+            if (!string.IsNullOrWhiteSpace(session.RoiBias) && Enum.TryParse<RoiBias>(session.RoiBias, out var roiBias))
+            {
+                _roiBias = roiBias;
+                OnPropertyChanged(nameof(RoiBias));
+            }
+
+            if (session.ManualRoi is { } roi)
+            {
+                _manualRoiRect = (roi.Left, roi.Top, roi.Width, roi.Height);
+                _hasManualRoi = true;
+            }
+
+            // Restore sort rules
+            if (session.SortRules.Count > 0)
+            {
+                foreach (var rule in SortRules)
+                {
+                    rule.PropertyChanged -= SortRule_PropertyChanged;
+                }
+
+                SortRules.Clear();
+
+                foreach (var savedRule in session.SortRules)
+                {
+                    if (Enum.TryParse<FrameSortField>(savedRule.Field, out var sortField) &&
+                        Enum.TryParse<ListSortDirection>(savedRule.Direction, out var sortDir))
+                    {
+                        var fieldOption = SortFieldOptions.FirstOrDefault(o => o.Value == sortField) ?? SortFieldOptions[0];
+                        var dirOption = SortDirectionOptions.FirstOrDefault(o => o.Value == sortDir) ?? SortDirectionOptions[0];
+                        AddSortRule(fieldOption, dirOption);
+                    }
+                }
+
+                if (SortRules.Count == 0)
+                {
+                    AddSortRule(SortFieldOptions[0], SortDirectionOptions[0]);
+                }
+            }
+
+            // Restore frames from session cache
+            ProgressMaximum = Math.Max(1, session.Frames.Count);
+            var restoredSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (var i = 0; i < session.Frames.Count; i++)
+            {
+                var entry = session.Frames[i];
+                Status = $"Restoring frame {i + 1}/{session.Frames.Count}: {entry.FileName}";
+
+                var metrics = new AstroMetrics
+                {
+                    Fwhm = entry.Fwhm,
+                    FwhmArcsec = entry.FwhmArcsec,
+                    Sqm = entry.Sqm,
+                    SkyTemp = entry.SkyTemp,
+                    Hfr = entry.Hfr,
+                    StarCount = entry.StarCount,
+                    Eccentricity = entry.Eccentricity,
+                    MeanBackground = entry.MeanBackground,
+                    Median = entry.Median,
+                    Mad = entry.Mad,
+                    Min = entry.Min,
+                    MinCount = entry.MinCount,
+                    Max = entry.Max,
+                    MaxCount = entry.MaxCount,
+                    SatelliteTrailConfidence = entry.SatelliteTrailConfidence,
+                    TrailX1 = entry.TrailX1,
+                    TrailY1 = entry.TrailY1,
+                    TrailX2 = entry.TrailX2,
+                    TrailY2 = entry.TrailY2
+                };
+
+                var thumbnail = await Task.Run(() => SessionService.DecodeBitmap(entry.ThumbnailPng));
+                var roiImage = await Task.Run(() => SessionService.DecodeBitmap(entry.RoiPng));
+
+                var item = new FrameItem
+                {
+                    FilePath = entry.FilePath,
+                    FileName = entry.FileName,
+                    RelativePath = entry.RelativePath,
+                    ExposureDateTime = entry.ExposureDateTime,
+                    ExposureSeconds = entry.ExposureSeconds,
+                    FilterName = entry.FilterName,
+                    ThumbnailImage = thumbnail,
+                    RoiImage = roiImage,
+                    Metrics = metrics
+                };
+
+                item.SetAutomaticRejected(entry.AutoRejected);
+                item.SetManualRejectedOverride(entry.ManualRejectedOverride);
+                item.OverallScore = entry.OverallScore;
+                item.PropertyChanged += FrameItem_PropertyChanged;
+                Frames.Add(item);
+
+                _loadedFrames.Add(new LoadedFrameContext(
+                    item,
+                    entry.FilePath,
+                    entry.Width,
+                    entry.Height,
+                    entry.NormalizationMax,
+                    entry.Rotate180,
+                    entry.FocalLengthMm,
+                    entry.PixelSizeUm,
+                    entry.ExposureDateTime,
+                    entry.ExposureSeconds,
+                    entry.FilterName,
+                    entry.Sqm,
+                    entry.SkyTemp,
+                    null));
+
+                restoredSet.Add(entry.FilePath);
+                SessionFocalLengthMm ??= entry.FocalLengthMm;
+                SessionPixelSizeUm ??= entry.PixelSizeUm;
+                ProgressValue = i + 1;
+            }
+
+            // Scan folder for new files not in the session
+            if (!string.IsNullOrWhiteSpace(session.InputFolder) && Directory.Exists(session.InputFolder))
+            {
+                var allFiles = _discovery.Discover(session.InputFolder, session.IncludeSubfolders);
+                var newFiles = allFiles.Where(f => !restoredSet.Contains(f)).ToList();
+
+                if (newFiles.Count > 0)
+                {
+                    Status = $"Found {newFiles.Count} new file(s) not in session. Loading...";
+                    ProgressValue = 0;
+                    ProgressMaximum = Math.Max(1, newFiles.Count);
+                    var newSkipped = 0;
+                    var newLoaded = 0;
+                    RustafitsService.LoadedFrame? orientationReference = _loadedFrames.Count > 0
+                        ? await MaterializeFrameAsync(_loadedFrames[0], CancellationToken.None)
+                        : null;
+
+                    for (var i = 0; i < newFiles.Count; i++)
+                    {
+                        var file = newFiles[i];
+                        Status = $"Loading new frame {i + 1}/{newFiles.Count}: {Path.GetFileName(file)}";
+
+                        try
+                        {
+                            var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
+                            var rotate180 = orientationReference is not null && _rustafits.ShouldRotate180ForOrientation(raw, orientationReference);
+                            var oriented = _rustafits.ApplyOrientation(raw, rotate180);
+                            var metrics = _rustafits.AnalyzeFrame(oriented);
+                            var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, GetStfForFrame(oriented), _manualRoiRect, metrics, CancellationToken.None);
+
+                            var newItem = new FrameItem
+                            {
+                                FilePath = file,
+                                FileName = Path.GetFileName(file),
+                                RelativePath = ComputeRelativePath(file),
+                                ExposureDateTime = oriented.ExposureDateTime,
+                                ExposureSeconds = oriented.ExposureSeconds,
+                                FilterName = oriented.FilterName,
+                                ThumbnailImage = previews.Full,
+                                RoiImage = previews.Roi,
+                                Metrics = metrics
+                            };
+
+                            newItem.PropertyChanged += FrameItem_PropertyChanged;
+                            Frames.Add(newItem);
+                            _loadedFrames.Add(CreateLoadedFrameContext(newItem, oriented, file, rotate180));
+                            SessionFocalLengthMm ??= oriented.FocalLengthMm;
+                            SessionPixelSizeUm ??= oriented.PixelSizeUm;
+                            orientationReference ??= oriented;
+                            newLoaded++;
+                        }
+                        catch (Exception ex)
+                        {
+                            newSkipped++;
+                            Status = $"Skipped new file {Path.GetFileName(file)}: {ex.Message}";
+                        }
+
+                        ProgressValue = i + 1;
+                    }
+
+                    if (newLoaded > 0)
+                    {
+                        UpdateFrameComparisons();
+                    }
+
+                    Status = $"Session restored with {session.Frames.Count} saved frame(s) + {newLoaded} new frame(s). {newSkipped} skipped.";
+                }
+                else
+                {
+                    Status = $"Session restored: {session.Frames.Count} frame(s).";
+                }
+            }
+            else
+            {
+                Status = $"Session restored: {session.Frames.Count} frame(s).";
+            }
+
+            // Rebuild chips restoring selection state from session
+            RebuildFilterChips();
+            if (session.FilterChips.Count > 0)
+            {
+                _isUpdatingFilterSelection = true;
+                try
+                {
+                    foreach (var chip in FilterChips)
+                    {
+                        var saved = session.FilterChips.FirstOrDefault(c => string.Equals(c.Key, chip.Key, StringComparison.OrdinalIgnoreCase));
+                        if (saved is not null)
+                        {
+                            chip.IsSelected = saved.IsSelected;
+                        }
+                    }
+                }
+                finally
+                {
+                    _isUpdatingFilterSelection = false;
+                }
+            }
+
+            FilteredFrames.Refresh();
+            UpdateFrameStatistics();
+            ApplySorting();
+            ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)SaveSessionCommand).RaiseCanExecuteChanged();
+        }
+        catch (Exception ex)
+        {
+            Status = $"Error restoring session: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+            IsProgressVisible = false;
         }
     }
 

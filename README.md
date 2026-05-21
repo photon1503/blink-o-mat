@@ -37,6 +37,8 @@ Rejector is a Windows desktop tool for rapidly reviewing and culling astrophotog
 | Progress feedback | Status updates during scanning, loading, stretching, and preview refresh |
 | Fault tolerance | Unreadable frames are skipped; loading continues |
 | Persistence | Last-used input and rejected folder paths are remembered between runs; main and preview window size/position are restored on next launch |
+| **Save Session** | Saves all current settings, thresholds, sort rules, filter selection, and per-frame accepted/rejected state (including thumbnails and ROI previews) to a `.boms` file via the 💾 toolbar icon |
+| **Load Session** | Restores a previously saved session instantly from a `.boms` file via the 📄 toolbar icon; the input folder is rescanned and any new files not in the session are loaded and appended automatically |
 
 ### Display & Preview
 
@@ -150,6 +152,8 @@ dotnet run --project .\blink-o-mat.csproj
 3. Adjust stretch, ROI bias, and rejection thresholds as needed.
 4. Blink through frames in the preview window; press `R` to reject individual frames.
 5. Click **Move Rejected** to relocate all rejected frames to the configured rejected folder.
+6. Click the **💾 Save Session** icon (top-left) to save all settings and frame state to a `.boms` file.
+7. Next time, click the **📄 Load Session** icon to restore the session instantly; new files added to the folder since the last save are picked up and appended automatically.
 
 ---
 

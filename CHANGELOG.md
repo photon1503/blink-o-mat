@@ -4,7 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [Unreleased] — 1.0.3
+
+### Added
+- **Save / Load Session** — the entire application state can be saved to a `.boms` file and fully restored at a later time.
+  - Saves: input/rejected folder paths, subfolder toggle, all rejection thresholds, STF settings, ROI bias and manual ROI rectangle, sort rules, filter chip selection, and accepted/rejected state per frame.
+  - Per-frame cache: all metrics, FITS metadata (focal length, pixel size, exposure date/time, filter), thumbnail images, and ROI preview images are stored as base64-encoded PNGs inside the session file — no re-analysis required on load.
+  - **Incremental rescan on load**: after restoring the session, the input folder is scanned and any files not already present in the session are loaded, analyzed, and appended automatically.
+  - **Save Session** and **Load Session** icon buttons are placed in the top-left corner of the main window toolbar.
+
+
+- **Modern metric slider control** — automatic rejection thresholds and STF controls now use a shared slim vertical slider control with editable values and configurable decimal precision.
+  - Rejection sliders keep their **Rejects: N** indicator.
+  - STF sliders reuse the same control without the reject counter.
+  - Clicking a value switches it into inline edit mode with a slightly enlarged editor for readability.
+
+## 1.0.1
 
 ### Added
 - **OSC (One-Shot Colour) camera support** — FITS frames from colour sensors are now debayered and displayed in full colour.
@@ -15,8 +30,9 @@ All notable changes to this project will be documented in this file.
 - **Recursive subfolder scanning** — a new *Subfolders* checkbox next to the input folder path allows scanning subfolders recursively when loading frames.
   - **Relative path preservation on move** — when rejected frames are moved to the rejected folder, their subfolder structure relative to the input root is preserved (e.g. `input/night1/frame.fits` → `rejected/night1/frame.fits`).
   - **`IncludeSubfolders` setting persisted** — the checkbox state is saved to `settings.json` and restored on next launch.
-- **Preview window "Open in Explorer" opens a Windows Explorer instance, with the actual file selected.
+- **Preview window "Open in Explorer"** — opens a Windows Explorer window with the current file selected.
 - **Window placement persistence** — the main window and frame preview window now restore their last size, position, and maximized state on startup.
+
 
 ### Fixed
 - **Long filename truncation** — frame item filenames that exceeded the available width now truncate with an ellipsis (`…`). The full filename is shown in a tooltip on hover. Root cause was the `ListView` allowing unlimited horizontal scroll, preventing `TextTrimming` from ever activating; fixed by setting `ScrollViewer.HorizontalScrollBarVisibility="Disabled"` on the list.
