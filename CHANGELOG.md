@@ -52,5 +52,9 @@ All notable changes to this project will be documented in this file.
 - **ROI aspect ratio on initial load** — ROI preview images were squashed on first load due to a non-square pixel crop being stretched into a square bitmap. The crop is now forced square (centered on the shorter axis) before downsampling, so the ROI is never distorted.
 - Fixed µm label.
 
+## 1.0.0
+
+Initial release
+
 
 

@@ -11,20 +11,35 @@
 It batch-loads FITS and XISF light frames, extracts quality metrics from each one (FWHM, HFR, eccentricity, star count, background, and more), scores and ranks them, and lets you step through the frames one by one — or blink them at speed — to spot satellites, clouds, tracking failures, and poor seeing at a glance.
 Frames that don't meet your thresholds are automatically flagged; you can review, override, and move them to a reject folder in a single click.
 
+![alt text](20260521-1827-42.7131635.gif)
+![alt text](20260521-1829-16.2179826.gif)
 ---
 
 ## Table of Contents
 
-- [Features](#features)
-- [Requirements](#requirements)
-- [Build](#build)
-- [Usage — GUI](#usage--gui)
-- [Usage — Headless / CLI](#usage--headless--cli)
-- [Headless Arguments](#headless-arguments)
-- [Default Thresholds](#default-thresholds)
-- [Quality Score](#quality-score)
-- [Notes](#notes)
-- [Changelog](#changelog)
+- [Rejector](#rejector)
+  - [](#)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+    - [Loading \& Session Workflow](#loading--session-workflow)
+    - [Display \& Preview](#display--preview)
+    - [Stretch \& Normalization](#stretch--normalization)
+    - [ROI (Region of Interest)](#roi-region-of-interest)
+    - [Quality Metrics](#quality-metrics)
+    - [Metadata Extraction](#metadata-extraction)
+    - [Rejection \& Sorting](#rejection--sorting)
+    - [Satellite Trail Detection](#satellite-trail-detection)
+    - [Performance](#performance)
+  - [Requirements](#requirements)
+  - [Build](#build)
+  - [Usage — GUI](#usage--gui)
+  - [Usage — Headless / CLI](#usage--headless--cli)
+  - [Headless Arguments](#headless-arguments)
+  - [Default Thresholds](#default-thresholds)
+  - [Quality Score](#quality-score)
+    - [Algorithm — weighted rank-percentile](#algorithm--weighted-rank-percentile)
+  - [Notes](#notes)
+  - [Changelog](#changelog)
 
 ---
 
