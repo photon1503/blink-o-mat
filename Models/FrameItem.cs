@@ -21,6 +21,7 @@ public sealed class FrameItem : INotifyPropertyChanged
     private WpfBrush _meanBackgroundIndicatorBrush = WpfBrushes.Goldenrod;
     private WpfBrush _trailIndicatorBrush = WpfBrushes.Goldenrod;
     private double _overallScore;
+    private List<string> _rejectionReasons = [];
 
     public required string FilePath { get; init; }
     public required string FileName { get; init; }
@@ -224,6 +225,17 @@ public sealed class FrameItem : INotifyPropertyChanged
     }
 
     public WpfBrush RejectionStateBrush => IsRejected ? WpfBrushes.IndianRed : WpfBrushes.MediumSeaGreen;
+
+    public IReadOnlyList<string> RejectionReasons => _rejectionReasons;
+
+    public bool HasRejectionReasons => _rejectionReasons.Count > 0;
+
+    public void SetRejectionReasons(List<string> reasons)
+    {
+        _rejectionReasons = reasons;
+        OnPropertyChanged(nameof(RejectionReasons));
+        OnPropertyChanged(nameof(HasRejectionReasons));
+    }
 
     public required BitmapSource? RoiImage
     {

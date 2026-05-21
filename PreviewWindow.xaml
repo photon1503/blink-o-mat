@@ -98,18 +98,18 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal">
-                    <Button Content="Prev" Width="60" Margin="0,0,6,0" Click="Prev_Click" />
-                    <Button Content="Next" Width="60" Margin="0,0,6,0" Click="Next_Click" />
-                    <Button Width="38" Margin="0,0,6,0" Click="Smaller_Click" ToolTip="Zoom out">
+                    <Button Content="Prev" Width="60" Margin="0,0,6,0" Click="Prev_Click" ToolTip="Previous frame  (←)" />
+                    <Button Content="Next" Width="60" Margin="0,0,6,0" Click="Next_Click" ToolTip="Next frame  (→)" />
+                    <Button Width="38" Margin="0,0,6,0" Click="Smaller_Click" ToolTip="Zoom out  (Ctrl + Mouse Wheel ↓)">
                         <TextBlock Text="−" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
                     </Button>
-                    <Button Width="38" Margin="0,0,6,0" Click="Fit_Click" ToolTip="Fit to view">
+                    <Button Width="38" Margin="0,0,6,0" Click="Fit_Click" ToolTip="Fit image to window">
                         <TextBlock Text="⛶" FontSize="14" HorizontalAlignment="Center" />
                     </Button>
-                    <Button Width="38" Margin="0,0,6,0" Click="ZoomIn_Click" ToolTip="Zoom in">
+                    <Button Width="38" Margin="0,0,6,0" Click="ZoomIn_Click" ToolTip="Zoom in  (Ctrl + Mouse Wheel ↑)">
                         <TextBlock Text="+" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
                     </Button>
-                    <Button Content="1:1" Width="55" Margin="0,0,10,0" Click="OneToOne_Click" />
+                    <Button Content="1:1" Width="55" Margin="0,0,10,0" Click="OneToOne_Click" ToolTip="Switch to 1:1 pixel view" />
                 </StackPanel>
 
                 <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Text="{Binding Zoom, StringFormat=Zoom: {0:F2}x}" />
@@ -134,7 +134,8 @@
                                           Margin="0,0,6,0"
                                           Padding="12,4"
                                           BorderThickness="1"
-                                          FontWeight="SemiBold">
+                                          FontWeight="SemiBold"
+                                          ToolTip="Show or hide accepted frames in the slider and navigation">
                                 <TextBlock Text="Accepted" />
                             </ToggleButton>
 
@@ -143,7 +144,8 @@
                                           Margin="0"
                                           Padding="12,4"
                                           BorderThickness="1"
-                                          FontWeight="SemiBold">
+                                          FontWeight="SemiBold"
+                                          ToolTip="Show or hide rejected frames in the slider and navigation">
                                 <TextBlock Text="Rejected" />
                             </ToggleButton>
                         </WrapPanel>
@@ -313,6 +315,7 @@
                             IsSnapToTickEnabled="True"
                             IsMoveToPointEnabled="True"
                             IsDirectionReversed="True"
+                            ToolTip="Drag to jump to any frame; colored bar shows cache coverage"
                             SizeChanged="FrameSlider_SizeChanged" />
                 </Grid>
                 <TextBlock Grid.Row="3" HorizontalAlignment="Center" Text="{Binding FrameCount, StringFormat=Total: {0}}" />
@@ -346,7 +349,8 @@
                                 Foreground="#F5F5F5"
                                 BorderThickness="0"
                                 Background="{Binding Item.RejectionStateBrush}"
-                                Click="ToggleReject_Click">
+                                Click="ToggleReject_Click"
+                                ToolTip="Toggle manual accept / reject override for this frame  (R)">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
@@ -378,7 +382,8 @@
                             </Expander.Header>
                             <StackPanel Margin="0,8,0,0">
                                 <Button Content="Auto Stretch" HorizontalAlignment="Left" Padding="8,3" Margin="0,0,0,10"
-                                        Command="{Binding AutoStretchCommand}" />
+                                        Command="{Binding AutoStretchCommand}"
+                                        ToolTip="Compute optimal STF shadows, midtones and highlights automatically from the current frame" />
                                 <controls:MetricSliderControl
                                     Label="Shadows"
                                     Value="{Binding StfShadows, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

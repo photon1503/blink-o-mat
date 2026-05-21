@@ -4,10 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased] — 1.0.3
+## [Unreleased] — 1.0.4
 
 ### Added
-- **Save / Load Session** — the entire application state can be saved to a `.boms` file and fully restored at a later time.
+- **Rejection reasons tooltip** — each automatically rejected frame now displays a small **?** badge next to the Reject/Keep button.
+  - Hovering the badge shows a dark tooltip listing every threshold that was violated, with the frame's actual measured value and the configured limit (e.g. *FWHM 4.21 px  >  limit 3.50 px*).
+  - The badge is hidden for accepted frames or manually overridden frames that are not auto-rejected.
+
+
+- **Save / Load Session**
   - Saves: input/rejected folder paths, subfolder toggle, all rejection thresholds, STF settings, ROI bias and manual ROI rectangle, sort rules, filter chip selection, and accepted/rejected state per frame.
   - Per-frame cache: all metrics, FITS metadata (focal length, pixel size, exposure date/time, filter), thumbnail images, and ROI preview images are stored as base64-encoded PNGs inside the session file — no re-analysis required on load.
   - **Incremental rescan on load**: after restoring the session, the input folder is scanned and any files not already present in the session are loaded, analyzed, and appended automatically.

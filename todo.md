@@ -10,7 +10,7 @@ ok * OSC de-bayering, STF stretching for OSC images
 ok * open in File Explorer
 ok * Fix µm label
 ok * make filter values editable
-* add save/load session. save all current settings, including filter values, sorting, etc.  Load session should restore all settings and filters. also save the list of accepted/rejected subs, so that when you load a session, you see the same accepted/rejected subs as when you saved it. also save all metadata incl. thumbnails, roi preview and position. skip scanning the saved images when rescanning the folder, just add the new files.
+ok * add save/load session. save all current settings, including filter values, sorting, etc.  Load session should restore all settings and filters. also save the list of accepted/rejected subs, so that when you load a session, you see the same accepted/rejected subs as when you saved it. also save all metadata incl. thumbnails, roi preview and position. skip scanning the saved images when rescanning the folder, just add the new files.
 
 * add reason for rejection
 * add play button to preview window to automatically step through frames at a configurable interval (e.g. 1 frame per second)

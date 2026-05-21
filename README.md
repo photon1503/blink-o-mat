@@ -101,6 +101,7 @@ Focal length · Pixel size · Exposure date/time · Exposure length · Filter ·
 
 - **Automatic rejection** with per-threshold sliders:
   - Max FWHM · Min SQM · Max sky temperature · Max HFR · Max eccentricity · Max mean background · Min stars · Min satellite trail confidence (0 = disabled, 1–100)
+- **Rejection reasons tooltip** — automatically rejected frames display a **?** badge next to the Reject/Keep button; hovering it shows a list of every violated threshold with the frame's actual value vs. the configured limit
 - **Manual keep/reject override** per frame — does not erase the underlying automatic state
 - Color-coded keep/reject labels in the preview window
 - **One-click move** of all rejected frames to the rejected folder

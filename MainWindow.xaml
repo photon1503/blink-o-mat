@@ -25,12 +25,12 @@
 
             <!-- Session save/load icons -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
-                <Button Command="{Binding SaveSessionCommand}" ToolTip="Save Session"
+                <Button Command="{Binding SaveSessionCommand}" ToolTip="Save current session — settings, filters, sort order, and per-frame accepted/rejected state — to a .boms file"
                         Width="28" Height="28" Padding="4" Margin="0,0,4,0">
                     <Path Data="M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3M19,19H5V5H16.17L19,7.83V19M12,12C10.34,12 9,13.34 9,15S10.34,18 12,18 15,16.66 15,15 13.66,12 12,12M6,6H15V10H6V6Z"
                           Fill="{StaticResource TextBrush}" Stretch="Uniform" Width="14" Height="14"/>
                 </Button>
-                <Button Command="{Binding LoadSessionCommand}" ToolTip="Load Session"
+                <Button Command="{Binding LoadSessionCommand}" ToolTip="Load a previously saved .boms session; new files in the folder are picked up and appended automatically"
                         Width="28" Height="28" Padding="4">
                     <Path Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M12,11L16,15H13.5V19H10.5V15H8L12,11Z"
                           Fill="{StaticResource TextBrush}" Stretch="Uniform" Width="14" Height="14"/>
@@ -44,9 +44,9 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
-                    <Hyperlink Command="{Binding BrowseInputCommand}" Foreground="{StaticResource TextBrush}">Input folder:</Hyperlink>
+                    <Hyperlink Command="{Binding BrowseInputCommand}" Foreground="{StaticResource TextBrush}" ToolTip="Click to browse for the folder containing your FITS/XISF light frames">Input folder:</Hyperlink>
                 </TextBlock>
-                <TextBox Grid.Column="1" Text="{Binding InputFolder, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox Grid.Column="1" Text="{Binding InputFolder, UpdateSourceTrigger=PropertyChanged}" ToolTip="Path to the folder containing your raw light frames" />
                 <CheckBox Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0" IsChecked="{Binding IncludeSubfolders}" ToolTip="Include subfolders recursively">Subfolders</CheckBox>
             </Grid>
 
@@ -56,12 +56,12 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
-                    <Hyperlink Command="{Binding BrowseRejectedCommand}" Foreground="{StaticResource TextBrush}">Rejected folder:</Hyperlink>
+                    <Hyperlink Command="{Binding BrowseRejectedCommand}" Foreground="{StaticResource TextBrush}" ToolTip="Click to browse for the destination folder where rejected frames will be moved">Rejected folder:</Hyperlink>
                 </TextBlock>
-                <TextBox Grid.Column="1" Text="{Binding RejectedFolder, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox Grid.Column="1" Text="{Binding RejectedFolder, UpdateSourceTrigger=PropertyChanged}" ToolTip="Destination folder for rejected frames — subfolder structure relative to the input folder is preserved" />
             </Grid>
 
-            <Button Grid.Column="3" Padding="12,3" Content="Load Frames" Command="{Binding LoadFramesCommand}" />
+            <Button Grid.Column="3" Padding="12,3" Content="Load Frames" Command="{Binding LoadFramesCommand}" ToolTip="Scan the input folder and load all FITS/XISF frames for analysis" />
         </Grid>
 
         <Grid Grid.Row="1" Margin="0,0,0,10">
@@ -181,7 +181,7 @@
                                 <TextBlock FontWeight="SemiBold" Text="Preview and ROI" />
                             </Expander.Header>
                             <StackPanel Margin="0,8,0,0">
-                                <CheckBox Content="Auto-stretch each frame individually" IsChecked="{Binding AutoStretchPerFrame}" Margin="0,0,0,8" />
+                                <CheckBox Content="Auto-stretch each frame individually" IsChecked="{Binding AutoStretchPerFrame}" Margin="0,0,0,8" ToolTip="When enabled, STF parameters are computed independently for each frame instead of using a single global stretch" />
                                 <controls:MetricSliderControl
                                     Label="STF Target Background"
                                     Value="{Binding StfTargetBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -196,7 +196,7 @@
                     <Border Padding="10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Actions" />
-                            <Button Padding="12,5" Content="One-click move rejected subframes" Command="{Binding MoveRejectedCommand}" />
+                            <Button Padding="12,5" Content="One-click move rejected subframes" Command="{Binding MoveRejectedCommand}" ToolTip="Move all rejected frames to the rejected folder; subfolder structure is preserved and filename collisions are renamed automatically" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -225,7 +225,8 @@
                                        Foreground="#666" Margin="0,0,0,4" />
                             <WrapPanel VerticalAlignment="Center">
                                 <ToggleButton IsChecked="{Binding ShowAccepted, Mode=TwoWay}"
-                                             Margin="0,0,6,0" Padding="12,4" BorderThickness="1" FontWeight="SemiBold">
+                                             Margin="0,0,6,0" Padding="12,4" BorderThickness="1" FontWeight="SemiBold"
+                                             ToolTip="Show or hide accepted (not rejected) frames in the list">
                                     <ToggleButton.Style>
                                         <Style TargetType="ToggleButton">
                                             <Setter Property="Background" Value="#223A6B46" />
@@ -258,7 +259,8 @@
                                 </ToggleButton>
 
                                 <ToggleButton IsChecked="{Binding ShowRejected, Mode=TwoWay}"
-                                             Margin="0" Padding="12,4" BorderThickness="1" FontWeight="SemiBold">
+                                             Margin="0" Padding="12,4" BorderThickness="1" FontWeight="SemiBold"
+                                             ToolTip="Show or hide rejected frames in the list">
                                     <ToggleButton.Style>
                                         <Style TargetType="ToggleButton">
                                             <Setter Property="Background" Value="#224E2A2A" />
@@ -378,7 +380,7 @@
                                                 <!-- Asc / Desc toggle chip -->
                                                 <ToggleButton IsChecked="{Binding IsDescending, Mode=TwoWay}"
                                                              Height="26" Width="32" Margin="0,0,6,0"
-                                                             Padding="0" FontSize="14" ToolTip="Toggle sort direction">
+                                                             Padding="0" FontSize="14" ToolTip="Toggle between ascending (▲) and descending (▼) sort order">
                                                     <ToggleButton.Style>
                                                         <Style TargetType="ToggleButton">
                                                             <Setter Property="Background" Value="#161616" />
@@ -417,6 +419,7 @@
                                                 <Button Height="26" Width="26" Padding="0"
                                                         FontWeight="SemiBold" FontSize="13"
                                                         Content="-" Margin="0"
+                                                        ToolTip="Remove this sort rule"
                                                         Command="{Binding DataContext.RemoveSortRuleCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}" />
                                             </WrapPanel>
@@ -427,7 +430,7 @@
                                 <!-- Add rule -->
                                 <Button DockPanel.Dock="Right" Height="26" Padding="10,0" Margin="8,0,0,0"
                                         Content="+ Field" Command="{Binding AddSortRuleCommand}"
-                                        VerticalAlignment="Top" />
+                                        VerticalAlignment="Top" ToolTip="Add another sort field" />
                             </DockPanel>
                         </StackPanel>
                     </Border>

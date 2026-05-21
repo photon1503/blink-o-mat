@@ -2361,7 +2361,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         foreach (var frame in Frames)
         {
-            SetFrameRejected(frame, _rejection.ShouldReject(frame, thresholds), frame.ManualRejectedOverride, refreshStatistics: false);
+            var autoRejected = _rejection.ShouldReject(frame, thresholds);
+            var reasons = autoRejected ? _rejection.GetRejectionReasons(frame, thresholds) : [];
+            frame.SetRejectionReasons(reasons);
+            SetFrameRejected(frame, autoRejected, frame.ManualRejectedOverride, refreshStatistics: false);
         }
 
         UpdateFrameStatistics();
