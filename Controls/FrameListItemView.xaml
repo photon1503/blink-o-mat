@@ -65,17 +65,18 @@
                 <ColumnDefinition Width="150" />
             </Grid.ColumnDefinitions>
 
-            <DockPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" LastChildFill="False" Margin="0,0,10,6">
+            <DockPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" LastChildFill="True" Margin="0,0,10,6">
+                <Border DockPanel.Dock="Right" Background="{Binding QualityBackgroundBrush}" CornerRadius="5" Padding="10,3" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <TextBlock Text="{Binding QualityLabel}" Foreground="{Binding QualityBrush}" FontWeight="Bold" FontSize="12" />
+                </Border>
                 <TextBlock DockPanel.Dock="Left"
                            FontSize="20"
                            FontWeight="SemiBold"
                            Foreground="#F0F0F0"
                            TextTrimming="CharacterEllipsis"
                            Text="{Binding FileName}"
+                           ToolTip="{Binding FileName}"
                            VerticalAlignment="Center" />
-                <Border DockPanel.Dock="Right" Background="{Binding QualityBackgroundBrush}" CornerRadius="5" Padding="10,3" VerticalAlignment="Center" Margin="12,0,0,0">
-                    <TextBlock Text="{Binding QualityLabel}" Foreground="{Binding QualityBrush}" FontWeight="Bold" FontSize="12" />
-                </Border>
             </DockPanel>
 
             <Grid Grid.Row="1" Grid.Column="0" Margin="0,0,10,0">

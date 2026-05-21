@@ -28,7 +28,7 @@
                 </Border>
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                <TextBlock FontWeight="SemiBold" Text="{Binding FileName}" />
+                <TextBlock FontWeight="SemiBold" Text="{Binding FileName}" TextTrimming="CharacterEllipsis" ToolTip="{Binding FileName}" />
                 <Grid Margin="0,4,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
