@@ -30,6 +30,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private const long PreviewCacheReservedBytes = 1024L * 1024 * 1024;
     private static readonly IReadOnlyList<SortFieldOption> DefaultSortFieldOptions =
     [
+        new(FrameSortField.Score, "Score"),
         new(FrameSortField.ObservationDate, "Observation date"),
         new(FrameSortField.Fwhm, "FWHM"),
         new(FrameSortField.FwhmArcsec, "FWHM arcsec"),
@@ -89,6 +90,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             return field switch
             {
+                FrameSortField.Score => CompareValues(left.OverallScore, right.OverallScore, direction),
                 FrameSortField.ObservationDate => CompareNullableValues(left.ExposureDateTime, right.ExposureDateTime, direction),
                 FrameSortField.Fwhm => CompareValues(left.Metrics.Fwhm, right.Metrics.Fwhm, direction),
                 FrameSortField.FwhmArcsec => CompareNullableValues(left.Metrics.FwhmArcsec, right.Metrics.FwhmArcsec, direction),
@@ -1630,23 +1632,86 @@ public sealed class MainViewModel : INotifyPropertyChanged
             frame.MeanBackgroundIndicatorBrush = CompareLowerIsBetter(frame.Metrics.MeanBackground, avgBg, green, yellow, red);
             frame.TrailIndicatorBrush = frame.Metrics.SatelliteTrailConfidence >= 60 ? red : green;
 
-            const double fwhmWeight = 2.4;
-            const double hfrWeight = 2.2;
-            const double starsWeight = 1.1;
-            const double eccentricityWeight = 1.2;
-            const double backgroundWeight = 0.6;
-            const double trailWeight = 1.5;
+            // Score is computed below using rank-percentile logic (see ComputePercentileScores)
+        }
 
-            var weightedScore = 0.0;
-            weightedScore += ScoreLowerIsBetter(frame.Metrics.Fwhm, avgFwhm) * fwhmWeight;
-            weightedScore += ScoreLowerIsBetter(frame.Metrics.Hfr, avgHfr) * hfrWeight;
-            weightedScore += ScoreHigherIsBetter(frame.Metrics.StarCount, avgStars) * starsWeight;
-            weightedScore += ScoreLowerIsBetter(frame.Metrics.Eccentricity, avgEcc) * eccentricityWeight;
-            weightedScore += ScoreLowerIsBetter(frame.Metrics.MeanBackground, avgBg) * backgroundWeight;
-            weightedScore += (1.0 - (frame.Metrics.SatelliteTrailConfidence / 100.0)) * trailWeight;
+        ComputePercentileScores();
+    }
 
-            var totalWeight = fwhmWeight + hfrWeight + starsWeight + eccentricityWeight + backgroundWeight + trailWeight;
-            frame.OverallScore = Math.Clamp((weightedScore / totalWeight) * 5.0, 0.0, 5.0);
+    /// <summary>
+    /// Scores each frame on a 0–5 scale using weighted rank-percentile scoring.
+    /// Each metric is ranked across all frames; the rank is converted to a [0,1]
+    /// percentile. Weighted percentiles are combined and scaled to 0–5.
+    /// This guarantees the best frame in the session always scores near 5.0 and
+    /// the distribution spans the full range, making it actually useful for culling.
+    ///
+    /// Weights reflect typical astro importance:
+    ///   FWHM (3.0)  — sharpness / seeing, most critical
+    ///   Eccentricity (2.5) — star roundness (tracking, tilt)
+    ///   HFR (1.5)   — correlated with FWHM, secondary confirmation
+    ///   Stars (1.5) — cloud coverage / transparency
+    ///   Mean BG (0.5) — light pollution / gradient, less decisive alone
+    ///   Trail (2.0) — satellite/aircraft contamination, binary-ish
+    /// </summary>
+    private void ComputePercentileScores()
+    {
+        var frames = Frames;
+        if (frames.Count == 0) return;
+
+        const double fwhmWeight  = 3.0;
+        const double eccWeight   = 2.5;
+        const double hfrWeight   = 1.5;
+        const double starsWeight = 1.5;
+        const double bgWeight    = 0.5;
+        const double trailWeight = 2.0;
+        const double totalWeight = fwhmWeight + eccWeight + hfrWeight + starsWeight + bgWeight + trailWeight;
+
+        // Converts a raw value array to [0,1] rank-percentile per frame.
+        // Ties receive the average rank of their group.
+        // 1.0 = best frame, 0.0 = worst frame.
+        static double[] RankPercentile(double[] values, bool lowerIsBetter)
+        {
+            var n = values.Length;
+            if (n == 1) return [1.0];
+
+            var indexed = values.Select((v, i) => (v, i)).ToArray();
+            var sorted = lowerIsBetter
+                ? indexed.OrderBy(x => x.v).ToArray()
+                : indexed.OrderByDescending(x => x.v).ToArray();
+
+            var percentiles = new double[n];
+            var rank = 0;
+            while (rank < n)
+            {
+                var val = sorted[rank].v;
+                var tieEnd = rank;
+                while (tieEnd + 1 < n && sorted[tieEnd + 1].v == val) tieEnd++;
+                var avgRank = (rank + tieEnd) / 2.0;
+                var pct = 1.0 - avgRank / (n - 1.0);
+                for (var t = rank; t <= tieEnd; t++)
+                    percentiles[sorted[t].i] = pct;
+                rank = tieEnd + 1;
+            }
+            return percentiles;
+        }
+
+        var fwhmPct  = RankPercentile(frames.Select(f => f.Metrics.Fwhm).ToArray(),              lowerIsBetter: true);
+        var eccPct   = RankPercentile(frames.Select(f => f.Metrics.Eccentricity).ToArray(),       lowerIsBetter: true);
+        var hfrPct   = RankPercentile(frames.Select(f => f.Metrics.Hfr).ToArray(),                lowerIsBetter: true);
+        var starsPct = RankPercentile(frames.Select(f => (double)f.Metrics.StarCount).ToArray(),  lowerIsBetter: false);
+        var bgPct    = RankPercentile(frames.Select(f => f.Metrics.MeanBackground).ToArray(),     lowerIsBetter: true);
+        var trailPct = RankPercentile(frames.Select(f => (double)f.Metrics.SatelliteTrailConfidence).ToArray(), lowerIsBetter: true);
+
+        for (var i = 0; i < frames.Count; i++)
+        {
+            var weighted = fwhmPct[i]  * fwhmWeight
+                         + eccPct[i]   * eccWeight
+                         + hfrPct[i]   * hfrWeight
+                         + starsPct[i] * starsWeight
+                         + bgPct[i]    * bgWeight
+                         + trailPct[i] * trailWeight;
+
+            frames[i].OverallScore = Math.Clamp((weighted / totalWeight) * 5.0, 0.0, 5.0);
         }
     }
 
@@ -1678,28 +1743,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         return yellow;
-    }
-
-    private static double ScoreLowerIsBetter(double value, double average)
-    {
-        if (average <= 1e-9)
-        {
-            return 0.5;
-        }
-
-        var ratio = value / average;
-        return Math.Clamp(1.5 - ratio, 0.0, 1.0);
-    }
-
-    private static double ScoreHigherIsBetter(double value, double average)
-    {
-        if (average <= 1e-9)
-        {
-            return 0.5;
-        }
-
-        var ratio = value / average;
-        return Math.Clamp(ratio - 0.5, 0.0, 1.0);
     }
 
     private void InitializeThresholdsFromLoadedFrames()

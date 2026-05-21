@@ -161,21 +161,21 @@ public sealed class FrameItem : INotifyPropertyChanged
     public string QualityLabel => _overallScore switch
     {
         >= 4.0 => "GOOD",
-        >= 2.5 => "FAIR",
+        >= 2.0 => "FAIR",
         _ => "POOR"
     };
 
     public WpfBrush QualityBrush => _overallScore switch
     {
         >= 4.0 => WpfBrushes.LimeGreen,
-        >= 2.5 => WpfBrushes.Goldenrod,
+        >= 2.0 => WpfBrushes.Goldenrod,
         _ => WpfBrushes.IndianRed
     };
 
     public WpfBrush QualityBackgroundBrush => _overallScore switch
     {
         >= 4.0 => new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x33, 0x32, 0xCD, 0x32)),
-        >= 2.5 => new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x33, 0xDA, 0xA5, 0x20)),
+        >= 2.0 => new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x33, 0xDA, 0xA5, 0x20)),
         _ => new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x33, 0xCD, 0x5C, 0x5C))
     };
 

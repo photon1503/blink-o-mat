@@ -10,6 +10,14 @@ All notable changes to this project will be documented in this file.
 - **Rejection reasons tooltip** — each automatically rejected frame now displays a small **?** badge next to the Reject/Keep button.
   - Hovering the badge shows a dark tooltip listing every threshold that was violated, with the frame's actual measured value and the configured limit (e.g. *FWHM 4.21 px  >  limit 3.50 px*).
   - The badge is hidden for accepted frames or manually overridden frames that are not auto-rejected.
+- **Filter shown in preview metrics card** — the FITS filter name is now displayed directly below the date/time entry in the right-hand metrics panel of the preview window.
+- **Score sort option** — frames can now be sorted by their quality score directly from the sort rule dropdown.
+- **Revised quality score — rank-percentile algorithm** — the per-frame score (0–5) is now computed using weighted rank-percentile scoring instead of the previous ratio-to-average approach.
+  - The best frame in any session always scores near **5.0**; the worst near **0.0** — the full scale is always used.
+  - Each metric is ranked independently across all loaded frames; rank is converted to a [0, 1] percentile (1 = best in session). Weighted percentiles are then combined and scaled to 0–5.
+  - Ties receive the average rank of their group.
+  - Metric weights: FWHM ×3.0 · Eccentricity ×2.5 · Trail confidence ×2.0 · HFR ×1.5 · Stars ×1.5 · Mean background ×0.5.
+  - Quality label thresholds updated to match the new distribution: **GOOD** ≥ 4.0 · **FAIR** ≥ 2.0 · **POOR** < 2.0.
 
 
 - **Save / Load Session**
