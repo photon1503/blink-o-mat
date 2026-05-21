@@ -100,111 +100,63 @@
 
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
-                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Automatic rejection" />
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Min. trail confidence" />
-                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding SatelliteTrailRejectedFrameCount, StringFormat={}Rejects: {0}}" />
-                            </Grid>
-                            <DockPanel Margin="0,0,0,8">
-                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MinSatelliteConfidence, StringFormat={}{0}%}" />
-                                <Slider Minimum="1" Maximum="100" Value="{Binding MinSatelliteConfidence, UpdateSourceTrigger=PropertyChanged}"
-                                        TickFrequency="5" IsSnapToTickEnabled="False" />
-                            </DockPanel>
-
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Max FWHM" />
-                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding FwhmRejectedFrameCount, StringFormat={}Rejects: {0}}" />
-                            </Grid>
-                            <DockPanel Margin="0,0,0,8">
-                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MaxFwhm, StringFormat=F2}" />
-                                <Slider Minimum="0" Maximum="15" Value="{Binding MaxFwhm, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.25" IsSnapToTickEnabled="False" />
-                            </DockPanel>
-
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Min SQM" />
-                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding SqmRejectedFrameCount, StringFormat={}Rejects: {0}}" />
-                            </Grid>
-                            <DockPanel Margin="0,0,0,8">
-                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MinSqm, StringFormat=F2}" />
-                                <Slider Minimum="0" Maximum="30" Value="{Binding MinSqm, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.05" IsSnapToTickEnabled="False" />
-                            </DockPanel>
-
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Max sky temp" />
-                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding SkyTempRejectedFrameCount, StringFormat={}Rejects: {0}}" />
-                            </Grid>
-                            <DockPanel Margin="0,0,0,8">
-                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MaxSkyTemp, StringFormat=F1}" />
-                                <Slider Minimum="-50" Maximum="50" Value="{Binding MaxSkyTemp, UpdateSourceTrigger=PropertyChanged}" TickFrequency="1" IsSnapToTickEnabled="False" />
-                            </DockPanel>
-
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Max HFR" />
-                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding HfrRejectedFrameCount, StringFormat={}Rejects: {0}}" />
-                            </Grid>
-                            <DockPanel Margin="0,0,0,8">
-                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MaxHfr, StringFormat=F2}" />
-                                <Slider Minimum="0" Maximum="10" Value="{Binding MaxHfr, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.1" IsSnapToTickEnabled="False" />
-                            </DockPanel>
-
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Max Eccentricity" />
-                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding EccentricityRejectedFrameCount, StringFormat={}Rejects: {0}}" />
-                            </Grid>
-                            <DockPanel Margin="0,0,0,8">
-                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MaxEccentricity, StringFormat=F3}" />
-                                <Slider Minimum="0" Maximum="1" Value="{Binding MaxEccentricity, UpdateSourceTrigger=PropertyChanged}" TickFrequency="0.01" IsSnapToTickEnabled="False" />
-                            </DockPanel>
-
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Max Mean Background" />
-                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding MeanBackgroundRejectedFrameCount, StringFormat={}Rejects: {0}}" />
-                            </Grid>
-                            <DockPanel Margin="0,0,0,8">
-                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MaxMeanBackground, StringFormat=F1}" />
-                                <Slider Minimum="0" Maximum="10000" Value="{Binding MaxMeanBackground, UpdateSourceTrigger=PropertyChanged}" TickFrequency="50" IsSnapToTickEnabled="False" />
-                            </DockPanel>
-
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Min Stars" />
-                                <TextBlock Grid.Column="1" Opacity="0.78" Text="{Binding StarCountRejectedFrameCount, StringFormat={}Rejects: {0}}" />
-                            </Grid>
-                            <DockPanel>
-                                <TextBlock DockPanel.Dock="Right" Width="56" HorizontalAlignment="Right" TextAlignment="Right" Text="{Binding MinStars, StringFormat=F0}" />
-                                <Slider Minimum="0" Maximum="1000" Value="{Binding MinStars, UpdateSourceTrigger=PropertyChanged}" TickFrequency="5" IsSnapToTickEnabled="False" />
-                            </DockPanel>
+                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Automatic rejection" />
+                            <controls:MetricSliderControl
+                                Label="Min. trail confidence"
+                                Value="{Binding MinSatelliteConfidence, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Minimum="1" Maximum="100" TickFrequency="5" LargeChange="10"
+                                Decimals="0" Suffix="%"
+                                ShowRejectCount="True"
+                                RejectCount="{Binding SatelliteTrailRejectedFrameCount}" />
+                            <controls:MetricSliderControl
+                                Label="Max FWHM"
+                                Value="{Binding MaxFwhm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Minimum="0" Maximum="15" TickFrequency="0.25" LargeChange="1"
+                                Decimals="2"
+                                ShowRejectCount="True"
+                                RejectCount="{Binding FwhmRejectedFrameCount}" />
+                            <controls:MetricSliderControl
+                                Label="Min SQM"
+                                Value="{Binding MinSqm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Minimum="0" Maximum="30" TickFrequency="0.05" LargeChange="1"
+                                Decimals="2"
+                                ShowRejectCount="True"
+                                RejectCount="{Binding SqmRejectedFrameCount}" />
+                            <controls:MetricSliderControl
+                                Label="Max sky temp"
+                                Value="{Binding MaxSkyTemp, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Minimum="-50" Maximum="50" TickFrequency="1" LargeChange="5"
+                                Decimals="1"
+                                ShowRejectCount="True"
+                                RejectCount="{Binding SkyTempRejectedFrameCount}" />
+                            <controls:MetricSliderControl
+                                Label="Max HFR"
+                                Value="{Binding MaxHfr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Minimum="0" Maximum="10" TickFrequency="0.1" LargeChange="1"
+                                Decimals="2"
+                                ShowRejectCount="True"
+                                RejectCount="{Binding HfrRejectedFrameCount}" />
+                            <controls:MetricSliderControl
+                                Label="Max Eccentricity"
+                                Value="{Binding MaxEccentricity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Minimum="0" Maximum="1" TickFrequency="0.01" LargeChange="0.1"
+                                Decimals="3"
+                                ShowRejectCount="True"
+                                RejectCount="{Binding EccentricityRejectedFrameCount}" />
+                            <controls:MetricSliderControl
+                                Label="Max Mean Background"
+                                Value="{Binding MaxMeanBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Minimum="0" Maximum="10000" TickFrequency="50" LargeChange="500"
+                                Decimals="1"
+                                ShowRejectCount="True"
+                                RejectCount="{Binding MeanBackgroundRejectedFrameCount}" />
+                            <controls:MetricSliderControl
+                                Label="Min Stars"
+                                Value="{Binding MinStars, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Minimum="0" Maximum="1000" TickFrequency="5" LargeChange="50"
+                                Decimals="0"
+                                ShowRejectCount="True"
+                                RejectCount="{Binding StarCountRejectedFrameCount}" />
                         </StackPanel>
                     </Border>
 
@@ -215,14 +167,11 @@
                             </Expander.Header>
                             <StackPanel Margin="0,8,0,0">
                                 <CheckBox Content="Auto-stretch each frame individually" IsChecked="{Binding AutoStretchPerFrame}" Margin="0,0,0,8" />
-                                <TextBlock FontWeight="SemiBold" Text="STF Target Background" Margin="0,0,0,2" />
-                                <DockPanel Margin="0,0,0,8">
-                                    <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right"
-                                               Text="{Binding StfTargetBackground, StringFormat=F2}" />
-                                    <Slider Minimum="0.01" Maximum="0.5"
-                                            Value="{Binding StfTargetBackground, UpdateSourceTrigger=PropertyChanged}"
-                                            TickFrequency="0.01" IsSnapToTickEnabled="False" />
-                                </DockPanel>
+                                <controls:MetricSliderControl
+                                    Label="STF Target Background"
+                                    Value="{Binding StfTargetBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    Minimum="0.01" Maximum="0.5" TickFrequency="0.01" LargeChange="0.05"
+                                    Decimals="2" />
                                 <TextBlock Text="ROI bias" />
                                 <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,0" />
                             </StackPanel>

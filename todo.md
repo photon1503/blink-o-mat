@@ -7,8 +7,10 @@ ok * add sorting
 ok * add option to read subfolders recursively
 ok * fix aspect ration on ROI on startup.
 ok * OSC de-bayering, STF stretching for OSC images
-* make filter values editable
 ok * open in File Explorer
+* make filter values editable
+* add save/load session. save all current settings, including filter values, sorting, etc.  Load session should restore all settings and filters. also save the list of accepted/rejected subs, so that when you load a session, you see the same accepted/rejected subs as when you saved it. also save all metadata incl. thumbnails, roi preview and position. skip scanning the saved images when rescanning the folder, just add the new files.
+
 * add reason for rejection
 ok * Fix µm label
 * expressions like in sfs?  For example exclude stars where star count / sqm < 2@std dev (star count/sqm) and skytemp > -18?
