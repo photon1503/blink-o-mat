@@ -31,7 +31,12 @@ public sealed class RustafitsService
         double? ExposureSeconds = null,
         string? FilterName = null,
         double? Sqm = null,
-        double? SkyTemp = null);
+        double? SkyTemp = null,
+        float[][]? ColorChannels = null)
+    {
+        /// <summary>True when this frame was debayered from a single-channel OSC sensor.</summary>
+        public bool IsOsc => ColorChannels is { Length: 3 };
+    }
 
     public async Task<FrameItem> ProcessFrameAsync(string filePath, string thumbnailDirectory, CancellationToken cancellationToken)
     {
@@ -39,7 +44,7 @@ public sealed class RustafitsService
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
 
-            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp);
+            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp, frame.ColorChannels);
             var metrics = ComputeMetrics(loadedFrame);
             var previews = await RenderPreviewBitmapsAsync(loadedFrame, StfParameters.Default, null, metrics, cancellationToken);
 
@@ -62,7 +67,7 @@ public sealed class RustafitsService
         return Task.Run(async () =>
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
-            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp);
+            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp, frame.ColorChannels);
         }, cancellationToken);
     }
 
@@ -80,20 +85,46 @@ public sealed class RustafitsService
     {
         return Task.Run(() =>
         {
-            var full = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stf, metrics, frame.NormalizationMax);
-            var roi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stf, roiNormalizedRect, frame.NormalizationMax);
-            return (full, roi);
+            if (frame.IsOsc && frame.ColorChannels is { Length: 3 } cc)
+            {
+                var oscStf = ComputeAutoStretchOsc(frame);
+                var full = CreateThumbnailBitmapColor(cc[0], cc[1], cc[2], frame.Width, frame.Height, 160, 160, oscStf[0], oscStf[1], oscStf[2], metrics, frame.NormalizationMax);
+                var roi  = CreateRoiBitmapColor(cc[0], cc[1], cc[2], frame.Width, frame.Height, 160, oscStf[0], oscStf[1], oscStf[2], roiNormalizedRect, frame.NormalizationMax);
+                return (full, roi);
+            }
+
+            var monoFull = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stf, metrics, frame.NormalizationMax);
+            var monoRoi  = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stf, roiNormalizedRect, frame.NormalizationMax);
+            return (monoFull, monoRoi);
         }, cancellationToken);
     }
 
     public Task<BitmapSource> RenderFullBitmapAsync(LoadedFrame frame, StfParameters stf, CancellationToken cancellationToken)
     {
-        return Task.Run(() => CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stf, frame.NormalizationMax), cancellationToken);
+        return Task.Run(() =>
+        {
+            if (frame.IsOsc && frame.ColorChannels is { Length: 3 } cc)
+            {
+                var oscStf = ComputeAutoStretchOsc(frame);
+                return CreateFullFrameBitmapColor(cc[0], cc[1], cc[2], frame.Width, frame.Height, oscStf[0], oscStf[1], oscStf[2], frame.NormalizationMax);
+            }
+
+            return CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stf, frame.NormalizationMax);
+        }, cancellationToken);
     }
 
     public Task<BitmapSource> RenderScaledPreviewBitmapAsync(LoadedFrame frame, int targetWidth, int targetHeight, StfParameters stf, CancellationToken cancellationToken)
     {
-        return Task.Run(() => CreateScaledFrameBitmap(frame.Pixels, frame.Width, frame.Height, targetWidth, targetHeight, stf, frame.NormalizationMax), cancellationToken);
+        return Task.Run(() =>
+        {
+            if (frame.IsOsc && frame.ColorChannels is { Length: 3 } cc)
+            {
+                var oscStf = ComputeAutoStretchOsc(frame);
+                return CreateScaledFrameBitmapColor(cc[0], cc[1], cc[2], frame.Width, frame.Height, targetWidth, targetHeight, oscStf[0], oscStf[1], oscStf[2], frame.NormalizationMax);
+            }
+
+            return CreateScaledFrameBitmap(frame.Pixels, frame.Width, frame.Height, targetWidth, targetHeight, stf, frame.NormalizationMax);
+        }, cancellationToken);
     }
 
     public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame, RoiBias bias)
@@ -212,7 +243,7 @@ public sealed class RustafitsService
         return rotate180 ? Rotate180(frame) : frame;
     }
 
-    private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
+    private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, float[][]? ColorChannels)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
     {
         var ext = Path.GetExtension(filePath);
         if (ext.Equals(".fits", StringComparison.OrdinalIgnoreCase) || ext.Equals(".fit", StringComparison.OrdinalIgnoreCase))
@@ -222,13 +253,14 @@ public sealed class RustafitsService
 
         if (ext.Equals(".xisf", StringComparison.OrdinalIgnoreCase))
         {
-            return await LoadXisfAsync(filePath, cancellationToken);
+            var r = await LoadXisfAsync(filePath, cancellationToken);
+            return (r.Pixels, r.Width, r.Height, r.NormalizationMax, r.FocalLengthMm, r.PixelSizeUm, r.ExposureDateTime, r.ExposureSeconds, r.FilterName, r.SkyTemp, null);
         }
 
         throw new NotSupportedException($"Unsupported file type: {ext}");
     }
 
-    private static (float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp) LoadFits(string filePath)
+    private static (float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, float[][]? ColorChannels) LoadFits(string filePath)
     {
         using var stream = File.OpenRead(filePath);
         while (stream.Position < stream.Length)
@@ -252,7 +284,7 @@ public sealed class RustafitsService
         throw new InvalidOperationException("FITS image data not found.");
     }
 
-    private static (float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
+    private static (float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, float[][]? ColorChannels)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
     {
         if (header.Axes.Length < 2)
         {
@@ -332,7 +364,14 @@ public sealed class RustafitsService
             stream.Seek(paddingBytes, SeekOrigin.Current);
         }
 
-        return (result, width, height, ComputeFitsNormalizationMax(header), header.FocalLengthMm, header.PixelSizeUm, header.ExposureDateTime, header.ExposureSeconds, header.FilterName, header.SkyTemp);
+        // Debayer if this is a single-channel OSC frame
+        float[][]? colorChannels = null;
+        if (channels == 1 && !string.IsNullOrWhiteSpace(header.BayerPattern))
+        {
+            colorChannels = DebayerBilinear(result, width, height, header.BayerPattern, header.BayerOffsetX, header.BayerOffsetY);
+        }
+
+        return (result, width, height, ComputeFitsNormalizationMax(header), header.FocalLengthMm, header.PixelSizeUm, header.ExposureDateTime, header.ExposureSeconds, header.FilterName, header.SkyTemp, colorChannels);
     }
 
     private static double ReadFitsSampleFromBuffer(byte[] buffer, long sampleIndex, int bitPix, int bytesPerSample)
@@ -379,7 +418,10 @@ public sealed class RustafitsService
                     var exposureSeconds = FirstAvailableDouble(cards, "EXPTIME", "EXPOSURE", "EXPOSURETIME");
                     var filterName = FirstAvailableString(cards, "FILTER", "INSFLNAM", "FILTERID");
                     var skyTemp = FirstAvailableAnyDouble(cards, "SKYTEMP");
-                    return new FitsHeaderInfo(bitPix, axisCount, axes, bScale, bZero, focalLengthMm, pixelSizeUm, exposureDateTime, exposureSeconds, filterName, skyTemp);
+                    var bayerPattern = FirstAvailableString(cards, "BAYERPAT", "COLORTYP", "BAYEROFF");
+                    var bayerOffsetX = ParseInt(cards, "XBAYROFF", 0);
+                    var bayerOffsetY = ParseInt(cards, "YBAYROFF", 0);
+                    return new FitsHeaderInfo(bitPix, axisCount, axes, bScale, bZero, focalLengthMm, pixelSizeUm, exposureDateTime, exposureSeconds, filterName, skyTemp, bayerPattern, bayerOffsetX, bayerOffsetY);
                 }
 
                 if (!card.Contains('='))
@@ -640,7 +682,10 @@ public sealed class RustafitsService
         DateTimeOffset? ExposureDateTime,
         double? ExposureSeconds,
         string? FilterName,
-        double? SkyTemp);
+        double? SkyTemp,
+        string? BayerPattern = null,
+        int BayerOffsetX = 0,
+        int BayerOffsetY = 0);
 
     private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
     {
@@ -1363,6 +1408,284 @@ public sealed class RustafitsService
 
     private static double ReadSample(byte[] bytes, int sampleIndex, SampleFormat format)
         => ReadSample(new ReadOnlySpan<byte>(bytes), sampleIndex, format);
+
+    // ------------------------------------------------------------------ //
+    //  OSC / Bayer debayering                                              //
+    // ------------------------------------------------------------------ //
+
+    /// <summary>
+    /// Bilinear Bayer demosaicing.  Returns [R[], G[], B[]] each of length width*height.
+    /// Supported patterns: RGGB, BGGR, GRBG, GBRG (case-insensitive).
+    /// </summary>
+    private static float[][] DebayerBilinear(float[] raw, int width, int height, string pattern, int offsetX, int offsetY)
+    {
+        // Normalise pattern string
+        var p = pattern.Trim().Trim('\'', '"').ToUpperInvariant();
+
+        // Map the 2×2 Bayer cell: index [row%2][col%2] → channel 0=R,1=G,2=B
+        // Each known pattern lists top-left, top-right, bottom-left, bottom-right
+        var cellMap = p switch
+        {
+            "RGGB" => new[,] { { 0, 1 }, { 1, 2 } },
+            "BGGR" => new[,] { { 2, 1 }, { 1, 0 } },
+            "GRBG" => new[,] { { 1, 0 }, { 2, 1 } },
+            "GBRG" => new[,] { { 1, 2 }, { 0, 1 } },
+            _      => new[,] { { 0, 1 }, { 1, 2 } }   // default RGGB
+        };
+
+        var r = new float[width * height];
+        var g = new float[width * height];
+        var b = new float[width * height];
+
+        // Helper: clamp read with boundary reflection
+        float Get(int x, int y) => raw[Math.Clamp(y, 0, height - 1) * width + Math.Clamp(x, 0, width - 1)];
+
+        Parallel.For(0, height, y =>
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var idx = y * width + x;
+                var cellRow = ((y + offsetY) % 2 + 2) % 2;
+                var cellCol = ((x + offsetX) % 2 + 2) % 2;
+                var channel = cellMap[cellRow, cellCol];
+
+                switch (channel)
+                {
+                    case 0: // R pixel
+                        r[idx] = raw[idx];
+                        // G: average of 4 NESW neighbours
+                        g[idx] = (Get(x - 1, y) + Get(x + 1, y) + Get(x, y - 1) + Get(x, y + 1)) * 0.25f;
+                        // B: average of 4 diagonal neighbours
+                        b[idx] = (Get(x - 1, y - 1) + Get(x + 1, y - 1) + Get(x - 1, y + 1) + Get(x + 1, y + 1)) * 0.25f;
+                        break;
+                    case 2: // B pixel
+                        b[idx] = raw[idx];
+                        g[idx] = (Get(x - 1, y) + Get(x + 1, y) + Get(x, y - 1) + Get(x, y + 1)) * 0.25f;
+                        r[idx] = (Get(x - 1, y - 1) + Get(x + 1, y - 1) + Get(x - 1, y + 1) + Get(x + 1, y + 1)) * 0.25f;
+                        break;
+                    default: // G pixel — determine whether in R-row or B-row
+                        g[idx] = raw[idx];
+                        if (cellRow == 0) // G in R-row (RGGB top-right / GRBG top-left)
+                        {
+                            r[idx] = (Get(x - 1, y) + Get(x + 1, y)) * 0.5f;
+                            b[idx] = (Get(x, y - 1) + Get(x, y + 1)) * 0.5f;
+                        }
+                        else              // G in B-row
+                        {
+                            b[idx] = (Get(x - 1, y) + Get(x + 1, y)) * 0.5f;
+                            r[idx] = (Get(x, y - 1) + Get(x, y + 1)) * 0.5f;
+                        }
+                        break;
+                }
+            }
+        });
+
+        return [r, g, b];
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Per-channel (unlinked) auto-stretch for OSC frames                  //
+    // ------------------------------------------------------------------ //
+
+    /// <summary>Compute independent STF for each of R, G, B channels.</summary>
+    public StfParameters[] ComputeAutoStretchOsc(LoadedFrame frame, double targetBackground = 0.25)
+    {
+        if (frame.ColorChannels is not { Length: 3 } cc)
+        {
+            var mono = ComputeAutoStretch(frame, targetBackground);
+            return [mono, mono, mono];
+        }
+
+        return [
+            ComputeAutoStretchForChannel(cc[0], frame.NormalizationMax, targetBackground),
+            ComputeAutoStretchForChannel(cc[1], frame.NormalizationMax, targetBackground),
+            ComputeAutoStretchForChannel(cc[2], frame.NormalizationMax, targetBackground)
+        ];
+    }
+
+    private static StfParameters ComputeAutoStretchForChannel(float[] pixels, double normalizationMax, double targetBackground)
+    {
+        var sampled = Sample(pixels);
+        if (sampled.Length == 0) return StfParameters.Default;
+        Array.Sort(sampled);
+        var dataMax = Math.Max(1.0, normalizationMax);
+        var median = PercentileFromSorted(sampled, 0.5) / dataMax;
+        var absDeviations = new float[sampled.Length];
+        for (var i = 0; i < sampled.Length; i++)
+        {
+            absDeviations[i] = (float)Math.Abs((sampled[i] / dataMax) - median);
+        }
+        Array.Sort(absDeviations);
+        var mad = PercentileFromSorted(absDeviations, 0.5);
+        var sigma = 1.4826 * mad;
+        const double shadowsClipping = -2.8;
+        var c0 = Math.Clamp(median + (shadowsClipping * sigma), 0.0, 1.0);
+        var medianNorm = Math.Clamp((median - c0) / Math.Max(1e-9, 1.0 - c0), 1e-9, 1.0 - 1e-9);
+        var midtones = InverseMidtonesTransfer(targetBackground, medianNorm);
+        if (double.IsNaN(midtones) || double.IsInfinity(midtones)) midtones = 0.25;
+        midtones = Math.Clamp(midtones, 0.0, 1.0);
+        return new StfParameters(c0, midtones, 1.0);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Color (OSC) rendering helpers                                        //
+    // ------------------------------------------------------------------ //
+
+    private static byte StretchSample(float rawValue, double dataMax, StfParameters stf)
+    {
+        var normalised = rawValue / dataMax;
+        var c0 = stf.Shadows;
+        var m  = stf.Midtones;
+        var c1 = stf.Highlights;
+        var stretchRange = Math.Max(1e-9, c1 - c0);
+        var clipped = Math.Clamp((normalised - c0) / stretchRange, 0.0, 1.0);
+        var stretched = Math.Clamp(MidtonesTransfer(clipped, m), 0.0, 1.0);
+        return (byte)(stretched * 255.0 + 0.5);
+    }
+
+    /// <summary>Downsample R/G/B channels independently and produce an interleaved RGB24 byte array.</summary>
+    private static byte[] DownsampleAndStretchColor(
+        float[] rCh, float[] gCh, float[] bCh,
+        int srcWidth, int srcHeight,
+        int targetWidth, int targetHeight,
+        StfParameters stfR, StfParameters stfG, StfParameters stfB,
+        double normalizationMax)
+    {
+        var dataMax = Math.Max(1.0, normalizationMax);
+        var data = new byte[targetWidth * targetHeight * 3];
+        var useBilinear = srcWidth != targetWidth || srcHeight != targetHeight;
+
+        Parallel.For(0, targetHeight, y =>
+        {
+            var sourceY = MapTargetToSourceCoordinate(y, srcHeight, targetHeight);
+            for (var x = 0; x < targetWidth; x++)
+            {
+                var sourceX = MapTargetToSourceCoordinate(x, srcWidth, targetWidth);
+                float rv, gv, bv;
+                if (useBilinear)
+                {
+                    rv = (float)SampleBilinear(rCh, srcWidth, srcHeight, sourceX, sourceY);
+                    gv = (float)SampleBilinear(gCh, srcWidth, srcHeight, sourceX, sourceY);
+                    bv = (float)SampleBilinear(bCh, srcWidth, srcHeight, sourceX, sourceY);
+                }
+                else
+                {
+                    var si = ((int)sourceY * srcWidth) + (int)sourceX;
+                    rv = rCh[si]; gv = gCh[si]; bv = bCh[si];
+                }
+                var idx = ((y * targetWidth) + x) * 3;
+                data[idx]     = StretchSample(rv, dataMax, stfR);
+                data[idx + 1] = StretchSample(gv, dataMax, stfG);
+                data[idx + 2] = StretchSample(bv, dataMax, stfB);
+            }
+        });
+
+        return data;
+    }
+
+    private static BitmapSource CreateThumbnailBitmapColor(
+        float[] rCh, float[] gCh, float[] bCh,
+        int width, int height, int maxWidth, int maxHeight,
+        StfParameters stfR, StfParameters stfG, StfParameters stfB,
+        AstroMetrics? metrics, double normalizationMax)
+    {
+        var scale = Math.Min(maxWidth / (double)Math.Max(1, width), maxHeight / (double)Math.Max(1, height));
+        scale = Math.Min(1.0, scale <= 0 ? 1.0 : scale);
+        var contentWidth  = Math.Max(1, (int)Math.Round(width  * scale));
+        var contentHeight = Math.Max(1, (int)Math.Round(height * scale));
+        var sample = DownsampleAndStretchColor(rCh, gCh, bCh, width, height, contentWidth, contentHeight, stfR, stfG, stfB, normalizationMax);
+        if (metrics is { SatelliteTrailConfidence: > 0, TrailX1: not null, TrailY1: not null, TrailX2: not null, TrailY2: not null })
+        {
+            DrawTrailOverlay(sample, contentWidth, contentHeight, metrics);
+        }
+        if (contentWidth != maxWidth || contentHeight != maxHeight)
+        {
+            sample = PadRgb(sample, contentWidth, contentHeight, maxWidth, maxHeight);
+        }
+        var bitmap = BitmapSource.Create(maxWidth, maxHeight, 96, 96, PixelFormats.Rgb24, null, sample, maxWidth * 3);
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private static BitmapSource CreateRoiBitmapColor(
+        float[] rCh, float[] gCh, float[] bCh,
+        int width, int height, int roiSize,
+        StfParameters stfR, StfParameters stfG, StfParameters stfB,
+        (double Left, double Top, double Width, double Height)? roiNormalizedRect,
+        double normalizationMax)
+    {
+        int startX, startY, cropW, cropH;
+        if (roiNormalizedRect is { } rect)
+        {
+            startX = (int)Math.Round(Math.Clamp(rect.Left, 0, 1) * (width - 1));
+            startY = (int)Math.Round(Math.Clamp(rect.Top, 0, 1) * (height - 1));
+            cropW = Math.Max(1, (int)Math.Round(Math.Clamp(rect.Width, 0, 1) * width));
+            cropH = Math.Max(1, (int)Math.Round(Math.Clamp(rect.Height, 0, 1) * height));
+            startX = Math.Clamp(startX, 0, Math.Max(0, width - 1));
+            startY = Math.Clamp(startY, 0, Math.Max(0, height - 1));
+            cropW = Math.Min(cropW, width - startX);
+            cropH = Math.Min(cropH, height - startY);
+            var cropSide = Math.Min(cropW, cropH);
+            if (cropW != cropSide) { startX += (cropW - cropSide) / 2; cropW = cropSide; }
+            if (cropH != cropSide) { startY += (cropH - cropSide) / 2; cropH = cropSide; }
+        }
+        else
+        {
+            // Use luminance channel to detect center
+            var lum = new float[rCh.Length];
+            for (var i = 0; i < lum.Length; i++)
+                lum[i] = 0.2126f * rCh[i] + 0.7152f * gCh[i] + 0.0722f * bCh[i];
+            var (cx, cy) = DetectRoiCenter(lum, width, height, RoiBias.Galaxy);
+            var half = roiSize / 2;
+            startX = Math.Clamp(cx - half, 0, Math.Max(0, width - roiSize));
+            startY = Math.Clamp(cy - half, 0, Math.Max(0, height - roiSize));
+            cropW = Math.Min(roiSize, width);
+            cropH = Math.Min(roiSize, height);
+        }
+
+        float[] CropChannel(float[] ch)
+        {
+            var crop = new float[cropW * cropH];
+            for (var y = 0; y < cropH; y++)
+                Array.Copy(ch, ((startY + y) * width) + startX, crop, y * cropW, cropW);
+            return crop;
+        }
+
+        var rCrop = CropChannel(rCh);
+        var gCrop = CropChannel(gCh);
+        var bCrop = CropChannel(bCh);
+
+        var sample = DownsampleAndStretchColor(rCrop, gCrop, bCrop, cropW, cropH, roiSize, roiSize, stfR, stfG, stfB, normalizationMax);
+        var bitmap = BitmapSource.Create(roiSize, roiSize, 96, 96, PixelFormats.Rgb24, null, sample, roiSize * 3);
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private static BitmapSource CreateFullFrameBitmapColor(
+        float[] rCh, float[] gCh, float[] bCh,
+        int width, int height,
+        StfParameters stfR, StfParameters stfG, StfParameters stfB,
+        double normalizationMax)
+    {
+        var sample = DownsampleAndStretchColor(rCh, gCh, bCh, width, height, width, height, stfR, stfG, stfB, normalizationMax);
+        var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Rgb24, null, sample, width * 3);
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private static BitmapSource CreateScaledFrameBitmapColor(
+        float[] rCh, float[] gCh, float[] bCh,
+        int width, int height, int targetWidth, int targetHeight,
+        StfParameters stfR, StfParameters stfG, StfParameters stfB,
+        double normalizationMax)
+    {
+        var tw = Math.Max(1, Math.Min(width, targetWidth));
+        var th = Math.Max(1, Math.Min(height, targetHeight));
+        var sample = DownsampleAndStretchColor(rCh, gCh, bCh, width, height, tw, th, stfR, stfG, stfB, normalizationMax);
+        var bitmap = BitmapSource.Create(tw, th, 96, 96, PixelFormats.Rgb24, null, sample, tw * 3);
+        bitmap.Freeze();
+        return bitmap;
+    }
 
     private static BitmapSource CreateThumbnailBitmap(float[] pixels, int width, int height, int maxWidth, int maxHeight, StfParameters stf, AstroMetrics? metrics, double normalizationMax)
     {

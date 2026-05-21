@@ -31,7 +31,7 @@ Rejector is a Windows desktop tool for rapidly reviewing and culling astrophotog
 
 | Capability | Details |
 |---|---|
-| Supported formats | `.fit`, `.fits`, `.xisf` |
+| Supported formats | `.fit`, `.fits`, `.xisf` (mono and OSC colour) |
 | Loading strategy | First frame sync, remaining frames in parallel background tasks |
 | Subfolder scanning | Optional recursive scan via the **Subfolders** checkbox; subfolder structure is preserved when moving rejected frames |
 | Progress feedback | Status updates during scanning, loading, stretching, and preview refresh |
@@ -41,6 +41,7 @@ Rejector is a Windows desktop tool for rapidly reviewing and culling astrophotog
 ### Display & Preview
 
 - **Dark, mid-gray UI** — low-glare theme for night-time use
+- **Colour rendering for OSC frames** — FITS files from one-shot colour sensors are bilinear-debayered at load time and displayed in full colour in every preview surface (thumbnail, ROI, interactive window, full-resolution view)
 - **Main list** — per-frame thumbnail, ROI preview, star rating, and numeric score at a glance
 - **Dedicated preview window** for blinking and close inspection:
   - Default zoom-to-fit; `1:1`, zoom-in, zoom-out controls
@@ -58,6 +59,7 @@ Rejector is a Windows desktop tool for rapidly reviewing and culling astrophotog
 - Global stretch factor: `0.25×` to `5.0×`
 - Stretch modes: **Default** · **NinaStyle**
 - **Same-background normalization** — aligns all frames to a common target background level (enabled by default, target level adjustable)
+- **Unlinked colour stretch for OSC frames** — shadows, midtones, and highlights are computed independently per channel (R, G, B) so colour balance is retained without manual adjustment
 - Stretch and ROI controls are mirrored in both the main window and the preview window
 
 ### ROI & Orientation
@@ -90,7 +92,7 @@ The UI color-codes each metric (🟢 / 🟡 / 🔴) relative to the session, sho
 
 ### Metadata Extraction
 
-Focal length · Pixel size · Exposure date/time · Exposure length · Filter · Sky temperature
+Focal length · Pixel size · Exposure date/time · Exposure length · Filter · Sky temperature · Bayer pattern (`BAYERPAT` / `XBAYROFF` / `YBAYROFF`)
 
 ### Rejection & Sorting
 
