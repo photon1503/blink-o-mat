@@ -61,7 +61,7 @@
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Session" />
                             <TextBlock Text="{Binding SessionFocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
-                            <TextBlock Text="{Binding SessionPixelSizeUm, StringFormat=Pixel: {0:F2} �m, TargetNullValue=Pixel: n/a}" />
+                            <TextBlock Text="{Binding SessionPixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
                         </StackPanel>
                     </Border>
 

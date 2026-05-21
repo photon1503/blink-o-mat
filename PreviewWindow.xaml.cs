@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -8,6 +10,7 @@ using System.Windows.Threading;
 using System.Windows.Controls.Primitives;
 using System.Windows.Shapes;
 using blink_o_mat.ViewModels;
+using blink_o_mat.Services;
 using WpfPoint = System.Windows.Point;
 
 namespace blink_o_mat;
@@ -44,6 +47,9 @@ public partial class PreviewWindow : Window
     public PreviewWindow(FramePreviewViewModel vm)
     {
         InitializeComponent();
+        WindowPlacementService.RestorePreviewWindow(this);
+        Closing += PreviewWindow_Closing;
+
         _vm = vm;
         DataContext = _vm;
         _vm.PropertyChanged += Vm_PropertyChanged;
@@ -55,6 +61,11 @@ public partial class PreviewWindow : Window
             RedrawCacheIndicators();
             _hasInitializedView = true;
         };
+    }
+
+    private void PreviewWindow_Closing(object? sender, CancelEventArgs e)
+    {
+        WindowPlacementService.SavePreviewWindow(this);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -201,6 +212,30 @@ public partial class PreviewWindow : Window
     private void ToggleReject_Click(object sender, RoutedEventArgs e)
     {
         _vm.ToggleReject();
+    }
+
+    private void OpenInFileExplorer_Click(object sender, RoutedEventArgs e)
+    {
+        var filePath = _vm.Item.FilePath;
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            System.Windows.MessageBox.Show(this, "The current file could not be found.", "Open in File Explorer", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"/select,\"{filePath}\"",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(this, $"Failed to open File Explorer.\n\n{ex.Message}", "Open in File Explorer", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void ImageScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -585,6 +620,26 @@ public partial class PreviewWindow : Window
         }
     }
 
+    private static DependencyObject? GetParentObject(DependencyObject? child)
+    {
+        if (child is null)
+        {
+            return null;
+        }
+
+        if (child is Visual || child is System.Windows.Media.Media3D.Visual3D)
+        {
+            return VisualTreeHelper.GetParent(child);
+        }
+
+        if (child is FrameworkContentElement frameworkContentElement)
+        {
+            return frameworkContentElement.Parent;
+        }
+
+        return LogicalTreeHelper.GetParent(child);
+    }
+
     private static bool IsVisualDescendantOf(DependencyObject? child, DependencyObject ancestor)
     {
         while (child is not null)
@@ -594,7 +649,7 @@ public partial class PreviewWindow : Window
                 return true;
             }
 
-            child = VisualTreeHelper.GetParent(child);
+            child = GetParentObject(child);
         }
 
         return false;
@@ -610,7 +665,7 @@ public partial class PreviewWindow : Window
                 return match;
             }
 
-            child = VisualTreeHelper.GetParent(child);
+            child = GetParentObject(child);
         }
 
         return null;

@@ -1,5 +1,7 @@
-﻿using System.Windows;
+﻿using System.ComponentModel;
+using System.Windows;
 using System.Windows.Controls;
+using blink_o_mat.Services;
 using blink_o_mat.ViewModels;
 
 namespace blink_o_mat
@@ -14,6 +16,8 @@ namespace blink_o_mat
             InitializeComponent();
             DataContext = new MainViewModel();
             SourceInitialized += (_, _) => WindowTitleBarStyler.Apply(this);
+            WindowPlacementService.RestoreMainWindow(this);
+            Closing += MainWindow_Closing;
         }
 
         private void FramesListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -24,6 +28,11 @@ namespace blink_o_mat
             }
 
             Dispatcher.BeginInvoke(() => FramesListView.ScrollIntoView(FramesListView.SelectedItem));
+        }
+
+        private void MainWindow_Closing(object? sender, CancelEventArgs e)
+        {
+            WindowPlacementService.SaveMainWindow(this);
         }
     }
 }

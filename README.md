@@ -36,7 +36,7 @@ Rejector is a Windows desktop tool for rapidly reviewing and culling astrophotog
 | Subfolder scanning | Optional recursive scan via the **Subfolders** checkbox; subfolder structure is preserved when moving rejected frames |
 | Progress feedback | Status updates during scanning, loading, stretching, and preview refresh |
 | Fault tolerance | Unreadable frames are skipped; loading continues |
-| Persistence | Last-used input and rejected folder paths are remembered between runs |
+| Persistence | Last-used input and rejected folder paths are remembered between runs; main and preview window size/position are restored on next launch |
 
 ### Display & Preview
 
@@ -50,6 +50,7 @@ Rejector is a Windows desktop tool for rapidly reviewing and culling astrophotog
   - **Accepted / Rejected filter chips** — list and slider update instantly when filters change
   - Keyboard navigation: `←` / `→` to step, `R` to toggle reject
   - Zoom level and pan position are preserved while stepping between frames
+	- Window size, position, and maximized state are remembered between runs
   - Cache coverage indicator beside the slider
   - Transient status message when a full-resolution frame is loaded from disk
 - **Right-click loupe** — visible while RMB is held, follows the cursor, shows local pixel stats (`X`, `Y`, `K`, `Min`, `Max`, `Mean`)
