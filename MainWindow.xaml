@@ -26,11 +26,13 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
                     <Hyperlink Command="{Binding BrowseInputCommand}" Foreground="{StaticResource TextBrush}">Input folder:</Hyperlink>
                 </TextBlock>
                 <TextBox Grid.Column="1" Text="{Binding InputFolder, UpdateSourceTrigger=PropertyChanged}" />
+                <CheckBox Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0" IsChecked="{Binding IncludeSubfolders}" ToolTip="Include subfolders recursively">Subfolders</CheckBox>
             </Grid>
 
             <Grid Grid.Column="1" Margin="0,0,10,0">

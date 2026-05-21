@@ -1484,6 +1484,20 @@ public sealed class RustafitsService
             startY = Math.Clamp(startY, 0, Math.Max(0, height - 1));
             cropW = Math.Min(cropW, width - startX);
             cropH = Math.Min(cropH, height - startY);
+
+            // Force a square crop so the ROI bitmap is not distorted.
+            // Use the smaller axis and re-center on the other axis.
+            var cropSide = Math.Min(cropW, cropH);
+            if (cropW != cropSide)
+            {
+                startX += (cropW - cropSide) / 2;
+                cropW = cropSide;
+            }
+            if (cropH != cropSide)
+            {
+                startY += (cropH - cropSide) / 2;
+                cropH = cropSide;
+            }
         }
         else
         {

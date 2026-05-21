@@ -162,6 +162,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private string? _inputFolder;
     private string? _rejectedFolder;
+    private bool _includeSubfolders;
     private string _status = "Ready";
     private bool _isBusy;
     private double _progressValue;
@@ -231,6 +232,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             SaveFolderSettings();
             ((RelayCommand)LoadFramesCommand).RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool IncludeSubfolders
+    {
+        get => _includeSubfolders;
+        set
+        {
+            if (_includeSubfolders == value) return;
+            _includeSubfolders = value;
+            OnPropertyChanged();
+            SaveFolderSettings();
         }
     }
 
@@ -724,6 +737,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var settings = _settings.Load();
         InputFolder = settings.InputFolder;
         RejectedFolder = settings.RejectedFolder;
+        _includeSubfolders = settings.IncludeSubfolders;
     }
 
     private bool FilterFrame(object item)
@@ -892,6 +906,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private string? ComputeRelativePath(string filePath)
+    {
+        var dir = Path.GetDirectoryName(filePath);
+        var root = InputFolder?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (string.IsNullOrWhiteSpace(dir) || string.IsNullOrWhiteSpace(root) || !dir.StartsWith(root, StringComparison.OrdinalIgnoreCase) || dir.Length <= root.Length)
+        {
+            return null;
+        }
+
+        return dir[(root.Length + 1)..];
+    }
+
     private void BrowseInput()
     {
         using var dialog = new System.Windows.Forms.FolderBrowserDialog();
@@ -917,7 +943,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _settings.Save(new AppSettings
         {
             InputFolder = InputFolder,
-            RejectedFolder = RejectedFolder
+            RejectedFolder = RejectedFolder,
+            IncludeSubfolders = IncludeSubfolders
         });
     }
 
@@ -955,7 +982,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             var stopwatch = Stopwatch.StartNew();
-            var files = _discovery.Discover(InputFolder);
+            var files = _discovery.Discover(InputFolder, IncludeSubfolders);
             ProgressMaximum = Math.Max(1, files.Count);
             var loadedCount = 0;
             var skippedCount = 0;
@@ -995,6 +1022,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     {
                         FilePath = file,
                         FileName = Path.GetFileName(file),
+                        RelativePath = ComputeRelativePath(file),
                         ExposureDateTime = raw.ExposureDateTime,
                         ExposureSeconds = raw.ExposureSeconds,
                         FilterName = raw.FilterName,
@@ -1065,6 +1093,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         {
                             FilePath = entry.File,
                             FileName = Path.GetFileName(entry.File),
+                            RelativePath = ComputeRelativePath(entry.File),
                             ExposureDateTime = oriented.ExposureDateTime,
                             ExposureSeconds = oriented.ExposureSeconds,
                             FilterName = oriented.FilterName,

@@ -5,6 +5,7 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)](https://www.microsoft.com/windows)
 [![License](https://img.shields.io/github/license/photon1503/blink-o-mat)](LICENSE.txt)
+[![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-blue)](CHANGELOG.md)
 
 Rejector is a Windows desktop tool for rapidly reviewing and culling astrophotography light frames. It loads FITS and XISF subframes, measures quality metrics on each frame, lets you blink through them side-by-side, and moves rejects to a separate folder — all with a dark-room-friendly UI.
 
@@ -20,6 +21,7 @@ Rejector is a Windows desktop tool for rapidly reviewing and culling astrophotog
 - [Headless Arguments](#headless-arguments)
 - [Default Thresholds](#default-thresholds)
 - [Notes](#notes)
+- [Changelog](#changelog)
 
 ---
 
@@ -31,6 +33,7 @@ Rejector is a Windows desktop tool for rapidly reviewing and culling astrophotog
 |---|---|
 | Supported formats | `.fit`, `.fits`, `.xisf` |
 | Loading strategy | First frame sync, remaining frames in parallel background tasks |
+| Subfolder scanning | Optional recursive scan via the **Subfolders** checkbox; subfolder structure is preserved when moving rejected frames |
 | Progress feedback | Status updates during scanning, loading, stretching, and preview refresh |
 | Fault tolerance | Unreadable frames are skipped; loading continues |
 | Persistence | Last-used input and rejected folder paths are remembered between runs |
@@ -204,3 +207,9 @@ dotnet run --project .\blink-o-mat.csproj -- `
 - Loupe pixel statistics are derived from the currently rendered (stretched) preview image, not the raw sensor data.
 - Manual keep/reject overrides are independent of automatic thresholds — changing a threshold after a manual override does not clear the override.
 - Move operations rename files on collision (`_1`, `_2`, …) to prevent accidental overwrites.
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a full history of changes.

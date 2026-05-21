@@ -6,15 +6,16 @@ public sealed class FrameDiscoveryService
 {
     private static readonly string[] Extensions = [".fit", ".fits", ".xisf"];
 
-    public IReadOnlyList<string> Discover(string folder)
+    public IReadOnlyList<string> Discover(string folder, bool recursive = false)
     {
         if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
         {
             return [];
         }
 
+        var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         return Directory
-            .EnumerateFiles(folder, "*.*", SearchOption.TopDirectoryOnly)
+            .EnumerateFiles(folder, "*.*", searchOption)
             .Where(path => Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToList();

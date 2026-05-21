@@ -12,15 +12,25 @@ public sealed class FrameMoveService
             return 0;
         }
 
-        Directory.CreateDirectory(destinationFolder);
-
         var moved = 0;
         foreach (var frame in frames.Where(f => f.IsRejected))
         {
-            var destination = Path.Combine(destinationFolder, frame.FileName);
+            string targetFolder;
+            if (!string.IsNullOrWhiteSpace(frame.RelativePath))
+            {
+                targetFolder = Path.Combine(destinationFolder, frame.RelativePath);
+            }
+            else
+            {
+                targetFolder = destinationFolder;
+            }
+
+            Directory.CreateDirectory(targetFolder);
+
+            var destination = Path.Combine(targetFolder, frame.FileName);
             if (File.Exists(destination))
             {
-                destination = Path.Combine(destinationFolder, $"{Path.GetFileNameWithoutExtension(frame.FileName)}_{DateTime.Now:yyyyMMddHHmmssfff}{Path.GetExtension(frame.FileName)}");
+                destination = Path.Combine(targetFolder, $"{Path.GetFileNameWithoutExtension(frame.FileName)}_{DateTime.Now:yyyyMMddHHmmssfff}{Path.GetExtension(frame.FileName)}");
             }
 
             File.Move(frame.FilePath, destination);

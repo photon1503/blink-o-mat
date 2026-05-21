@@ -57,4 +57,6 @@ public sealed class AppSettings
     public string? InputFolder { get; set; }
 
     public string? RejectedFolder { get; set; }
+
+    public bool IncludeSubfolders { get; set; }
 }

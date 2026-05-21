@@ -24,6 +24,7 @@ public sealed class FrameItem : INotifyPropertyChanged
 
     public required string FilePath { get; init; }
     public required string FileName { get; init; }
+    public string? RelativePath { get; init; }
     public required AstroMetrics Metrics { get; init; }
     public DateTimeOffset? ExposureDateTime { get; init; }
     public double? ExposureSeconds { get; init; }
