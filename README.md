@@ -176,9 +176,7 @@ dotnet build
 
 ## Usage — GUI
 
-```powershell
-dotnet run --project .\blink-o-mat.csproj
-```
+Run the installer. Find "Rejector" in your start menue to kick it off.
 
 1. Click **Browse** next to the input folder and select the folder containing your light frames.
 2. Optionally enable **Subfolders** to scan recursively.
@@ -196,7 +194,7 @@ dotnet run --project .\blink-o-mat.csproj
 Run without a UI — useful for scripted pipelines or CI workflows.
 
 ```powershell
-dotnet run --project .\blink-o-mat.csproj -- `
+rejector -- `
   --headless `
   --input    "D:\lights" `
   --rejected "D:\lights\rejected" `
