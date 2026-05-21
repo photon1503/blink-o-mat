@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased] — 1.0.4
+##  1.0.4
 
 ### Added
 - **Rejection reasons tooltip** — each automatically rejected frame now displays a small **?** badge next to the Reject/Keep button.
