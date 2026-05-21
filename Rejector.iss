@@ -1,6 +1,6 @@
 #define MyAppName "Rejector"
 #define MyAppExeName "Rejector.exe"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.4"
 #define MyAppPublisher "Gerald Hitz"
 #define MyAppURL "https://github.com/photon1503/blink-o-mat"
 #define MyAppPublishDir "bin\\Release\\net10.0-windows\\publish"
