@@ -13,7 +13,7 @@ internal static class WindowPlacementService
 
     private static readonly string SettingsDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "blink-o-mat");
+        "Rejector");
 
     private static readonly string SettingsFilePath = Path.Combine(SettingsDirectory, "window-placement.json");
 

@@ -1179,7 +1179,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         using var dialog = new System.Windows.Forms.SaveFileDialog
         {
             Title = "Save Session",
-            Filter = "Blink-o-mat Session (*.boms)|*.boms|All files (*.*)|*.*",
+            Filter = "Rejector Session (*.boms)|*.boms|All files (*.*)|*.*",
             DefaultExt = "boms",
             FileName = "session.boms"
         };
@@ -1280,7 +1280,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         using var dialog = new System.Windows.Forms.OpenFileDialog
         {
             Title = "Load Session",
-            Filter = "Blink-o-mat Session (*.boms)|*.boms|All files (*.*)|*.*",
+            Filter = "Rejector Session (*.boms)|*.boms|All files (*.*)|*.*",
             DefaultExt = "boms"
         };
 

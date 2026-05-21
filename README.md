@@ -1,4 +1,4 @@
-﻿# blink-o-mat
+﻿# Rejector
 
 > **Subframe quality analyser and blinker for astrophotography FITS/XISF images.**
 
@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/github/license/photon1503/blink-o-mat)](LICENSE.txt)
 [![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-blue)](CHANGELOG.md)
 
-**blink-o-mat** helps you cull bad subframes from an astrophotography session before stacking.
+**Rejector** helps you cull bad subframes from an astrophotography session before stacking.
 It batch-loads FITS and XISF light frames, extracts quality metrics from each one (FWHM, HFR, eccentricity, star count, background, and more), scores and ranks them, and lets you step through the frames one by one — or blink them at speed — to spot satellites, clouds, tracking failures, and poor seeing at a glance.
 Frames that don't meet your thresholds are automatically flagged; you can review, override, and move them to a reject folder in a single click.
 
