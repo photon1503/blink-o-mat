@@ -39,6 +39,49 @@
             <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="10,4" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHoverBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlPressedBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlBackgroundBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PanelBorderBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="{StaticResource ControlBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="FontSize" Value="12" />
         </Style>
 
         <Style TargetType="TextBox">
