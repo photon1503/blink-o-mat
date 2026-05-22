@@ -68,7 +68,8 @@ Frames that don't meet your thresholds are automatically flagged; you can review
   - Pan with **left mouse drag**, zoom with **Mouse Wheel**
   - Prev / Next navigation buttons and a **vertical frame slider** for direct scrubbing
   - **Accepted / Rejected filter chips** — list and slider update instantly when chip selection changes
-  - Keyboard: `←` / `→` to step frames, `R` to toggle reject on the current frame
+  - **Play / Pause** button (`Space`) — automatically steps through frames at a configurable interval; use the **−** / **+** buttons to cycle through preset speeds (100 ms · 200 ms · 500 ms · 1 s · 2 s · 3 s · 5 s · 10 s); playback stops automatically at the last frame
+  - Keyboard: `←` / `→` to step frames, `Space` to toggle play/pause, `R` to toggle reject on the current frame
   - Zoom level and pan position are preserved while stepping between frames
   - Window size, position, and maximized state are remembered between runs
   - Cache coverage indicator beside the frame slider — markers are **colored green→yellow→red** by quality score, **struck through** for rejected frames, and outlined with a **blue border** when the frame is in the cache; **click any marker to jump directly to that frame**
@@ -182,7 +183,7 @@ Run the installer. Find "Rejector" in your start menue to kick it off.
 2. Optionally enable **Subfolders** to scan recursively.
 3. Wait for loading to complete (progress shown in the status bar).
 4. Adjust the STF stretch, ROI bias, and automatic rejection thresholds as needed.
-5. Open the **Preview window** and blink through frames; press `R` to reject individual frames.
+5. Open the **Preview window** and blink through frames; press `Space` to start/stop auto-play or `R` to reject individual frames.
 6. Click **Move Rejected** to relocate all rejected frames to the configured rejected folder.
 7. Click the **💾 Save Session** icon (top-left) to save all settings, thresholds, sort rules, and per-frame state to a `.boms` file.
 8. Next time, click **📂 Load Session** to restore the session instantly; any new files added to the folder since the last save are detected and appended automatically.

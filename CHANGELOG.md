@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ---
 ## 1.0.6
 
+### Added
+- **Play / Pause button** in the preview window toolbar — automatically steps through frames at a configurable interval.
+  - Press the **▶ / ⏸** button or hit `Space` to toggle playback.
+  - Use the **−** / **+** controls next to the button to cycle through preset intervals: 100 ms, 200 ms, 500 ms, **1 s** (default), 2 s, 3 s, 5 s, 10 s.
+  - Playback stops automatically when the last frame is reached.
+
 ### Changed
 - **Preview slider markers redesigned** — the small frame indicators beside the vertical frame slider now convey quality and state at a glance:
   - **Score-driven color** — each marker is colored on a continuous **green → yellow → red** gradient based on the frame's rank-percentile quality score (best = green, worst = red). Colors are normalized per session so the full gradient is always used.

@@ -47,6 +47,11 @@ public partial class PreviewWindow : Window
     private const int LoupeSampleSize = 31;
     private const int LoupeZoomScale = 4;
 
+    // Playback
+    private readonly DispatcherTimer _playTimer;
+    private double _playIntervalSeconds = 1.0;
+    private static readonly double[] PlayIntervalSteps = [0.1, 0.2, 0.5, 1.0, 2.0, 3.0, 5.0, 10.0];
+
     public PreviewWindow(FramePreviewViewModel vm)
     {
         InitializeComponent();
@@ -64,10 +69,70 @@ public partial class PreviewWindow : Window
             RedrawCacheIndicators();
             _hasInitializedView = true;
         };
+
+        _playTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(_playIntervalSeconds) };
+        _playTimer.Tick += async (_, _) =>
+        {
+            // Stop at the last frame
+            if (_vm.CurrentFrameIndex >= _vm.FrameCount - 1)
+            {
+                StopPlayback();
+                return;
+            }
+            await _vm.NavigateAsync(1);
+        };
+    }
+
+    private void StopPlayback()
+    {
+        _playTimer.Stop();
+        PlayButton.IsChecked = false;
+        PlayButtonIcon.Text = "▶";
+    }
+
+    private void PlayButton_Checked(object sender, RoutedEventArgs e)
+    {
+        PlayButtonIcon.Text = "⏸";
+        _playTimer.Interval = TimeSpan.FromSeconds(_playIntervalSeconds);
+        _playTimer.Start();
+    }
+
+    private void PlayButton_Unchecked(object sender, RoutedEventArgs e)
+    {
+        _playTimer.Stop();
+        PlayButtonIcon.Text = "▶";
+    }
+
+    private void IntervalDown_Click(object sender, RoutedEventArgs e)
+    {
+        var idx = Array.BinarySearch(PlayIntervalSteps, _playIntervalSeconds);
+        if (idx < 0) idx = ~idx;
+        idx = Math.Max(0, idx - 1);
+        _playIntervalSeconds = PlayIntervalSteps[idx];
+        _playTimer.Interval = TimeSpan.FromSeconds(_playIntervalSeconds);
+        UpdateIntervalText();
+    }
+
+    private void IntervalUp_Click(object sender, RoutedEventArgs e)
+    {
+        var idx = Array.BinarySearch(PlayIntervalSteps, _playIntervalSeconds);
+        if (idx < 0) idx = ~idx - 1;
+        idx = Math.Min(PlayIntervalSteps.Length - 1, idx + 1);
+        _playIntervalSeconds = PlayIntervalSteps[idx];
+        _playTimer.Interval = TimeSpan.FromSeconds(_playIntervalSeconds);
+        UpdateIntervalText();
+    }
+
+    private void UpdateIntervalText()
+    {
+        IntervalText.Text = _playIntervalSeconds < 1.0
+            ? $"{_playIntervalSeconds * 1000:0} ms"
+            : $"{_playIntervalSeconds:0.#} s";
     }
 
     private void PreviewWindow_Closing(object? sender, CancelEventArgs e)
     {
+        _playTimer.Stop();
         WindowPlacementService.SavePreviewWindow(this);
     }
 
@@ -914,6 +979,12 @@ public partial class PreviewWindow : Window
         {
             e.Handled = true;
             _vm.ToggleReject();
+        }
+
+        if (e.Key == Key.Space)
+        {
+            e.Handled = true;
+            PlayButton.IsChecked = !PlayButton.IsChecked;
         }
     }
 
