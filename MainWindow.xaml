@@ -33,12 +33,12 @@
                 <Button Command="{Binding SaveSessionCommand}" ToolTip="Save current session — settings, filters, sort order, and per-frame accepted/rejected state — to a .boms file"
                         Width="28" Height="28" Padding="4" Margin="0,0,4,0">
                     <Path Data="M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3M19,19H5V5H16.17L19,7.83V19M12,12C10.34,12 9,13.34 9,15S10.34,18 12,18 15,16.66 15,15 13.66,12 12,12M6,6H15V10H6V6Z"
-                          Fill="{StaticResource TextBrush}" Stretch="Uniform" Width="14" Height="14"/>
+                          Fill="{StaticResource TextBrush}" Stretch="Uniform" Width="14" Height="14" />
                 </Button>
                 <Button Command="{Binding LoadSessionCommand}" ToolTip="Load a previously saved .boms session; new files in the folder are picked up and appended automatically"
                         Width="28" Height="28" Padding="4">
                     <Path Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M12,11L16,15H13.5V19H10.5V15H8L12,11Z"
-                          Fill="{StaticResource TextBrush}" Stretch="Uniform" Width="14" Height="14"/>
+                          Fill="{StaticResource TextBrush}" Stretch="Uniform" Width="14" Height="14" />
                 </Button>
             </StackPanel>
 
@@ -212,8 +212,17 @@
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Session" />
-                            <TextBlock Text="{Binding SessionFocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
-                            <TextBlock Text="{Binding SessionPixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding SessionFocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding SessionPixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 
@@ -407,9 +416,9 @@
                     </Border>
 
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
-                        <Expander IsExpanded="False">
+                        <Expander IsExpanded="True">
                             <Expander.Header>
-                                <TextBlock FontWeight="SemiBold" Text="Preview and ROI" />
+                                <TextBlock FontWeight="SemiBold" Text="Stretching" />
                             </Expander.Header>
                             <StackPanel Margin="0,8,0,0">
                                 <CheckBox Content="Auto-stretch each frame individually" IsChecked="{Binding AutoStretchPerFrame}" Margin="0,0,0,8" ToolTip="When enabled, STF parameters are computed independently for each frame instead of using a single global stretch" />
@@ -418,11 +427,10 @@
                                     Value="{Binding StfTargetBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     Minimum="0.01" Maximum="0.5" TickFrequency="0.01" LargeChange="0.05"
                                     Decimals="2" />
-                                </StackPanel>
-                                            </Expander>
+                            </StackPanel>
+                        </Expander>
                     </Border>
-
-                    </StackPanel>
+                </StackPanel>
             </ScrollViewer>
 
             <Grid Grid.Column="1">
