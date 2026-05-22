@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## 1.0.9
+
+### Changed
+- **ROI center detection rewritten — blur-then-peak algorithm** — the previous flood-fill segmentation approach failed for dense targets such as globular clusters (e.g. M13), where hundreds of individually tiny star blobs each scored too low to win. The new algorithm heavily blurs the downsampled image (large box blur, 4 passes, radius ≈ 15 % of the shorter image axis) so that all the cluster's stars merge into one smooth hump, then picks the brightest pixel in the central 80 % of the result. Background is subtracted before blurring to suppress sky gradients. This reliably centres the ROI on globular clusters, galaxies, and nebulae of any morphology.
+- **ROI bias presets removed** — the *Galaxy / Core / Starfield* bias selector has been removed from both the main window and the preview window. The new center-focused algorithm does not require a bias hint and produces a better result across all target types without user input. The `RoiBias` field is no longer written to or read from session files.
+
+---
 ## 1.0.8
 
 ### Changed
@@ -64,7 +71,7 @@ All notable changes to this project will be documented in this file.
 
 
 - **Save / Load Session**
-  - Saves: input/rejected folder paths, subfolder toggle, all rejection thresholds, STF settings, ROI bias and manual ROI rectangle, sort rules, filter chip selection, and accepted/rejected state per frame.
+  - Saves: input/rejected folder paths, subfolder toggle, all rejection thresholds, STF settings, manual ROI rectangle, sort rules, filter chip selection, and accepted/rejected state per frame.
   - Per-frame cache: all metrics, FITS metadata (focal length, pixel size, exposure date/time, filter), thumbnail images, and ROI preview images are stored as base64-encoded PNGs inside the session file — no re-analysis required on load.
   - **Incremental rescan on load**: after restoring the session, the input folder is scanned and any files not already present in the session are loaded, analyzed, and appended automatically.
   - **Save Session** and **Load Session** icon buttons are placed in the top-left corner of the main window toolbar.

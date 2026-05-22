@@ -24,14 +24,16 @@ namespace blink_o_mat
         {
             if (DataContext is not ViewModels.MainViewModel vm) return;
 
-            var dialog = new RejectConfirmDialog(vm.RejectedFrameCount, vm.RejectedFolder)
+            var filterCounts = vm.GetRejectedCountByFilter();
+
+            var dialog = new RejectConfirmDialog(vm.RejectedFrameCount, vm.RejectedFolder, filterCounts)
             {
                 Owner = this
             };
 
             if (dialog.ShowDialog() == true)
             {
-                vm.ExecuteMoveRejected();
+                vm.ExecuteMoveRejected(dialog.SelectedFilterKeys);
             }
         }
 

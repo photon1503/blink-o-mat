@@ -101,7 +101,7 @@ The *Frame summary* card in the left sidebar provides a live statistical overvie
 ### ROI (Region of Interest)
 
 - ROI preview rendered alongside the full-frame thumbnail for every frame
-- ROI bias presets: **Galaxy** · **Core** · **Starfield** — shifts the crop toward the region that matters most for your target type
+- **Automatic center detection** — on load, the ROI is positioned automatically using a blur-then-peak algorithm: the image is heavily blurred so that all stars of a dense target (globular cluster, galaxy, nebula) merge into one smooth hump, then the brightest point in the central 80 % is chosen as the ROI center. This works reliably across all target types without any user configuration.
 - **Ctrl + left mouse drag** in the preview window to draw a custom square ROI; the selection is committed on mouse release and persists for the session
 - Press **Escape** to cancel an in-progress ROI drag
 - Automatic orientation normalization to align meridian-flipped and rotated frames
@@ -196,7 +196,7 @@ Run the installer. Find "Rejector" in your start menue to kick it off.
 1. Click **Browse** next to the input folder and select the folder containing your light frames.
 2. Optionally enable **Subfolders** to scan recursively.
 3. Wait for loading to complete (progress shown in the status bar).
-4. Adjust the STF stretch, ROI bias, and automatic rejection thresholds as needed.
+4. Adjust the STF stretch and automatic rejection thresholds as needed.
 5. Open the **Preview window** and blink through frames; press `Space` to start/stop auto-play or `R` to reject individual frames.
 6. Click **Move Rejected** to relocate all rejected frames to the configured rejected folder.
 7. Click the **💾 Save Session** icon (top-left) to save all settings, thresholds, sort rules, and per-frame state to a `.boms` file.

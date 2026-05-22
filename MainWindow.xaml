@@ -309,10 +309,8 @@
                                     Value="{Binding StfTargetBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     Minimum="0.01" Maximum="0.5" TickFrequency="0.01" LargeChange="0.05"
                                     Decimals="2" />
-                                <TextBlock Text="ROI bias" />
-                                <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,0" />
-                            </StackPanel>
-                        </Expander>
+                                </StackPanel>
+                                            </Expander>
                     </Border>
 
                     </StackPanel>

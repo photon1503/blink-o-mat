@@ -11,7 +11,8 @@
         <TextBlock FontSize="15" FontWeight="SemiBold" Margin="0,0,0,14"
                    Text="Move rejected frames?" />
 
-        <Border Padding="12" Margin="0,0,0,16"
+        <!-- Summary info card -->
+        <Border Padding="12" Margin="0,0,0,12"
                 Background="{StaticResource PanelBackgroundBrush}"
                 BorderBrush="{StaticResource PanelBorderBrush}"
                 BorderThickness="1">
@@ -32,6 +33,54 @@
                     <TextBlock Foreground="{StaticResource MutedTextBrush}" Margin="0,0,10,0">Destination:</TextBlock>
                     <TextBlock Grid.Column="1" x:Name="DestinationText" TextWrapping="Wrap" />
                 </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Filter chip section — only shown when multiple filters exist -->
+        <Border x:Name="FilterSection" Padding="12" Margin="0,0,0,12"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1"
+                Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11"
+                           Margin="0,0,0,8"
+                           Text="Select the filters to include in this move:" />
+                <ItemsControl x:Name="FilterChipsList">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ToggleButton
+                                Margin="0,0,6,6"
+                                Padding="10,4"
+                                IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                Content="{Binding Label}"
+                                FontSize="12">
+                                <ToggleButton.Style>
+                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                        <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
+                                        <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}" />
+                                        <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                                        <Style.Triggers>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter Property="Background" Value="#55334422" />
+                                                <Setter Property="BorderBrush" Value="#77AA7755" />
+                                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="BorderBrush" Value="{StaticResource TextBrush}" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ToggleButton.Style>
+                            </ToggleButton>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </StackPanel>
         </Border>
 

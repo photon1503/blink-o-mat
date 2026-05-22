@@ -29,7 +29,6 @@ public sealed class SessionData
     public bool AutoStretchPerFrame { get; set; }
 
     // ROI
-    public string? RoiBias { get; set; }
     public SessionRoiRect? ManualRoi { get; set; }
 
     // Sorting

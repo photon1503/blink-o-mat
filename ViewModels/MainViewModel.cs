@@ -194,7 +194,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _hfrRejectedFrameCount;
     private int _meanBackgroundRejectedFrameCount;
     private int _rejectedFrameCount;
-    private RoiBias _roiBias = RoiBias.Galaxy;
     private int _satelliteTrailRejectedFrameCount;
     private int _sqmRejectedFrameCount;
     private int _skyTempRejectedFrameCount;
@@ -752,23 +751,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public RoiBias RoiBias
-    {
-        get => _roiBias;
-        set
-        {
-            if (_roiBias == value) return;
-            _roiBias = value;
-            OnPropertyChanged();
-            _manualRoiRect = null;
-            _hasManualRoi = false;
-            _ = UpdateAutoRoiCenterAsync(CancellationToken.None);
-            ScheduleThumbnailRebuild(immediate: true);
-        }
-    }
-
-    public Array RoiBiasOptions { get; } = Enum.GetValues(typeof(RoiBias));
-
     public ICommand BrowseInputCommand { get; }
     public ICommand BrowseRejectedCommand { get; }
     public ICommand LoadFramesCommand { get; }
@@ -1087,7 +1069,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     OnPropertyChanged(nameof(StfShadows));
                     OnPropertyChanged(nameof(StfMidtones));
                     OnPropertyChanged(nameof(StfHighlights));
-                    var roiCenter = _rustafits.DetectRoiNormalizedCenter(raw, RoiBias);
+                    var roiCenter = _rustafits.DetectRoiNormalizedCenter(raw);
                     var longestSide = Math.Max(raw.Width, raw.Height);
                     var roiSize = longestSide > 0 ? 160.0 / longestSide : 0.25;
                     _manualRoiRect = (Math.Clamp(roiCenter.X - roiSize / 2, 0, 1 - roiSize), Math.Clamp(roiCenter.Y - roiSize / 2, 0, 1 - roiSize), roiSize, roiSize);
@@ -1278,7 +1260,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 StfHighlights = StfHighlights,
                 StfTargetBackground = StfTargetBackground,
                 AutoStretchPerFrame = AutoStretchPerFrame,
-                RoiBias = RoiBias.ToString(),
                 ShowAccepted = ShowAccepted,
                 ShowRejected = ShowRejected,
                 ManualRoi = _manualRoiRect is { } roi
@@ -1444,12 +1425,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(StfTargetBackground));
             _autoStretchPerFrame = session.AutoStretchPerFrame;
             OnPropertyChanged(nameof(AutoStretchPerFrame));
-
-            if (!string.IsNullOrWhiteSpace(session.RoiBias) && Enum.TryParse<RoiBias>(session.RoiBias, out var roiBias))
-            {
-                _roiBias = roiBias;
-                OnPropertyChanged(nameof(RoiBias));
-            }
 
             if (session.ManualRoi is { } roi)
             {
@@ -2208,8 +2183,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             () => StfTargetBackground,
             value => StfTargetBackground = value,
             () => _ = ApplyAutoStretchAsync(),
-            () => RoiBias,
-            value => RoiBias = value,
             BeginInteractiveStretch,
             EndInteractiveStretch,
             SetManualRoi,
@@ -2487,7 +2460,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
     }
 
-    internal void ExecuteMoveRejected()
+    internal void ExecuteMoveRejected(IReadOnlyCollection<string>? filterKeys = null)
     {
         if (string.IsNullOrWhiteSpace(RejectedFolder))
         {
@@ -2496,13 +2469,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var moved = _move.MoveRejected(Frames, RejectedFolder);
+            var moved = _move.MoveRejected(Frames, RejectedFolder, filterKeys);
             Status = $"Moved {moved} rejected frame(s).";
         }
         catch (Exception ex)
         {
             Status = $"Move failed: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Returns a dictionary of filterKey → rejected-frame-count for all rejected frames.
+    /// Only includes filters that have at least one rejected frame.
+    /// </summary>
+    internal IReadOnlyDictionary<string, int> GetRejectedCountByFilter()
+    {
+        return Frames
+            .Where(f => f.IsRejected)
+            .GroupBy(f => string.IsNullOrWhiteSpace(f.FilterName) ? "(no filter)" : f.FilterName)
+            .ToDictionary(g => g.Key, g => g.Count());
     }
 
     private async Task UpdateAutoRoiCenterAsync(CancellationToken cancellationToken)
@@ -2513,7 +2498,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         // Auto-detect a center point and build a normalized square ROI from it
-        var center = _rustafits.DetectRoiNormalizedCenter(await MaterializeFrameAsync(_loadedFrames[0], cancellationToken), RoiBias);
+        var center = _rustafits.DetectRoiNormalizedCenter(await MaterializeFrameAsync(_loadedFrames[0], cancellationToken));
         var frame = _loadedFrames[0];
         var longest = Math.Max(frame.Width, frame.Height);
         var size = longest > 0 ? 160.0 / longest : 0.25;

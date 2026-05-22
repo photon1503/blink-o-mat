@@ -1,19 +1,37 @@
 using blink_o_mat.Models;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace blink_o_mat.Services;
 
 public sealed class FrameMoveService
 {
-    public int MoveRejected(IEnumerable<FrameItem> frames, string destinationFolder)
+    /// <param name="filterKeys">
+    /// When non-null, only rejected frames whose FilterName (or "(no filter)" for blanks) is
+    /// in this set are moved. When null every rejected frame is moved.
+    /// </param>
+    public int MoveRejected(IEnumerable<FrameItem> frames, string destinationFolder,
+        IReadOnlyCollection<string>? filterKeys = null)
     {
         if (string.IsNullOrWhiteSpace(destinationFolder))
         {
             return 0;
         }
 
+        var toMove = frames.Where(f => f.IsRejected);
+
+        if (filterKeys != null)
+        {
+            toMove = toMove.Where(f =>
+            {
+                var key = string.IsNullOrWhiteSpace(f.FilterName) ? "(no filter)" : f.FilterName;
+                return filterKeys.Contains(key);
+            });
+        }
+
         var moved = 0;
-        foreach (var frame in frames.Where(f => f.IsRejected))
+        foreach (var frame in toMove)
         {
             string targetFolder;
             if (!string.IsNullOrWhiteSpace(frame.RelativePath))

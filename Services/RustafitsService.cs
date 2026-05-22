@@ -127,9 +127,9 @@ public sealed class RustafitsService
         }, cancellationToken);
     }
 
-    public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame, RoiBias bias)
+    public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame)
     {
-        var (x, y) = DetectRoiCenter(frame.Pixels, frame.Width, frame.Height, bias);
+        var (x, y) = DetectRoiCenter(frame.Pixels, frame.Width, frame.Height);
         return (frame.Width <= 1 ? 0.5 : x / (double)(frame.Width - 1), frame.Height <= 1 ? 0.5 : y / (double)(frame.Height - 1));
     }
 
@@ -1635,7 +1635,7 @@ public sealed class RustafitsService
             var lum = new float[rCh.Length];
             for (var i = 0; i < lum.Length; i++)
                 lum[i] = 0.2126f * rCh[i] + 0.7152f * gCh[i] + 0.0722f * bCh[i];
-            var (cx, cy) = DetectRoiCenter(lum, width, height, RoiBias.Galaxy);
+            var (cx, cy) = DetectRoiCenter(lum, width, height);
             var half = roiSize / 2;
             startX = Math.Clamp(cx - half, 0, Math.Max(0, width - roiSize));
             startY = Math.Clamp(cy - half, 0, Math.Max(0, height - roiSize));
@@ -1824,7 +1824,7 @@ public sealed class RustafitsService
         }
         else
         {
-            var (cx, cy) = DetectRoiCenter(pixels, width, height, RoiBias.Galaxy);
+            var (cx, cy) = DetectRoiCenter(pixels, width, height);
             var half = roiSize / 2;
             startX = Math.Clamp(cx - half, 0, Math.Max(0, width - roiSize));
             startY = Math.Clamp(cy - half, 0, Math.Max(0, height - roiSize));
@@ -1875,120 +1875,63 @@ public sealed class RustafitsService
         return scaledBitmap;
     }
 
-    private static (int X, int Y) DetectRoiCenter(float[] pixels, int width, int height, RoiBias bias)
+    private static (int X, int Y) DetectRoiCenter(float[] pixels, int width, int height)
     {
+        // Downsample to a small working image so blurring is cheap and covers large spatial scales.
         var longest = Math.Max(width, height);
-        var scale = longest > 256 ? 256.0 / longest : 1.0;
-        var sw = Math.Max(64, (int)Math.Round(width * scale));
-        var sh = Math.Max(64, (int)Math.Round(height * scale));
+        var scale = longest > 128 ? 128.0 / longest : 1.0;
+        var sw = Math.Max(32, (int)Math.Round(width * scale));
+        var sh = Math.Max(32, (int)Math.Round(height * scale));
 
         var small = ResampleNearest(pixels, width, height, sw, sh);
-        small = BoxBlur(small, sw, sh, 2);
-        small = BoxBlur(small, sw, sh, 2);
 
+        // Subtract background (median) so that sky gradient does not bias the peak.
         var sampled = Sample(small);
         Array.Sort(sampled);
         var bg = PercentileFromSorted(sampled, 0.5);
-        var hi = PercentileFromSorted(sampled, 0.995);
-        var threshold = bg + ((hi - bg) * 0.16);
-
-        var visited = new bool[sw * sh];
-        var queue = new Queue<int>();
-        double bestScore = double.NegativeInfinity;
-        double bestCx = sw * 0.5;
-        double bestCy = sh * 0.5;
-
-        for (var y = 1; y < sh - 1; y++)
+        for (var i = 0; i < small.Length; i++)
         {
-            for (var x = 1; x < sw - 1; x++)
+            small[i] = Math.Max(0f, small[i] - (float)bg);
+        }
+
+        // Apply a large box blur (radius ≈ 15 % of the smaller dimension) multiple times.
+        // This merges all the individual stars of a globular / galaxy / nebula into one
+        // broad hump, making the cluster the dominant peak even when it consists of
+        // hundreds of tiny unresolved point sources.
+        var blurRadius = Math.Max(2, (int)Math.Round(Math.Min(sw, sh) * 0.15));
+        for (var pass = 0; pass < 4; pass++)
+        {
+            small = BoxBlur(small, sw, sh, blurRadius);
+        }
+
+        // Find the brightest pixel inside the central 80 % of the image.
+        // Restricting to the centre avoids picking up bright edge artefacts or
+        // vignetting gradient residuals in the corners.
+        var marginX = (int)Math.Round(sw * 0.10);
+        var marginY = (int)Math.Round(sh * 0.10);
+
+        var bestVal = float.NegativeInfinity;
+        var bestPx = sw / 2;
+        var bestPy = sh / 2;
+
+        for (var y = marginY; y < sh - marginY; y++)
+        {
+            var row = y * sw;
+            for (var x = marginX; x < sw - marginX; x++)
             {
-                var idx = (y * sw) + x;
-                if (visited[idx] || small[idx] <= threshold)
+                var v = small[row + x];
+                if (v > bestVal)
                 {
-                    continue;
-                }
-
-                visited[idx] = true;
-                queue.Clear();
-                queue.Enqueue(idx);
-
-                var count = 0;
-                double signalSum = 0;
-                double sx = 0;
-                double sy = 0;
-                double peak = 0;
-
-                while (queue.Count > 0)
-                {
-                    var cur = queue.Dequeue();
-                    var cy = cur / sw;
-                    var cx = cur - (cy * sw);
-                    var v = small[cur];
-                    var signal = Math.Max(0.0, v - threshold);
-
-                    count++;
-                    signalSum += signal;
-                    sx += signal * cx;
-                    sy += signal * cy;
-                    if (signal > peak)
-                    {
-                        peak = signal;
-                    }
-
-                    for (var ny = Math.Max(0, cy - 1); ny <= Math.Min(sh - 1, cy + 1); ny++)
-                    {
-                        var row = ny * sw;
-                        for (var nx = Math.Max(0, cx - 1); nx <= Math.Min(sw - 1, cx + 1); nx++)
-                        {
-                            var nidx = row + nx;
-                            if (visited[nidx] || small[nidx] <= threshold)
-                            {
-                                continue;
-                            }
-
-                            visited[nidx] = true;
-                            queue.Enqueue(nidx);
-                        }
-                    }
-                }
-
-                if (count < 6 || signalSum <= 0)
-                {
-                    continue;
-                }
-
-                var cxW = sx / signalSum;
-                var cyW = sy / signalSum;
-                var areaWeight = Math.Sqrt(count);
-                var compactSignal = signalSum / Math.Max(1.0, areaWeight * 0.8);
-                var peakPenalty = Math.Max(0.0, (peak / Math.Max(1e-9, signalSum / count)) - 10.0);
-
-                var dx = (cxW - (sw * 0.5)) / sw;
-                var dy = (cyW - (sh * 0.5)) / sh;
-                var centerPenalty = (dx * dx) + (dy * dy);
-
-                var (areaMul, peakMul, centerMul) = bias switch
-                {
-                    RoiBias.Core => (0.70, 0.10, 0.40),
-                    RoiBias.Starfield => (0.45, -0.20, 0.10),
-                    _ => (1.00, 0.35, 0.15)
-                };
-
-                var score = (compactSignal * (1.0 + (areaMul * areaWeight)))
-                            - (peakMul * peakPenalty)
-                            - (centerMul * centerPenalty * compactSignal);
-
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    bestCx = cxW;
-                    bestCy = cyW;
+                    bestVal = v;
+                    bestPx = x;
+                    bestPy = y;
                 }
             }
         }
 
-        var fullX = (int)Math.Round((bestCx / Math.Max(1, sw - 1)) * (width - 1));
-        var fullY = (int)Math.Round((bestCy / Math.Max(1, sh - 1)) * (height - 1));
+        // Map the small-image peak back to full-resolution pixel coordinates.
+        var fullX = (int)Math.Round((bestPx / (double)Math.Max(1, sw - 1)) * (width - 1));
+        var fullY = (int)Math.Round((bestPy / (double)Math.Max(1, sh - 1)) * (height - 1));
         return (Math.Clamp(fullX, 0, width - 1), Math.Clamp(fullY, 0, height - 1));
     }
 

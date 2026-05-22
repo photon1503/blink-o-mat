@@ -452,8 +452,6 @@
                                 <TextBlock FontWeight="SemiBold" Text="ROI" />
                             </Expander.Header>
                             <StackPanel Margin="0,8,0,0">
-                                <TextBlock FontWeight="SemiBold" Text="ROI bias" />
-                                <ComboBox ItemsSource="{Binding RoiBiasOptions}" SelectedItem="{Binding RoiBias}" Margin="0,2,0,6" />
                                 <TextBlock Text="Hold Ctrl and drag on the image to draw a square ROI. Release to confirm. The selected region is rescaled for the ROI preview in the main window. Escape cancels." TextWrapping="Wrap" FontSize="11" />
                             </StackPanel>
                         </Expander>

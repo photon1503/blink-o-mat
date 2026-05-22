@@ -20,8 +20,6 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Action<double> _setStfTargetBackground;
     private readonly Action _applyAutoStretch;
     private readonly Action<(double Left, double Top, double Width, double Height)> _setManualRoi;
-    private readonly Func<RoiBias> _getRoiBias;
-    private readonly Action<RoiBias> _setRoiBias;
     private readonly Func<int, Task> _navigate;
     private readonly Func<int, Task> _navigateToIndex;
     private readonly Action _toggleReject;
@@ -154,19 +152,6 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         }
     }
 
-    public RoiBias RoiBias
-    {
-        get => _getRoiBias();
-        set
-        {
-            if (_getRoiBias() == value) return;
-            _setRoiBias(value);
-            OnPropertyChanged();
-        }
-    }
-
-    public Array RoiBiasOptions { get; } = Enum.GetValues(typeof(RoiBias));
-
     public double FrameSliderValue
     {
         get => _frameSliderValue;
@@ -246,8 +231,6 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Func<double> getStfTargetBackground,
         Action<double> setStfTargetBackground,
         Action applyAutoStretch,
-        Func<RoiBias> getRoiBias,
-        Action<RoiBias> setRoiBias,
         Action beginInteractiveStretch,
         Action endInteractiveStretch,
         Action<(double Left, double Top, double Width, double Height)> setManualRoi,
@@ -273,8 +256,6 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _getStfTargetBackground = getStfTargetBackground;
         _setStfTargetBackground = setStfTargetBackground;
         _applyAutoStretch = applyAutoStretch;
-        _getRoiBias = getRoiBias;
-        _setRoiBias = setRoiBias;
         _beginInteractiveStretch = beginInteractiveStretch;
         _endInteractiveStretch = endInteractiveStretch;
         _setManualRoi = setManualRoi;
