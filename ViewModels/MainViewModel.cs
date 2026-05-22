@@ -53,6 +53,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         new(ListSortDirection.Descending, "Descending")
     ];
 
+    private static SortFieldOption DefaultPrimarySortField =>
+        DefaultSortFieldOptions.First(option => option.Value == FrameSortField.ObservationDate);
+
     private readonly record struct SortRuleSnapshot(FrameSortField Field, ListSortDirection Direction);
 
     private sealed class FrameItemComparer(IReadOnlyList<SortRuleSnapshot> rules) : IComparer
@@ -741,7 +744,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SaveSessionCommand = new RelayCommand(_ => SaveSession(), _ => Frames.Count > 0 && !IsBusy);
         LoadSessionCommand = new RelayCommand(async _ => await LoadSessionAsync(), _ => !IsBusy);
 
-        AddSortRule(initialField: SortFieldOptions[0], initialDirection: SortDirectionOptions[0]);
+        AddSortRule(initialField: DefaultPrimarySortField, initialDirection: SortDirectionOptions[0]);
 
         var settings = _settings.Load();
         InputFolder = settings.InputFolder;
@@ -857,6 +860,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         FilteredFrames.Refresh();
+        RefreshPreviewVisibleFrames();
     }
 
     private void RaiseSortCommandStateChanged()
@@ -1410,7 +1414,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                 if (SortRules.Count == 0)
                 {
-                    AddSortRule(SortFieldOptions[0], SortDirectionOptions[0]);
+                    AddSortRule(DefaultPrimarySortField, SortDirectionOptions[0]);
                 }
             }
 
@@ -2653,12 +2657,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private IReadOnlyList<int> GetVisiblePreviewFrameIndices()
     {
-        var visibleIndices = new List<int>(_loadedFrames.Count);
+        if (_loadedFrames.Count == 0)
+        {
+            return [];
+        }
+
+        var loadedIndexByItem = new Dictionary<FrameItem, int>(_loadedFrames.Count);
         for (var i = 0; i < _loadedFrames.Count; i++)
         {
-            if (FilterFrame(_loadedFrames[i].Item))
+            loadedIndexByItem[_loadedFrames[i].Item] = i;
+        }
+
+        var visibleIndices = new List<int>(_loadedFrames.Count);
+        foreach (var candidate in FilteredFrames)
+        {
+            if (candidate is not FrameItem frame)
             {
-                visibleIndices.Add(i);
+                continue;
+            }
+
+            if (loadedIndexByItem.TryGetValue(frame, out var loadedIndex))
+            {
+                visibleIndices.Add(loadedIndex);
             }
         }
 
