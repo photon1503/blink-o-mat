@@ -220,10 +220,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isThumbnailRefreshRunning;
     private bool _thumbnailRefreshPendingWhilePreviewOpen;
     private bool _isInteractiveStretchActive;
+    private string _totalIntegrationTimeText = string.Empty;
+    private string _acceptedIntegrationTimeText = string.Empty;
+    private double _overallAcceptedRatio;
 
     public RangeObservableCollection<FrameItem> Frames { get; } = [];
     public ICollectionView FilteredFrames { get; }
     public ObservableCollection<FilterChipViewModel> FilterChips { get; } = [];
+    public ObservableCollection<FilterSummaryViewModel> FilterSummaries { get; } = [];
     public ObservableCollection<FrameSortRuleViewModel> SortRules { get; } = [];
     public IReadOnlyList<SortFieldOption> SortFieldOptions => DefaultSortFieldOptions;
     public IReadOnlyList<SortDirectionOption> SortDirectionOptions => DefaultSortDirectionOptions;
@@ -255,7 +259,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public bool HasFilterChips => FilterChips.Count > 0;
 
-    public int TotalFrameCount => GetVisibleFramesForStatistics().Count();
+    public int TotalFrameCount => GetAllFilteredFrames().Count();
+
+    public string TotalIntegrationTimeText
+    {
+        get => _totalIntegrationTimeText;
+        private set { if (_totalIntegrationTimeText == value) return; _totalIntegrationTimeText = value; OnPropertyChanged(); }
+    }
+
+    public string AcceptedIntegrationTimeText
+    {
+        get => _acceptedIntegrationTimeText;
+        private set { if (_acceptedIntegrationTimeText == value) return; _acceptedIntegrationTimeText = value; OnPropertyChanged(); }
+    }
+
+    public double OverallAcceptedRatio
+    {
+        get => _overallAcceptedRatio;
+        private set { if (Math.Abs(_overallAcceptedRatio - value) < 0.001) return; _overallAcceptedRatio = value; OnPropertyChanged(); }
+    }
 
     public bool ShowAccepted
     {
@@ -875,9 +897,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
                && IsFilterSelected(frame);
     }
 
+    /// <summary>All frames matching the active filter chips, ignoring accepted/rejected visibility toggles.</summary>
+    private IEnumerable<FrameItem> GetAllFilteredFrames()
+    {
+        return Frames.Where(IsFilterSelected);
+    }
+
     private IEnumerable<FrameItem> GetVisibleFramesForStatistics()
     {
-        return Frames.Where(IsFrameVisible);
+        return GetAllFilteredFrames();
     }
 
     private bool IsFilterSelected(FrameItem frame)
@@ -2751,6 +2779,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TotalFrameCount));
         RejectedFrameCount = 0;
         ApprovedFrameCount = 0;
+        OverallAcceptedRatio = 0;
+        TotalIntegrationTimeText = string.Empty;
+        AcceptedIntegrationTimeText = string.Empty;
+        FilterSummaries.Clear();
         FwhmRejectedFrameCount = 0;
         HfrRejectedFrameCount = 0;
         SqmRejectedFrameCount = 0;
@@ -2761,12 +2793,75 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SatelliteTrailRejectedFrameCount = 0;
     }
 
+    private static string FormatIntegrationHours(double seconds)
+    {
+        var hours = seconds / 3600.0;
+        return hours >= 1.0 ? $"{hours:F1} h" : $"{seconds / 60.0:F0} min";
+    }
+
     private void UpdateFrameStatistics()
     {
         var visibleFrames = GetVisibleFramesForStatistics().ToList();
         OnPropertyChanged(nameof(TotalFrameCount));
         RejectedFrameCount = visibleFrames.Count(frame => frame.IsRejected);
         ApprovedFrameCount = Math.Max(0, TotalFrameCount - RejectedFrameCount);
+
+        // overall ratio and integration time
+        OverallAcceptedRatio = TotalFrameCount > 0 ? (double)ApprovedFrameCount / TotalFrameCount : 0;
+        var totalSec = visibleFrames.Sum(f => f.ExposureSeconds ?? 0);
+        var acceptedSec = visibleFrames.Where(f => !f.IsRejected).Sum(f => f.ExposureSeconds ?? 0);
+        TotalIntegrationTimeText = totalSec > 0 ? FormatIntegrationHours(totalSec) : string.Empty;
+        AcceptedIntegrationTimeText = acceptedSec > 0 ? FormatIntegrationHours(acceptedSec) : string.Empty;
+
+        // per-filter summaries
+        var filterGroups = visibleFrames
+            .GroupBy(f => string.IsNullOrWhiteSpace(f.FilterName) ? "(none)" : f.FilterName.Trim())
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        var existingByKey = FilterSummaries.ToDictionary(s => s.FilterName, StringComparer.OrdinalIgnoreCase);
+        var newKeys = filterGroups.Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // remove obsolete
+        for (var i = FilterSummaries.Count - 1; i >= 0; i--)
+        {
+            if (!newKeys.Contains(FilterSummaries[i].FilterName))
+                FilterSummaries.RemoveAt(i);
+        }
+
+        foreach (var group in filterGroups)
+        {
+            var total = group.Count();
+            var accepted = group.Count(f => !f.IsRejected);
+            var rejected = total - accepted;
+            var ratio = total > 0 ? (double)accepted / total : 0;
+            var filterTotalSec = group.Sum(f => f.ExposureSeconds ?? 0);
+            var filterAccSec = group.Where(f => !f.IsRejected).Sum(f => f.ExposureSeconds ?? 0);
+            var integText = filterAccSec > 0 ? FormatIntegrationHours(filterAccSec) : (filterTotalSec > 0 ? FormatIntegrationHours(filterTotalSec) : string.Empty);
+
+            if (existingByKey.TryGetValue(group.Key, out var vm))
+            {
+                vm.Total = total;
+                vm.Accepted = accepted;
+                vm.Rejected = rejected;
+                vm.AcceptedRatio = ratio;
+                vm.RatioText = $"{ratio:P0}";
+                vm.IntegrationTimeText = integText;
+            }
+            else
+            {
+                FilterSummaries.Add(new FilterSummaryViewModel
+                {
+                    FilterName = group.Key,
+                    Total = total,
+                    Accepted = accepted,
+                    Rejected = rejected,
+                    AcceptedRatio = ratio,
+                    RatioText = $"{ratio:P0}",
+                    IntegrationTimeText = integText,
+                });
+            }
+        }
         FwhmRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.Fwhm > MaxFwhm);
         SqmRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.Sqm.HasValue && frame.Metrics.Sqm.Value < MinSqm);
         SkyTempRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.SkyTemp.HasValue && frame.Metrics.SkyTemp.Value > MaxSkyTemp);

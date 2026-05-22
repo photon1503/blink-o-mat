@@ -2,12 +2,16 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
          xmlns:controls="clr-namespace:blink_o_mat.Controls"
+        xmlns:converters="clr-namespace:blink_o_mat.Converters"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
          Background="{StaticResource WindowBackgroundBrush}"
          Foreground="{StaticResource TextBrush}"
         Title="Rejector" Height="1000" Width="1550" Icon="/6dd39f16-9f8b-454e-86c4-b44c409cb647.png">
+    <Window.Resources>
+        <converters:RatioToGridLengthConverter x:Key="RatioToGridLength" />
+    </Window.Resources>
     <Grid Margin="12" Background="{StaticResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -83,33 +87,112 @@
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Frame summary" />
-                            <Grid>
+
+                            <!-- Totals row -->
+                            <Grid Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="Total frames" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" FontWeight="SemiBold" Text="{Binding TotalFrameCount}" />
-                                <TextBlock Grid.Row="1" Text="Rejected frames" Margin="0,4,0,0" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,4,0,0" FontWeight="SemiBold">
-                                    <Run Text="{Binding RejectedFrameCount, Mode=OneWay}" />
-                                    <Run Text=" (" />
-                                    <Run Text="{Binding RejectedFramePercentageText, Mode=OneWay}" />
-                                    <Run Text=")" />
-                                </TextBlock>
-                                <TextBlock Grid.Row="2" Text="Approved frames" Margin="0,4,0,0" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,4,0,0" FontWeight="SemiBold">
-                                    <Run Text="{Binding ApprovedFrameCount, Mode=OneWay}" />
-                                    <Run Text=" (" />
-                                    <Run Text="{Binding ApprovedFramePercentageText, Mode=OneWay}" />
-                                    <Run Text=")" />
-                                </TextBlock>
+                                <TextBlock Text="Total frames" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding TotalFrameCount}" FontSize="11" />
                             </Grid>
+
+                            <!-- Overall accepted / rejected bar -->
+                            <Grid Height="7" Margin="0,0,0,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="{Binding OverallAcceptedRatio, Converter={StaticResource RatioToGridLength}}" />
+                                    <ColumnDefinition Width="{Binding OverallAcceptedRatio, Converter={StaticResource RatioToGridLength}, ConverterParameter=invert}" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Background="#5CA36E" CornerRadius="3,0,0,3" />
+                                <Border Grid.Column="1" Background="#B85C5C" CornerRadius="0,3,3,0" />
+                            </Grid>
+
+                            <!-- Accepted / Rejected counts -->
+                            <Grid Margin="0,0,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="✓ " Foreground="#5CA36E" FontSize="11" />
+                                    <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11">
+                                        <Run Text="{Binding ApprovedFrameCount, Mode=OneWay}" />
+                                        <Run Text=" accepted (" />
+                                        <Run Text="{Binding ApprovedFramePercentageText, Mode=OneWay}" />
+                                        <Run Text=")" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" FontWeight="SemiBold" FontSize="11"
+                                           Foreground="{StaticResource TextBrush}"
+                                           Text="{Binding AcceptedIntegrationTimeText}" />
+                            </Grid>
+                            <Grid Margin="0,0,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="✕ " Foreground="#B85C5C" FontSize="11" />
+                                    <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11">
+                                        <Run Text="{Binding RejectedFrameCount, Mode=OneWay}" />
+                                        <Run Text=" rejected (" />
+                                        <Run Text="{Binding RejectedFramePercentageText, Mode=OneWay}" />
+                                        <Run Text=")" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Foreground="{StaticResource MutedTextBrush}" FontSize="11"
+                                           Text="{Binding TotalIntegrationTimeText, StringFormat=total: {0}}" />
+                            </Grid>
+
+                            <!-- Per-filter summaries -->
+                            <ItemsControl ItemsSource="{Binding FilterSummaries}" Margin="0,8,0,0">
+                                <ItemsControl.Style>
+                                    <Style TargetType="ItemsControl">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasFilterChips}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ItemsControl.Style>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,4,0,0">
+                                            <!-- filter name + integration time -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding FilterName}" FontSize="10"
+                                                           FontWeight="SemiBold" Foreground="#8FB3FF" />
+                                                <TextBlock Grid.Column="1" FontSize="10"
+                                                           Foreground="{StaticResource MutedTextBrush}"
+                                                           Text="{Binding IntegrationTimeText}" />
+                                            </Grid>
+                                            <!-- mini bar -->
+                                            <Grid Height="5" Margin="0,2,0,2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="{Binding AcceptedRatio, Converter={StaticResource RatioToGridLength}}" />
+                                                    <ColumnDefinition Width="{Binding AcceptedRatio, Converter={StaticResource RatioToGridLength}, ConverterParameter=invert}" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Background="#5CA36E" CornerRadius="2,0,0,2" />
+                                                <Border Grid.Column="1" Background="#B85C5C" CornerRadius="0,2,2,0" />
+                                            </Grid>
+                                            <!-- counts -->
+                                            <TextBlock FontSize="10" Foreground="{StaticResource MutedTextBrush}">
+                                                <Run Text="{Binding Accepted, Mode=OneWay}" />
+                                                <Run Text="/" />
+                                                <Run Text="{Binding Total, Mode=OneWay}" />
+                                                <Run Text=" " />
+                                                <Run Text="{Binding RatioText, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </Border>
 

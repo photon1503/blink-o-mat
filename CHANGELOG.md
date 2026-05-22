@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## 1.0.7
+
+### Added
+- **Extended frame summary panel** — the *Frame summary* card in the left sidebar now shows much richer at-a-glance statistics:
+  - **Accepted / rejected ratio bar** — a compact two-tone horizontal bar (green = accepted, red = rejected) gives an instant visual read of session health.
+  - **Total integration time** — the sum of all frame exposure times is displayed next to the rejected count (e.g. `total: 3.2 h`). If exposure data is unavailable the field is hidden.
+  - **Accepted integration time** — the integration time contributed by accepted frames only is shown inline with the accepted count (e.g. `2.4 h`).
+  - **Per-filter breakdown** — when filter chips are active, each filter gets its own compact row showing: filter name + accepted integration time, a mini ratio bar, and an accepted/total/% summary line. Rows update live as frames are accepted or rejected.
+
+### Fixed
+- **Frame summary counts unaffected by visibility toggles** — the *Total*, *Accepted*, and *Rejected* counts in the summary panel now always reflect all frames that match the active filter chip selection, regardless of whether the *Accepted* or *Rejected* visibility toggle is switched off. The toggles only control what is shown in the list; they no longer skew the numbers.
+
+---
 ## 1.0.6
 
 ### Added

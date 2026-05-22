@@ -23,6 +23,7 @@ Frames that don't meet your thresholds are automatically flagged; you can review
   - [Features](#features)
     - [Loading \& Session Workflow](#loading--session-workflow)
     - [Display \& Preview](#display--preview)
+    - [Frame Summary](#frame-summary)
     - [Stretch \& Normalization](#stretch--normalization)
     - [ROI (Region of Interest)](#roi-region-of-interest)
     - [Quality Metrics](#quality-metrics)
@@ -75,6 +76,19 @@ Frames that don't meet your thresholds are automatically flagged; you can review
   - Cache coverage indicator beside the frame slider — markers are **colored green→yellow→red** by quality score, **struck through** for rejected frames, and outlined with a **blue border** when the frame is in the cache; **click any marker to jump directly to that frame**
   - Transient status message when a full-resolution image is loaded from disk
 - **Right-click loupe** — visible while RMB is held; follows the cursor and displays local pixel stats: `X`, `Y`, `K` (raw ADU), `Min`, `Max`, `Mean`
+
+### Frame Summary
+
+The *Frame summary* card in the left sidebar provides a live statistical overview of the session:
+
+- **Total frames** — count of all frames matching the active filter chip selection (unaffected by the Accepted / Rejected visibility toggles)
+- **Accepted / rejected ratio bar** — a compact two-tone horizontal bar (green = accepted, red = rejected) gives an instant visual read of session quality
+- **Accepted count** with percentage and accepted integration time (e.g. `2.4 h`)
+- **Rejected count** with percentage and total integration time (e.g. `total: 3.2 h`)
+- **Per-filter breakdown** (shown when filter chips are active) — each filter gets its own row with:
+  - Filter name and accepted integration time
+  - Mini accepted/rejected ratio bar
+  - Accepted / total count and acceptance percentage
 
 ### Stretch & Normalization
 
