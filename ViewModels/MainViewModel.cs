@@ -2156,6 +2156,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             value => ShowRejected = value,
             FilterChips,
             GetVisiblePreviewFrameIndices,
+            GetVisiblePreviewFrameData,
             RefreshPreviewVisibleFrames);
         var visibleFrameIndices = GetVisiblePreviewFrameIndices();
         var currentVisibleIndex = FindVisibleFrameIndex(visibleFrameIndices, currentIndex);
@@ -2300,6 +2301,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         UpdateFrameStatistics();
         ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
+        _previewVm?.NotifyFrameStateChanged();
     }
 
     private async Task<BitmapSource> GetOrCreateFullImageAsync(FrameItem item)
@@ -2683,6 +2685,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         return visibleIndices;
+    }
+
+    private IReadOnlyList<(double Score, bool IsRejected)> GetVisiblePreviewFrameData()
+    {
+        var indices = GetVisiblePreviewFrameIndices();
+        var result = new (double Score, bool IsRejected)[indices.Count];
+        for (var i = 0; i < indices.Count; i++)
+        {
+            var item = _loadedFrames[indices[i]].Item;
+            result[i] = (item.OverallScore, item.IsRejected);
+        }
+        return result;
     }
 
     private static int FindVisibleFrameIndex(IReadOnlyList<int> visibleFrameIndices, int loadedFrameIndex)

@@ -17,15 +17,18 @@ namespace blink_o_mat;
 
 public partial class PreviewWindow : Window
 {
-    private static readonly System.Windows.Media.Brush CachedFrameBrush;
     private static readonly System.Windows.Media.Brush ActiveFrameBrush;
+    private static readonly System.Windows.Media.Color ScoreHighColor  = System.Windows.Media.Color.FromRgb(0x39, 0xD3, 0x53); // green
+    private static readonly System.Windows.Media.Color ScoreMidColor   = System.Windows.Media.Color.FromRgb(0xFF, 0xD7, 0x00); // yellow
+    private static readonly System.Windows.Media.Color ScoreLowColor   = System.Windows.Media.Color.FromRgb(0xE5, 0x3E, 0x3E); // red
+    private static readonly System.Windows.Media.Brush CacheBorderBrush;
 
     static PreviewWindow()
     {
-        CachedFrameBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x39, 0xD3, 0x53));
-        CachedFrameBrush.Freeze();
         ActiveFrameBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xD7, 0x00));
         ActiveFrameBrush.Freeze();
+        CacheBorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x40, 0x9E, 0xFF));
+        CacheBorderBrush.Freeze();
     }
 
     private readonly FramePreviewViewModel _vm;
@@ -726,7 +729,8 @@ public partial class PreviewWindow : Window
 
         if (e.PropertyName is nameof(FramePreviewViewModel.FrameSliderValue)
             or nameof(FramePreviewViewModel.FrameCount)
-            or nameof(FramePreviewViewModel.CachedFrameIndices))
+            or nameof(FramePreviewViewModel.CachedFrameIndices)
+            or nameof(FramePreviewViewModel.FrameStateChanged))
         {
             // Skip individual redraws while UpdateFramePosition is batching;
             // the final FramePositionBatchUpdated event will trigger a single redraw.
@@ -758,30 +762,127 @@ public partial class PreviewWindow : Window
         var span = Math.Max(1.0, height - 2.0);
         var markerHeight = Math.Clamp(height / Math.Max(1, frameCount), 2.0, 6.0);
 
-        foreach (var cachedIndex in _vm.CachedFrameIndices)
-        {
-            if (cachedIndex < 0 || cachedIndex >= frameCount)
-            {
-                continue;
-            }
+        var cachedSet = new HashSet<int>(_vm.CachedFrameIndices);
+        var frameData = _vm.GetVisibleFrameData();
 
+        // Determine score range for normalization
+        double scoreMin = double.MaxValue, scoreMax = double.MinValue;
+        for (var i = 0; i < frameData.Count; i++)
+        {
+            if (frameData[i].Score > 0)
+            {
+                scoreMin = Math.Min(scoreMin, frameData[i].Score);
+                scoreMax = Math.Max(scoreMax, frameData[i].Score);
+            }
+        }
+        var scoreRange = (scoreMax > scoreMin) ? (scoreMax - scoreMin) : 1.0;
+
+        for (var sliderIndex = 0; sliderIndex < frameCount; sliderIndex++)
+        {
             var y = frameCount == 1
                 ? span * 0.5
-                : (cachedIndex / (double)(frameCount - 1)) * span;
+                : (sliderIndex / (double)(frameCount - 1)) * span;
+            var top = Math.Clamp(y - (markerHeight / 2.0), 0.0, Math.Max(0.0, height - markerHeight));
 
-            var marker = new System.Windows.Shapes.Rectangle
+            var isCurrent = sliderIndex == currentIndex;
+            var isCached = cachedSet.Contains(sliderIndex);
+
+            // Score-driven fill color (green → yellow → red)
+            var fillColor = ScoreMidColor;
+            if (sliderIndex < frameData.Count && frameData[sliderIndex].Score > 0)
             {
-                Width = cachedIndex == currentIndex ? 8 : 6,
+                var t = Math.Clamp((frameData[sliderIndex].Score - scoreMin) / scoreRange, 0.0, 1.0);
+                fillColor = t >= 0.5
+                    ? LerpColor(ScoreMidColor, ScoreHighColor, (t - 0.5) * 2.0)
+                    : LerpColor(ScoreLowColor, ScoreMidColor, t * 2.0);
+            }
+
+            const double borderSize = 2.0;
+            var markerWidth = isCurrent ? 8.0 : 6.0;
+            var left = isCurrent ? 0.0 : 1.0;
+            var capturedIndex = sliderIndex; // capture for lambda
+
+            // Transparent hit-test overlay covering the full marker area (including border)
+            // so clicks always register regardless of which child element is on top
+            var hitArea = new System.Windows.Shapes.Rectangle
+            {
+                Width = markerWidth + borderSize * 2,
+                Height = Math.Max(markerHeight + borderSize * 2, 8.0),
+                Fill = System.Windows.Media.Brushes.Transparent,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = $"Frame {capturedIndex + 1}"
+            };
+            hitArea.MouseLeftButtonUp += (_, _) => _ = _vm.NavigateToIndexAsync(capturedIndex);
+            Canvas.SetTop(hitArea, top - borderSize);
+            Canvas.SetLeft(hitArea, left - borderSize);
+
+            // Blue border drawn as a background rect that peeks out behind the fill rect
+            if (isCached)
+            {
+                var border = new System.Windows.Shapes.Rectangle
+                {
+                    Width = markerWidth + borderSize * 2,
+                    Height = markerHeight + borderSize * 2,
+                    RadiusX = 2,
+                    RadiusY = 2,
+                    Fill = CacheBorderBrush,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetTop(border, top - borderSize);
+                Canvas.SetLeft(border, left - borderSize);
+                CacheIndicatorCanvas.Children.Add(border);
+            }
+
+            var rect = new System.Windows.Shapes.Rectangle
+            {
+                Width = markerWidth,
                 Height = markerHeight,
                 RadiusX = 1,
                 RadiusY = 1,
-                Fill = cachedIndex == currentIndex ? ActiveFrameBrush : CachedFrameBrush
+                Fill = isCurrent
+                    ? ActiveFrameBrush
+                    : new SolidColorBrush(fillColor),
+                IsHitTestVisible = false
             };
 
-            Canvas.SetTop(marker, Math.Clamp(y - (markerHeight / 2.0), 0.0, Math.Max(0.0, height - markerHeight)));
-            Canvas.SetLeft(marker, cachedIndex == currentIndex ? 0.0 : 1.0);
-            CacheIndicatorCanvas.Children.Add(marker);
+            Canvas.SetTop(rect, top);
+            Canvas.SetLeft(rect, left);
+            CacheIndicatorCanvas.Children.Add(rect);
+
+            // Strike-through for rejected frames
+            bool isRejected = sliderIndex < frameData.Count && frameData[sliderIndex].IsRejected;
+            if (isRejected && markerHeight >= 2.0)
+            {
+                var midY = top + markerHeight / 2.0;
+                var strike = new System.Windows.Shapes.Line
+                {
+                    X1 = left - 1.0,
+                    Y1 = midY,
+                    X2 = left + markerWidth + 1.0,
+                    Y2 = midY,
+                    Stroke = System.Windows.Media.Brushes.White,
+                    StrokeThickness = 2.0,
+                    Opacity = 1.0,
+                    IsHitTestVisible = false
+                };
+                CacheIndicatorCanvas.Children.Add(strike);
+            }
+
+            // Add hit area last so it sits on top of all visual layers
+            CacheIndicatorCanvas.Children.Add(hitArea);
         }
+    }
+
+    private static System.Windows.Media.Color LerpColor(
+        System.Windows.Media.Color from,
+        System.Windows.Media.Color to,
+        double t)
+    {
+        t = Math.Clamp(t, 0.0, 1.0);
+        return System.Windows.Media.Color.FromRgb(
+            (byte)(from.R + (to.R - from.R) * t),
+            (byte)(from.G + (to.G - from.G) * t),
+            (byte)(from.B + (to.B - from.B) * t));
     }
 
     protected override async void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)

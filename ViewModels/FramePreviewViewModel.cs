@@ -31,6 +31,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Action<bool> _setShowRejected;
     private readonly ObservableCollection<FilterChipViewModel> _filterChips;
     private readonly Func<IReadOnlyList<int>> _getVisibleFrameIndices;
+    private readonly Func<IReadOnlyList<(double Score, bool IsRejected)>> _getVisibleFrameData;
     private readonly Action _refreshVisibleFrames;
     private readonly Action _beginInteractiveStretch;
     private readonly Action _endInteractiveStretch;
@@ -230,6 +231,10 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 
     public bool IsPreviewStatusVisible => !string.IsNullOrWhiteSpace(PreviewStatusMessage);
 
+    /// <summary>Raised when per-frame score/rejection state changes, so the slider can redraw.</summary>
+    public void NotifyFrameStateChanged() => OnPropertyChanged(nameof(FrameStateChanged));
+    public bool FrameStateChanged => false; // sentinel – only used for property-change notification
+
     public FramePreviewViewModel(
         FrameItem item,
         Func<double> getStfShadows,
@@ -255,6 +260,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Action<bool> setShowRejected,
         ObservableCollection<FilterChipViewModel> filterChips,
         Func<IReadOnlyList<int>> getVisibleFrameIndices,
+        Func<IReadOnlyList<(double Score, bool IsRejected)>> getVisibleFrameData,
         Action refreshVisibleFrames)
     {
         _item = item;
@@ -281,6 +287,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _setShowRejected = setShowRejected;
         _filterChips = filterChips;
         _getVisibleFrameIndices = getVisibleFrameIndices;
+        _getVisibleFrameData = getVisibleFrameData;
         _refreshVisibleFrames = refreshVisibleFrames;
         _image = null;
         AutoStretchCommand = new RelayCommand(_ => ApplyAutoStretchAndRefresh());
@@ -323,6 +330,9 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     {
         _endInteractiveStretch();
     }
+
+    public IReadOnlyList<(double Score, bool IsRejected)> GetVisibleFrameData()
+        => _getVisibleFrameData();
 
     public void SetItem(FrameItem item)
     {

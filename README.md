@@ -71,7 +71,7 @@ Frames that don't meet your thresholds are automatically flagged; you can review
   - Keyboard: `←` / `→` to step frames, `R` to toggle reject on the current frame
   - Zoom level and pan position are preserved while stepping between frames
   - Window size, position, and maximized state are remembered between runs
-  - Cache coverage indicator beside the frame slider
+  - Cache coverage indicator beside the frame slider — markers are **colored green→yellow→red** by quality score, **struck through** for rejected frames, and outlined with a **blue border** when the frame is in the cache; **click any marker to jump directly to that frame**
   - Transient status message when a full-resolution image is loaded from disk
 - **Right-click loupe** — visible while RMB is held; follows the cursor and displays local pixel stats: `X`, `Y`, `K` (raw ADU), `Min`, `Max`, `Mean`
 

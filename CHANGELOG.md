@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## 1.0.6
+
+### Changed
+- **Preview slider markers redesigned** — the small frame indicators beside the vertical frame slider now convey quality and state at a glance:
+  - **Score-driven color** — each marker is colored on a continuous **green → yellow → red** gradient based on the frame's rank-percentile quality score (best = green, worst = red). Colors are normalized per session so the full gradient is always used.
+  - **Strikethrough** for rejected frames — a white line is drawn across any marker whose frame is rejected, making it immediately obvious without requiring navigation.
+  - **Blue border** for cached frames — frames currently held in the preview image cache are outlined in blue, indicating which frames are ready for instant display.
+  - The active (currently displayed) frame marker remains highlighted in gold and is rendered slightly wider.
+  - **Clickable** — clicking any marker jumps directly to that frame; the cursor changes to a pointer on hover and a tooltip shows the frame number.
+
+---
 ## 1.0.5
 
 - Changed default sort order to "Observation time", ascending.

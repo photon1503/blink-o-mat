@@ -291,15 +291,14 @@
                       Margin="0,0,0,8"
                       Height="{Binding ElementName=ImageScrollViewer, Path=ActualHeight}">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="14" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Canvas x:Name="CacheIndicatorCanvas"
                             Grid.Column="0"
-                            Width="8"
+                            Width="14"
                             Height="{Binding ElementName=ImageScrollViewer, Path=ActualHeight}"
-                            Margin="0,4,0,4"
-                            IsHitTestVisible="False" />
+                            Margin="0,4,0,4" />
                     <Slider x:Name="FrameSlider"
                             Grid.Column="1"
                             Width="24"
