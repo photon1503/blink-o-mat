@@ -20,6 +20,21 @@ namespace blink_o_mat
             Closing += MainWindow_Closing;
         }
 
+        private void RejectButton_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (DataContext is not ViewModels.MainViewModel vm) return;
+
+            var dialog = new RejectConfirmDialog(vm.RejectedFrameCount, vm.RejectedFolder)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                vm.ExecuteMoveRejected();
+            }
+        }
+
         private void FramesListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (FramesListView.SelectedItem is null)

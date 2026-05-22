@@ -1,0 +1,62 @@
+<Window x:Class="blink_o_mat.RejectConfirmDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Confirm Rejection"
+        Width="460" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource WindowBackgroundBrush}"
+        Foreground="{StaticResource TextBrush}">
+    <StackPanel Margin="24,20,24,20">
+        <TextBlock FontSize="15" FontWeight="SemiBold" Margin="0,0,0,14"
+                   Text="Move rejected frames?" />
+
+        <Border Padding="12" Margin="0,0,0,16"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1">
+            <StackPanel>
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Foreground="{StaticResource MutedTextBrush}" Margin="0,0,10,0">Frames to move:</TextBlock>
+                    <TextBlock Grid.Column="1" FontWeight="SemiBold" x:Name="FrameCountText" />
+                </Grid>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Foreground="{StaticResource MutedTextBrush}" Margin="0,0,10,0">Destination:</TextBlock>
+                    <TextBlock Grid.Column="1" x:Name="DestinationText" TextWrapping="Wrap" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,0,0,18"
+                   TextWrapping="Wrap"
+                   Text="Subfolder structure will be preserved. Files with conflicting names will be renamed automatically." />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Padding="16,5" Margin="0,0,10,0" Click="Cancel_Click" IsCancel="True" />
+            <Button x:Name="ProceedButton" Content="Proceed" Padding="16,5" Click="Proceed_Click" IsDefault="True"
+                    Background="#99261414" BorderBrush="#C0392B" Foreground="#FFECACAC">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Setter Property="Background" Value="#99261414" />
+                        <Setter Property="BorderBrush" Value="#C0392B" />
+                        <Setter Property="Foreground" Value="#FFECACAC" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#CC3D0C0C" />
+                                <Setter Property="BorderBrush" Value="#E74C3C" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+    </StackPanel>
+</Window>

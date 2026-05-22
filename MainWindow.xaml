@@ -65,7 +65,31 @@
                 <TextBox Grid.Column="1" Text="{Binding RejectedFolder, UpdateSourceTrigger=PropertyChanged}" ToolTip="Destination folder for rejected frames — subfolder structure relative to the input folder is preserved" />
             </Grid>
 
-            <Button Grid.Column="3" Padding="12,3" Content="Load Frames" Command="{Binding LoadFramesCommand}" ToolTip="Scan the input folder and load all FITS/XISF frames for analysis" />
+            <StackPanel Grid.Column="3" Orientation="Horizontal">
+                <Button Padding="12,3" Content="Load Frames" Command="{Binding LoadFramesCommand}" ToolTip="Scan the input folder and load all FITS/XISF frames for analysis" Margin="0,0,8,0" />
+                <Button x:Name="RejectButton" Padding="12,3" Content="Reject"
+                        Click="RejectButton_Click"
+                        IsEnabled="{Binding MoveRejectedEnabled}"
+                        ToolTip="Move all rejected frames to the rejected folder"
+                        Background="#99261414" BorderBrush="#C0392B" Foreground="#FFECACAC">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="Background" Value="#99261414" />
+                            <Setter Property="BorderBrush" Value="#C0392B" />
+                            <Setter Property="Foreground" Value="#FFECACAC" />
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#CC3D0C0C" />
+                                    <Setter Property="BorderBrush" Value="#E74C3C" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.4" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
         </Grid>
 
         <Grid Grid.Row="1" Margin="0,0,0,10">
@@ -276,13 +300,7 @@
                         </Expander>
                     </Border>
 
-                    <Border Padding="10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Actions" />
-                            <Button Padding="12,5" Content="One-click move rejected subframes" Command="{Binding MoveRejectedCommand}" ToolTip="Move all rejected frames to the rejected folder; subfolder structure is preserved and filename collisions are renamed automatically" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                    </StackPanel>
             </ScrollViewer>
 
             <Grid Grid.Column="1">

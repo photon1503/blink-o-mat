@@ -316,8 +316,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _rejectedFrameCount = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(RejectedFramePercentageText));
+            OnPropertyChanged(nameof(MoveRejectedEnabled));
         }
     }
+
+    public bool MoveRejectedEnabled => !IsBusy && RejectedFrameCount > 0 && !string.IsNullOrWhiteSpace(RejectedFolder);
 
     public int ApprovedFrameCount
     {
@@ -517,6 +520,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             SaveFolderSettings();
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(MoveRejectedEnabled));
         }
     }
 
@@ -554,6 +558,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
             ((RelayCommand)SaveSessionCommand).RaiseCanExecuteChanged();
             ((RelayCommand)LoadSessionCommand).RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(MoveRejectedEnabled));
         }
     }
 
@@ -757,7 +762,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         BrowseInputCommand = new RelayCommand(_ => BrowseInput());
         BrowseRejectedCommand = new RelayCommand(_ => BrowseRejected());
         LoadFramesCommand = new RelayCommand(async _ => await LoadFramesAsync(), _ => !IsBusy && !string.IsNullOrWhiteSpace(InputFolder));
-        MoveRejectedCommand = new RelayCommand(_ => MoveRejected(), _ => !IsBusy && Frames.Any(f => f.IsRejected) && !string.IsNullOrWhiteSpace(RejectedFolder));
+        MoveRejectedCommand = new RelayCommand(_ => ExecuteMoveRejected(), _ => !IsBusy && Frames.Any(f => f.IsRejected) && !string.IsNullOrWhiteSpace(RejectedFolder));
         OpenPreviewCommand = new RelayCommand(async p => await OpenPreviewAsync(p as FrameItem));
         ToggleRejectCommand = new RelayCommand(p => ToggleFrameReject(p as FrameItem), p => p is FrameItem);
         ApplyAutoStretchCommand = new RelayCommand(async _ => await ApplyAutoStretchAsync(), _ => _loadedFrames.Count > 0);
@@ -2448,7 +2453,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
     }
 
-    private void MoveRejected()
+    internal void ExecuteMoveRejected()
     {
         if (string.IsNullOrWhiteSpace(RejectedFolder))
         {
