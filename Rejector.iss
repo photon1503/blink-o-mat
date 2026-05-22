@@ -1,9 +1,13 @@
 #define MyAppName "Rejector"
 #define MyAppExeName "Rejector.exe"
-#define MyAppVersion "1.0.4"
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0.4"
+#endif
 #define MyAppPublisher "Gerald Hitz"
 #define MyAppURL "https://github.com/photon1503/blink-o-mat"
-#define MyAppPublishDir "bin\\Release\\net10.0-windows\\publish"
+#ifndef MyAppPublishDir
+  #define MyAppPublishDir "bin\\Release\\net10.0-windows\\publish"
+#endif
 #define MyAppIcon "Icon\\6dd39f16-9f8b-454e-86c4-b44c409cb647.ico"
 
 [Setup]
@@ -20,7 +24,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=LICENSE.txt
 OutputDir=.\installer
-OutputBaseFilename=Rejector-Setup
+OutputBaseFilename=Rejector-Setup-{#MyAppVersion}
 SetupIconFile={#MyAppIcon}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2

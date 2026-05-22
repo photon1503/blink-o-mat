@@ -34,4 +34,8 @@
     <Resource Include="6dd39f16-9f8b-454e-86c4-b44c409cb647.png" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include=".github\workflows\release.yml" />
+  </ItemGroup>
+
 </Project>

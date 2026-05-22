@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## 1.0.5
+
+- Changed default sort order to "Observation time", ascending.
+- Keep sorting of main and preview window in sync — changing the sort order in one window now updates the other window to match.
+
+---
 
 ##  1.0.4
 
