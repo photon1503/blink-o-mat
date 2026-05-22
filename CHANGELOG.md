@@ -3,10 +3,25 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## 1.0.10
+
+### Added
+- **Auto-update check** — on startup, Rejector silently queries the GitHub Releases API and compares the latest release tag to the running assembly version.
+  - When a newer version is available, a non-intrusive green banner appears between the toolbar and the main content area.
+  - The banner shows the available version number. Clicking the message or the **View release** button opens the GitHub releases page in the default browser.
+  - The banner can be dismissed with the **✕** button and will not reappear until the next launch.
+  - The check is fire-and-forget: it runs asynchronously in the background and never blocks the UI or throws an error if the network is unavailable.
+
+
+---
 ## 1.0.9
 
 ### Changed
-- **ROI center detection rewritten — blur-then-peak algorithm** — the previous flood-fill segmentation approach failed for dense targets such as globular clusters (e.g. M13), where hundreds of individually tiny star blobs each scored too low to win. The new algorithm heavily blurs the downsampled image (large box blur, 4 passes, radius ≈ 15 % of the shorter image axis) so that all the cluster's stars merge into one smooth hump, then picks the brightest pixel in the central 80 % of the result. Background is subtracted before blurring to suppress sky gradients. This reliably centres the ROI on globular clusters, galaxies, and nebulae of any morphology.
+- **Per-filter reject move** — the *Move Rejected* confirmation dialog now shows the rejected frame count broken down by filter when a session contains frames from multiple filters.
+  - Each filter is shown as a toggleable chip (e.g. `Ha  (12)`). Deselecting a chip excludes that filter's frames from the move.
+  - The *Frames to move* count updates live as chips are toggled. The *Proceed* button is disabled when zero frames would be moved.
+  - When only one filter is present the chip panel is hidden and the dialog behaves exactly as before.
+- **ROI center detection rewritten — blur-then-peak algorithm**
 - **ROI bias presets removed** — the *Galaxy / Core / Starfield* bias selector has been removed from both the main window and the preview window. The new center-focused algorithm does not require a bias hint and produces a better result across all target types without user input. The `RoiBias` field is no longer written to or read from session files.
 
 ---

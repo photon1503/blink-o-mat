@@ -165,6 +165,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly FrameMoveService _move = new();
     private readonly AppSettingsService _settings = new();
     private readonly SessionService _session = new();
+    private readonly UpdateCheckService _updateCheck = new();
+
+    public UpdateBannerViewModel UpdateBanner { get; } = new();
 
     private string? _inputFolder;
     private string? _rejectedFolder;
@@ -786,6 +789,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         InputFolder = settings.InputFolder;
         RejectedFolder = settings.RejectedFolder;
         _includeSubfolders = settings.IncludeSubfolders;
+
+        // Fire-and-forget update check — non-blocking, never throws to the caller.
+        _ = CheckForUpdateAsync();
+    }
+
+    private async Task CheckForUpdateAsync()
+    {
+        var latest = await _updateCheck.GetLatestVersionAsync();
+        if (!string.IsNullOrWhiteSpace(latest))
+            UpdateBanner.ShowUpdate(latest);
     }
 
     private bool FilterFrame(object item)

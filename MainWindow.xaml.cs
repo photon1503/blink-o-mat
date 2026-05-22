@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using blink_o_mat.Services;
@@ -18,6 +19,16 @@ namespace blink_o_mat
             SourceInitialized += (_, _) => WindowTitleBarStyler.Apply(this);
             WindowPlacementService.RestoreMainWindow(this);
             Closing += MainWindow_Closing;
+            Title = BuildTitle();
+        }
+
+        private static string BuildTitle()
+        {
+            var v = Assembly.GetEntryAssembly()?.GetName().Version;
+            // Version 1.0.0.0 is the default (unstamped dev build) — omit it.
+            if (v is null || v == new Version(1, 0, 0, 0))
+                return "Rejector";
+            return $"Rejector {v.Major}.{v.Minor}.{v.Build}";
         }
 
         private void RejectButton_Click(object sender, System.Windows.RoutedEventArgs e)
