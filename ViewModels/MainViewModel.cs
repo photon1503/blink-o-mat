@@ -179,6 +179,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _maxEccentricity = 0.6;
     private double _maxMeanBackground = 2000.0;
     private double _minStars;
+    private double _minScore;
     private bool _rejectSatelliteTrail = true;
     private int _minSatelliteConfidence = 80;
     private double _stfShadows;
@@ -198,6 +199,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _sqmRejectedFrameCount;
     private int _skyTempRejectedFrameCount;
     private int _starCountRejectedFrameCount;
+    private int _scoreRejectedFrameCount;
     private bool _hasManualRoi;
     private bool _autoStretchPerFrame = true;
     private bool _skipRejectedInPreview;
@@ -258,6 +260,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public bool HasFilterChips => FilterChips.Count > 0;
+
+    public bool HasMultipleFilterChips => FilterChips.Count > 1;
 
     public int TotalFrameCount => GetAllFilteredFrames().Count();
 
@@ -415,6 +419,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (_starCountRejectedFrameCount == value) return;
             _starCountRejectedFrameCount = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int ScoreRejectedFrameCount
+    {
+        get => _scoreRejectedFrameCount;
+        private set
+        {
+            if (_scoreRejectedFrameCount == value) return;
+            _scoreRejectedFrameCount = value;
             OnPropertyChanged();
         }
     }
@@ -679,6 +694,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public double MinScore
+    {
+        get => _minScore;
+        set
+        {
+            if (Math.Abs(_minScore - value) < double.Epsilon) return;
+            _minScore = value;
+            OnPropertyChanged();
+            ApplyThresholds();
+        }
+    }
+
     public bool RejectSatelliteTrail
     {
         get => _rejectSatelliteTrail;
@@ -821,6 +848,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         OnPropertyChanged(nameof(HasFilterChips));
+        OnPropertyChanged(nameof(HasMultipleFilterChips));
     }
 
     private void FilterChip_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1017,6 +1045,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         FilterChips.Clear();
         OnPropertyChanged(nameof(HasFilterChips));
+        OnPropertyChanged(nameof(HasMultipleFilterChips));
         _loadedFrames.Clear();
         ResetFrameStatistics();
         SelectedFrame = null;
@@ -1243,6 +1272,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 MaxSkyTemp = MaxSkyTemp,
                 MinSatelliteConfidence = MinSatelliteConfidence,
                 RejectSatelliteTrail = RejectSatelliteTrail,
+                MinScore = MinScore,
                 StfShadows = StfShadows,
                 StfMidtones = StfMidtones,
                 StfHighlights = StfHighlights,
@@ -1362,6 +1392,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         FilterChips.Clear();
         OnPropertyChanged(nameof(HasFilterChips));
+        OnPropertyChanged(nameof(HasMultipleFilterChips));
         _loadedFrames.Clear();
         ResetFrameStatistics();
         SelectedFrame = null;
@@ -1393,6 +1424,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(MaxMeanBackground));
             _minStars = session.MinStars;
             OnPropertyChanged(nameof(MinStars));
+            _minScore = session.MinScore;
+            OnPropertyChanged(nameof(MinScore));
             _minSqm = session.MinSqm;
             OnPropertyChanged(nameof(MinSqm));
             _maxSkyTemp = session.MaxSkyTemp;
@@ -2438,7 +2471,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             MaxEccentricity = MaxEccentricity,
             MaxMeanBackground = MaxMeanBackground,
             MinStars = MinStars,
-            MinSatelliteConfidence = RejectSatelliteTrail ? MinSatelliteConfidence : 0
+            MinSatelliteConfidence = RejectSatelliteTrail ? MinSatelliteConfidence : 0,
+            MinScore = MinScore
         };
 
         foreach (var frame in Frames)
@@ -2874,6 +2908,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         EccentricityRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.Eccentricity > MaxEccentricity);
         MeanBackgroundRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.MeanBackground > MaxMeanBackground);
         StarCountRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.StarCount < MinStars);
+        ScoreRejectedFrameCount = visibleFrames.Count(frame => MinScore > 0 && frame.OverallScore < MinScore);
         SatelliteTrailRejectedFrameCount = RejectSatelliteTrail
             ? visibleFrames.Count(frame => frame.Metrics.SatelliteTrailConfidence >= MinSatelliteConfidence)
             : 0;

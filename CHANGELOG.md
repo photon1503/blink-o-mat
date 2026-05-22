@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## 1.0.8
+
+### Changed
+- **"Reject" button moved to the top toolbar** — the *One-click move rejected subframes* action is now a **Reject** button placed directly next to the *Load Frames* button in the top bar. The *Actions* card in the left sidebar has been removed.
+- **Confirmation dialog before moving frames** — clicking *Reject* now opens a summary dialog that shows how many frames will be moved and the destination folder path. The action only proceeds after the user confirms with the **Proceed** button; **Cancel** aborts without making any changes.
+
+---
 ## 1.0.7
 
 ### Added

@@ -175,7 +175,7 @@
                                     <Style TargetType="ItemsControl">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasFilterChips}" Value="True">
+                                            <DataTrigger Binding="{Binding HasMultipleFilterChips}" Value="True">
                                                 <Setter Property="Visibility" Value="Visible" />
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -183,37 +183,45 @@
                                 </ItemsControl.Style>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel Margin="0,4,0,0">
-                                            <!-- filter name + integration time -->
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding FilterName}" FontSize="10"
-                                                           FontWeight="SemiBold" Foreground="#8FB3FF" />
-                                                <TextBlock Grid.Column="1" FontSize="10"
-                                                           Foreground="{StaticResource MutedTextBrush}"
-                                                           Text="{Binding IntegrationTimeText}" />
-                                            </Grid>
-                                            <!-- mini bar -->
-                                            <Grid Height="5" Margin="0,2,0,2">
+                                        <!-- Single compact row per filter -->
+                                        <Grid Margin="0,3,0,0" Height="16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="18" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Filter name -->
+                                            <TextBlock Grid.Column="0" Text="{Binding FilterName}"
+                                                       FontSize="10" FontWeight="SemiBold" Foreground="#8FB3FF"
+                                                       VerticalAlignment="Center" />
+
+                                            <!-- Bar with counts overlaid -->
+                                            <Grid Grid.Column="1" Margin="4,0,6,0">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="{Binding AcceptedRatio, Converter={StaticResource RatioToGridLength}}" />
                                                     <ColumnDefinition Width="{Binding AcceptedRatio, Converter={StaticResource RatioToGridLength}, ConverterParameter=invert}" />
                                                 </Grid.ColumnDefinitions>
                                                 <Border Grid.Column="0" Background="#5CA36E" CornerRadius="2,0,0,2" />
                                                 <Border Grid.Column="1" Background="#B85C5C" CornerRadius="0,2,2,0" />
+                                                <!-- accepted count left-inside -->
+                                                <TextBlock Grid.Column="0" FontSize="9" Foreground="#DDFFFFFF"
+                                                           HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                           Margin="3,0,0,0" Text="{Binding Accepted, Mode=OneWay}" />
+                                                <!-- rejected count right-inside -->
+                                                <TextBlock Grid.Column="1" FontSize="9" Foreground="#DDFFFFFF"
+                                                           HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                           Margin="0,0,3,0">
+                                                    <Run Text="{Binding Rejected, Mode=OneWay}" />
+                                                </TextBlock>
                                             </Grid>
-                                            <!-- counts -->
-                                            <TextBlock FontSize="10" Foreground="{StaticResource MutedTextBrush}">
-                                                <Run Text="{Binding Accepted, Mode=OneWay}" />
-                                                <Run Text="/" />
-                                                <Run Text="{Binding Total, Mode=OneWay}" />
-                                                <Run Text=" " />
-                                                <Run Text="{Binding RatioText, Mode=OneWay}" />
-                                            </TextBlock>
-                                        </StackPanel>
+
+                                            <!-- Integration time -->
+                                            <TextBlock Grid.Column="2" FontSize="10"
+                                                       Foreground="{StaticResource MutedTextBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Text="{Binding IntegrationTimeText}" />
+                                        </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -279,6 +287,13 @@
                                 Decimals="0"
                                 ShowRejectCount="True"
                                 RejectCount="{Binding StarCountRejectedFrameCount}" />
+                            <controls:MetricSliderControl
+                                Label="Min Score"
+                                Value="{Binding MinScore, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Minimum="0" Maximum="5" TickFrequency="0.1" LargeChange="0.5"
+                                Decimals="1"
+                                ShowRejectCount="True"
+                                RejectCount="{Binding ScoreRejectedFrameCount}" />
                         </StackPanel>
                     </Border>
 

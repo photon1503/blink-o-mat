@@ -10,4 +10,5 @@ public sealed class Thresholds
     public double MaxMeanBackground { get; set; } = 2000.0;
     public double MinStars { get; set; } = 0;
     public int MinSatelliteConfidence { get; set; } = 80;
+    public double MinScore { get; set; } = 0.0;
 }

@@ -19,6 +19,7 @@ public sealed class SessionData
     public double MaxSkyTemp { get; set; }
     public int MinSatelliteConfidence { get; set; }
     public bool RejectSatelliteTrail { get; set; }
+    public double MinScore { get; set; }
 
     // STF
     public double StfShadows { get; set; }

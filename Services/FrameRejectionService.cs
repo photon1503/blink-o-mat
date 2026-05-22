@@ -15,7 +15,8 @@ public sealed class FrameRejectionService
                || m.Eccentricity > thresholds.MaxEccentricity
                || m.MeanBackground > thresholds.MaxMeanBackground
                || m.StarCount < thresholds.MinStars
-               || (thresholds.MinSatelliteConfidence > 0 && m.SatelliteTrailConfidence >= thresholds.MinSatelliteConfidence);
+               || (thresholds.MinSatelliteConfidence > 0 && m.SatelliteTrailConfidence >= thresholds.MinSatelliteConfidence)
+               || (thresholds.MinScore > 0 && frame.OverallScore < thresholds.MinScore);
     }
 
     public List<string> GetRejectionReasons(FrameItem frame, Thresholds thresholds)
@@ -46,6 +47,9 @@ public sealed class FrameRejectionService
 
         if (thresholds.MinSatelliteConfidence > 0 && m.SatelliteTrailConfidence >= thresholds.MinSatelliteConfidence)
             reasons.Add($"Satellite trail confidence {m.SatelliteTrailConfidence}%  ≥  limit {thresholds.MinSatelliteConfidence}%");
+
+        if (thresholds.MinScore > 0 && frame.OverallScore < thresholds.MinScore)
+            reasons.Add($"Score {frame.OverallScore:F1}  <  limit {thresholds.MinScore:F1}");
 
         return reasons;
     }
