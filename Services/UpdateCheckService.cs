@@ -14,6 +14,31 @@ public sealed class UpdateCheckService
         "https://github.com/photon1503/blink-o-mat/releases/latest";
 
     /// <summary>
+    /// Returns the browser download URL of the first .exe asset in the latest release,
+    /// or null if none is found or the request fails.
+    /// </summary>
+    public async Task<string?> GetInstallerDownloadUrlAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("Rejector-UpdateCheck/1.0");
+            http.Timeout = TimeSpan.FromSeconds(10);
+
+            var release = await http.GetFromJsonAsync<GithubReleaseWithAssets>(
+                ReleasesApiUrl, cancellationToken);
+
+            return release?.Assets?.FirstOrDefault(a =>
+                a.Name?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true)
+                ?.BrowserDownloadUrl;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Returns the latest release tag (e.g. "1.0.10") when a newer version is available,
     /// or null when the current version is up to date or the check fails.
     /// </summary>
@@ -63,5 +88,23 @@ public sealed class UpdateCheckService
     {
         [JsonPropertyName("tag_name")]
         public string? TagName { get; init; }
+    }
+
+    private sealed class GithubReleaseWithAssets
+    {
+        [JsonPropertyName("tag_name")]
+        public string? TagName { get; init; }
+
+        [JsonPropertyName("assets")]
+        public List<GithubAsset>? Assets { get; init; }
+    }
+
+    private sealed class GithubAsset
+    {
+        [JsonPropertyName("name")]
+        public string? Name { get; init; }
+
+        [JsonPropertyName("browser_download_url")]
+        public string? BrowserDownloadUrl { get; init; }
     }
 }
