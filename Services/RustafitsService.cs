@@ -129,8 +129,71 @@ public sealed class RustafitsService
 
     public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame)
     {
-        var (x, y) = DetectRoiCenter(frame.Pixels, frame.Width, frame.Height);
+        var (x, y) = DetectRoiCenter(GetLuminance(frame), frame.Width, frame.Height);
         return (frame.Width <= 1 ? 0.5 : x / (double)(frame.Width - 1), frame.Height <= 1 ? 0.5 : y / (double)(frame.Height - 1));
+    }
+
+    /// <summary>
+    /// Detects an automatic ROI rectangle in normalized image coordinates. The center is chosen by
+    /// a centrality- and contrast-biased score so galaxies, globular clusters and nebulae are
+    /// preferred over plain background or a single bright star. The side length is chosen to keep
+    /// the downsample ratio into the 160 px list preview low enough that individual stars remain
+    /// visible — at very high resolutions (small arcsec/px) one star can be a single native pixel,
+    /// so the ROI must not be so large that stars get downsampled into invisibility.
+    /// </summary>
+    public (double Left, double Top, double Width, double Height) DetectRoiNormalizedRect(LoadedFrame frame)
+    {
+        var width = Math.Max(1, frame.Width);
+        var height = Math.Max(1, frame.Height);
+        var lum = GetLuminance(frame);
+        var (cx, cy) = DetectRoiCenter(lum, width, height);
+
+        var shorter = Math.Min(width, height);
+
+        // The list preview thumbnail is rendered at 160 px. To judge focus / star shape / noise the
+        // ROI crop must not be downsampled by more than a small factor, otherwise sub-arcsecond stars
+        // (e.g. at 0.27"/px sampling) collapse to less than one preview pixel and the thumbnail
+        // becomes unreadable. We target roughly a 2.5x downsample (≈ 400 native pixels) which keeps
+        // a 1-2 native px star at ~1 preview px and shows enough context around it.
+        const double previewSizePx = 160.0;
+        const double targetDownsample = 2.5;
+        var targetSidePx = previewSizePx * targetDownsample; // 400 px
+
+        // Allow a slight increase for very large sensors so we still get meaningful context, but
+        // never more than ~4x downsample (640 native px) and never more than half the shorter side.
+        var maxSidePx = Math.Min(previewSizePx * 4.0, shorter * 0.5);
+        var minSidePx = Math.Min(shorter, previewSizePx * 1.5); // at least show ~1.5x downsample
+
+        var roiSidePx = Math.Clamp(targetSidePx, minSidePx, maxSidePx);
+
+        // Express as a normalized rectangle. Width/height are computed against their own axis
+        // so the rect is a true square in source pixels even on non-square images.
+        var sizeX = roiSidePx / width;
+        var sizeY = roiSidePx / height;
+
+        var nx = width <= 1 ? 0.5 : cx / (double)(width - 1);
+        var ny = height <= 1 ? 0.5 : cy / (double)(height - 1);
+
+        var left = Math.Clamp(nx - sizeX / 2.0, 0.0, Math.Max(0.0, 1.0 - sizeX));
+        var top = Math.Clamp(ny - sizeY / 2.0, 0.0, Math.Max(0.0, 1.0 - sizeY));
+        return (left, top, sizeX, sizeY);
+    }
+
+    private static float[] GetLuminance(LoadedFrame frame)
+    {
+        if (frame.IsOsc && frame.ColorChannels is { Length: 3 } cc)
+        {
+            var r = cc[0];
+            var g = cc[1];
+            var b = cc[2];
+            var lum = new float[r.Length];
+            for (var i = 0; i < lum.Length; i++)
+            {
+                lum[i] = 0.2126f * r[i] + 0.7152f * g[i] + 0.0722f * b[i];
+            }
+            return lum;
+        }
+        return frame.Pixels;
     }
 
     public AstroMetrics AnalyzeFrame(LoadedFrame frame)
@@ -1942,50 +2005,91 @@ public sealed class RustafitsService
     {
         // Downsample to a small working image so blurring is cheap and covers large spatial scales.
         var longest = Math.Max(width, height);
-        var scale = longest > 128 ? 128.0 / longest : 1.0;
+        var scale = longest > 192 ? 192.0 / longest : 1.0;
         var sw = Math.Max(32, (int)Math.Round(width * scale));
         var sh = Math.Max(32, (int)Math.Round(height * scale));
 
         var small = ResampleNearest(pixels, width, height, sw, sh);
 
-        // Subtract background (median) so that sky gradient does not bias the peak.
+        // Background subtract using the median, then clip very bright pixels at a high
+        // percentile so a single saturated star can't dominate the scoring.
         var sampled = Sample(small);
         Array.Sort(sampled);
-        var bg = PercentileFromSorted(sampled, 0.5);
+        var bg = (float)PercentileFromSorted(sampled, 0.5);
+        var hi = (float)PercentileFromSorted(sampled, 0.98);
+        var clipCeiling = Math.Max(bg + 1e-6f, hi);
         for (var i = 0; i < small.Length; i++)
         {
-            small[i] = Math.Max(0f, small[i] - (float)bg);
+            var v = small[i] - bg;
+            if (v < 0f) v = 0f;
+            // Soft clip so bright stars saturate and don't outweigh extended structure.
+            if (v > clipCeiling) v = clipCeiling;
+            small[i] = v;
         }
 
-        // Apply a large box blur (radius ≈ 15 % of the smaller dimension) multiple times.
-        // This merges all the individual stars of a globular / galaxy / nebula into one
-        // broad hump, making the cluster the dominant peak even when it consists of
-        // hundreds of tiny unresolved point sources.
-        var blurRadius = Math.Max(2, (int)Math.Round(Math.Min(sw, sh) * 0.15));
-        for (var pass = 0; pass < 4; pass++)
+        // Two parallel blurs:
+        //  - "structure" blur (large radius) detects extended sources like galaxies / nebulae.
+        //  - "detail" blur (small radius) preserves local texture for the contrast metric.
+        var structureRadius = Math.Max(3, (int)Math.Round(Math.Min(sw, sh) * 0.06));
+        var detailRadius = Math.Max(1, (int)Math.Round(Math.Min(sw, sh) * 0.015));
+        var structure = small;
+        for (var pass = 0; pass < 2; pass++)
         {
-            small = BoxBlur(small, sw, sh, blurRadius);
+            structure = BoxBlur(structure, sw, sh, structureRadius);
         }
+        var detail = BoxBlur(small, sw, sh, detailRadius);
 
-        // Find the brightest pixel inside the central 80 % of the image.
-        // Restricting to the centre avoids picking up bright edge artefacts or
-        // vignetting gradient residuals in the corners.
-        var marginX = (int)Math.Round(sw * 0.10);
-        var marginY = (int)Math.Round(sh * 0.10);
+        // Local contrast: variance of `detail` over a window roughly the size of the
+        // structure blur. High contrast = interesting texture (dust lanes, cluster cores,
+        // nebula edges). Plain background has near-zero contrast.
+        var contrast = LocalVariance(detail, sw, sh, structureRadius);
 
-        var bestVal = float.NegativeInfinity;
+        // Center-bias Gaussian weight: peaks at image center, drops off but never to zero.
+        var cxImg = (sw - 1) * 0.5;
+        var cyImg = (sh - 1) * 0.5;
+        var sigma = Math.Min(sw, sh) * 0.35;
+        var twoSigmaSq = 2.0 * sigma * sigma;
+
+        // Normalize structure and contrast to comparable ranges so neither dominates.
+        var maxStructure = 0f;
+        var maxContrast = 0f;
+        for (var i = 0; i < structure.Length; i++)
+        {
+            if (structure[i] > maxStructure) maxStructure = structure[i];
+            if (contrast[i] > maxContrast) maxContrast = contrast[i];
+        }
+        var invStructure = maxStructure > 0 ? 1f / maxStructure : 0f;
+        var invContrast = maxContrast > 0 ? 1f / maxContrast : 0f;
+
+        // Restrict to the central 90 % of the frame to avoid picking up edge artefacts.
+        var marginX = (int)Math.Round(sw * 0.05);
+        var marginY = (int)Math.Round(sh * 0.05);
+
+        var bestScore = double.NegativeInfinity;
         var bestPx = sw / 2;
         var bestPy = sh / 2;
 
         for (var y = marginY; y < sh - marginY; y++)
         {
             var row = y * sw;
+            var dy = y - cyImg;
             for (var x = marginX; x < sw - marginX; x++)
             {
-                var v = small[row + x];
-                if (v > bestVal)
+                var dx = x - cxImg;
+                var centerWeight = Math.Exp(-(dx * dx + dy * dy) / twoSigmaSq);
+
+                var s = structure[row + x] * invStructure;
+                var c = contrast[row + x] * invContrast;
+
+                // Combined score: extended brightness AND local contrast, both required.
+                // Multiplying ensures plain background (s>0, c~0) and isolated stars
+                // (s small after clipping, c moderate but spatially tiny after blur) score low,
+                // while galaxies/clusters/nebulae (s and c both elevated over a wide area) win.
+                var score = (0.6 * s + 0.4 * c) * (0.3 + 0.7 * s) * (0.3 + 0.7 * c) * centerWeight;
+
+                if (score > bestScore)
                 {
-                    bestVal = v;
+                    bestScore = score;
                     bestPx = x;
                     bestPy = y;
                 }
@@ -1996,6 +2100,25 @@ public sealed class RustafitsService
         var fullX = (int)Math.Round((bestPx / (double)Math.Max(1, sw - 1)) * (width - 1));
         var fullY = (int)Math.Round((bestPy / (double)Math.Max(1, sh - 1)) * (height - 1));
         return (Math.Clamp(fullX, 0, width - 1), Math.Clamp(fullY, 0, height - 1));
+    }
+
+    private static float[] LocalVariance(float[] input, int width, int height, int radius)
+    {
+        // Compute local variance using box-blurred mean and box-blurred mean-of-squares.
+        var squared = new float[input.Length];
+        for (var i = 0; i < input.Length; i++)
+        {
+            squared[i] = input[i] * input[i];
+        }
+        var mean = BoxBlur(input, width, height, radius);
+        var meanSq = BoxBlur(squared, width, height, radius);
+        var result = new float[input.Length];
+        for (var i = 0; i < input.Length; i++)
+        {
+            var v = meanSq[i] - (mean[i] * mean[i]);
+            result[i] = v > 0f ? v : 0f;
+        }
+        return result;
     }
 
     private static float[] ResampleNearest(float[] pixels, int width, int height, int targetWidth, int targetHeight)

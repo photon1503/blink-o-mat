@@ -1116,10 +1116,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     OnPropertyChanged(nameof(StfShadows));
                     OnPropertyChanged(nameof(StfMidtones));
                     OnPropertyChanged(nameof(StfHighlights));
-                    var roiCenter = _rustafits.DetectRoiNormalizedCenter(raw);
-                    var longestSide = Math.Max(raw.Width, raw.Height);
-                    var roiSize = longestSide > 0 ? 160.0 / longestSide : 0.25;
-                    _manualRoiRect = (Math.Clamp(roiCenter.X - roiSize / 2, 0, 1 - roiSize), Math.Clamp(roiCenter.Y - roiSize / 2, 0, 1 - roiSize), roiSize, roiSize);
+                    _manualRoiRect = _rustafits.DetectRoiNormalizedRect(raw);
                     var previews = await _rustafits.RenderPreviewBitmapsAsync(raw, GetStfForFrame(raw), _manualRoiRect, metrics, CancellationToken.None);
 
                     var item = new FrameItem
@@ -2722,13 +2719,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         // Auto-detect a center point and build a normalized square ROI from it
-        var center = _rustafits.DetectRoiNormalizedCenter(await MaterializeFrameAsync(_loadedFrames[0], cancellationToken));
-        var frame = _loadedFrames[0];
-        var longest = Math.Max(frame.Width, frame.Height);
-        var size = longest > 0 ? 160.0 / longest : 0.25;
-        var left = Math.Clamp(center.X - size / 2, 0, 1 - size);
-        var top = Math.Clamp(center.Y - size / 2, 0, 1 - size);
-        _manualRoiRect = (left, top, size, size);
+        _manualRoiRect = _rustafits.DetectRoiNormalizedRect(await MaterializeFrameAsync(_loadedFrames[0], cancellationToken));
     }
 
     private static LoadedFrameContext CreateLoadedFrameContext(FrameItem item, RustafitsService.LoadedFrame frame, string filePath, bool rotate180)

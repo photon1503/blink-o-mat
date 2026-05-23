@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## 1.0.16
+
+### Changed
+- **Automatic ROI selection is now center-aware and content-aware.** The ROI finder now prefers high-contrast, extended structure near the image center, so it is far less likely to lock onto empty background or a single bright star.
+- **Better target detection for galaxies, globular clusters, and nebulae.** ROI scoring now favors regions that combine structure and local contrast, which improves subject selection across common deep-sky object types.
+- **ROI size now adapts to image scale.** The automatic ROI is sized in preview-pixel terms (~2.5× downsample into the 160 px thumbnail), so stars and fine structure remain visible in the list preview regardless of sampling. 
+
+---
 ## 1.0.15
 
 ### Fixed
