@@ -1,213 +1,333 @@
-﻿# Rejector
+# Rejector
 
-> **Subframe quality analyser and blinker for astrophotography FITS/XISF images.**
+> **Cull bad subframes from your astrophotography session before stacking.**
 
 [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)](https://www.microsoft.com/windows)
 [![License](https://img.shields.io/github/license/photon1503/blink-o-mat)](LICENSE.txt)
 [![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-blue)](CHANGELOG.md)
 
-**Rejector** helps you cull bad subframes from an astrophotography session before stacking.
-It batch-loads FITS and XISF light frames, extracts quality metrics from each one (FWHM, HFR, eccentricity, star count, background, and more), scores and ranks them, and lets you step through the frames one by one — or blink them at speed — to spot satellites, clouds, tracking failures, and poor seeing at a glance.
-Frames that don't meet your thresholds are automatically flagged; you can review, override, and move them to a reject folder in a single click.
+Rejector loads your FITS and XISF lights, measures the quality of each one (sharpness, star roundness, background, trails, …), shows you the results in one place, and lets you blink through frames to spot satellites, clouds, gusts of wind, and bad seeing at a glance. Frames that fail your thresholds are flagged automatically, and you can move them all to a rejected folder with one click.
 
 ![alt text](20260521-1827-42.7131635.gif)
 ![alt text](20260521-1829-16.2179826.gif)
+
 ---
 
 ## Table of Contents
 
-- [Rejector](#rejector)
-  - [](#)
-  - [Table of Contents](#table-of-contents)
-  - [Features](#features)
-    - [Loading \& Session Workflow](#loading--session-workflow)
-    - [Display \& Preview](#display--preview)
-    - [Frame Summary](#frame-summary)
-    - [Stretch \& Normalization](#stretch--normalization)
-    - [ROI (Region of Interest)](#roi-region-of-interest)
-    - [Quality Metrics](#quality-metrics)
-    - [Metadata Extraction](#metadata-extraction)
-    - [Rejection \& Sorting](#rejection--sorting)
-    - [Satellite Trail Detection](#satellite-trail-detection)
-    - [Performance](#performance)
-  - [Requirements](#requirements)
-  - [Build](#build)
-  - [Usage — GUI](#usage--gui)
-  - [Usage — Headless / CLI](#usage--headless--cli)
-  - [Headless Arguments](#headless-arguments)
-  - [Default Thresholds](#default-thresholds)
-  - [Quality Score](#quality-score)
-    - [Algorithm — weighted rank-percentile](#algorithm--weighted-rank-percentile)
-  - [Notes](#notes)
-  - [Changelog](#changelog)
+- [Install & launch](#install--launch)
+- [Quick start (5 minutes)](#quick-start-5-minutes)
+- [The main window](#the-main-window)
+- [The preview window](#the-preview-window)
+- [Quality metrics](#quality-metrics)
+- [Automatic rejection](#automatic-rejection)
+- [Per-filter thresholds & scope selector](#per-filter-thresholds--scope-selector)
+- [Quality score (0–5 stars)](#quality-score-05-stars)
+- [Region of Interest (ROI)](#region-of-interest-roi)
+- [Stretch (Shadows / Midtones / Highlights)](#stretch-shadows--midtones--highlights)
+- [Frame summary & filter chips](#frame-summary--filter-chips)
+- [Moving rejected frames](#moving-rejected-frames)
+- [Saving & loading sessions](#saving--loading-sessions)
+- [Keyboard shortcuts](#keyboard-shortcuts)
+- [Headless / command-line mode](#headless--command-line-mode)
+- [Notes & caveats](#notes--caveats)
+- [Requirements](#requirements)
+- [Changelog](#changelog)
 
 ---
 
-## Features
+## Install & launch
 
-### Loading & Session Workflow
+1. Download the latest installer from the [Releases page](https://github.com/photon1503/blink-o-mat/releases) and run it.
+2. Find **Rejector** in the Windows Start menu and open it.
+3. On startup, Rejector silently checks GitHub for a newer version. When one is available, a green banner appears below the toolbar with a **View release** link; dismiss it with **✕** and it will not return until the next launch.
 
-| Capability | Details |
+> No internet connection is required to use the program — the update check is fire-and-forget and never blocks the UI.
+
+---
+
+## Quick start 
+
+1. Click  *Input folder* and pick the folder with your light frames.
+2. Optionally tick **Subfolders** to scan recursively.
+3. Wait for the status bar to finish loading. Frames appear in the list as soon as each one is measured.
+4. Look at the *Frame summary* card on the left to see how many frames passed and how much integration time you have.
+5. Click **Open preview** (or double-click any frame) and press `Space` to blink through your session.
+6. Tweak the sliders under *Automatic rejection* until the **Rejects: N** counters look right.
+7. Click *Rejected folder* and pick a destination.
+8. Click **Reject** in the top toolbar, confirm the dialog, and your bad frames are moved.
+
+---
+
+## The main window
+
+The main window is divided into three areas:
+
+- **Top toolbar** — input/rejected folder pickers, **Subfolders** toggle, **Load Frames**, **Reject** (move bad frames), and **💾 Save Session** / **📂 Load Session** icons in the top-left corner.
+- **Left sidebar** — *Frame summary*, *Stretch*, *ROI*, *Automatic rejection*, *Visibility*, *Filters*, and *Sort* cards.
+- **Frame list** (right) — one row per frame with thumbnail, ROI preview, metric chips, score, star rating, and a **Reject / Keep** button.
+
+### The frame list
+
+Each row shows:
+
+- A **full-frame thumbnail** of the image (stretched and downsampled).
+- A **ROI thumbnail** showing a zoom into the most interesting part of the image (see [ROI](#region-of-interest-roi)).
+- A row of **colour-coded metric chips** (🟢 / 🟡 / 🔴) relative to the session average.
+- The **overall score** as a number (0.0–5.0) and label (**GOOD / FAIR / POOR**).
+- A **Reject / Keep** button to flip the verdict manually.
+- A small **?** badge on automatically rejected frames — hover it to see exactly which thresholds were violated and by how much.
+- A **filename** with full path tooltip; long names are truncated with an ellipsis.
+
+### Status bar & loading progress
+
+While frames are loading, the status bar shows a single live line such as:
+
+```
+Loading 47/120 • active: 32 • current: NGC7000_L_001.xisf • skipped: 1
+```
+
+The progress bar advances steadily from 0 to 100 % as frames complete, and the UI stays responsive throughout — even with hundreds of frames.
+
+The status bar also shows live **CPU / RAM / Disk / Network** indicators on the right while loading.
+
+---
+
+## The preview window
+
+Click **Open preview** in the toolbar (or double-click a frame) to open the preview window for close inspection and blinking.
+
+| Control | Action |
 |---|---|
-| Supported formats | `.fit`, `.fits`, `.xisf` (mono and OSC colour) |
-| Loading strategy | First frame sync, remaining frames in parallel background tasks |
-| Subfolder scanning | Optional recursive scan via the **Subfolders** checkbox; subfolder structure is preserved when moving rejected frames |
-| Progress feedback | Status updates during scanning, loading, stretching, and preview refresh |
-| Fault tolerance | Unreadable frames are skipped; loading continues |
-| Persistence | Last-used input and rejected folder paths are saved between runs; main and preview window size/position are restored on next launch |
-| **Save Session** | Saves all current settings, thresholds, sort rules, filter chip selection, and per-frame accepted/rejected state (including thumbnails and ROI previews) to a `.boms` file via the 💾 toolbar icon |
-| **Load Session** | Restores a previously saved session instantly from a `.boms` file via the 📂 toolbar icon; the input folder is then rescanned and any new files not present in the session are loaded and appended automatically |
+| **Left mouse drag** | Pan |
+| **Mouse wheel** | Zoom |
+| **Right mouse button (hold)** | Show the **loupe** — a small magnifier follows the cursor and displays `X`, `Y`, raw pixel value `K`, plus local `Min`, `Max`, `Mean` |
+| **Ctrl + left drag** | Draw a custom square ROI (released = applied; `Esc` cancels) |
+| **Prev / Next** buttons | Step through frames |
+| **▶ / ⏸** button or `Space` | Start / stop auto-play |
+| **− / +** next to play button | Cycle playback speed: 100 ms · 200 ms · 500 ms · **1 s** · 2 s · 3 s · 5 s · 10 s |
+| **`1:1`, − / + buttons** | 1:1, zoom out, zoom in |
+| **Fit** button | Zoom to fit |
+| **Vertical frame slider** | Scrub directly to any frame |
+| **Frame markers next to the slider** | Coloured **green → yellow → red** by score, **struck through** for rejected frames, **blue border** for cached frames. **Click any marker** to jump to that frame. The current frame is highlighted in gold. |
+| **Open in Explorer** | Opens Windows Explorer with the current file selected |
 
-### Display & Preview
+- Zoom level and pan position are **preserved while stepping** between frames, so you can lock onto a star and watch it across the whole session.
+- The window remembers its **size, position, and maximized state** between launches.
+- A transient status line appears whenever a full-resolution image is loaded from disk (vs. served from cache).
+- The preview window also has its own **Accepted / Rejected** filter chips and a **Skip rejected** toggle so playback can skip over the bad ones.
 
-- **Dark, mid-gray UI** — low-glare theme for night-time use
-- **OSC colour rendering** — FITS files from one-shot colour sensors are bilinear-debayered at load time and displayed in full colour across every preview surface (thumbnail, ROI, interactive window, full-resolution view)
-- **Main frame list** — per-frame thumbnail, ROI preview, metric indicators, star rating, numeric score, and quality label at a glance
-- **Dedicated preview window** for blinking and close inspection:
-  - Default zoom-to-fit; `1:1`, zoom-in, zoom-out controls
-  - Pan with **left mouse drag**, zoom with **Mouse Wheel**
-  - Prev / Next navigation buttons and a **vertical frame slider** for direct scrubbing
-  - **Accepted / Rejected filter chips** — list and slider update instantly when chip selection changes
-  - **Play / Pause** button (`Space`) — automatically steps through frames at a configurable interval; use the **−** / **+** buttons to cycle through preset speeds (100 ms · 200 ms · 500 ms · 1 s · 2 s · 3 s · 5 s · 10 s); playback stops automatically at the last frame
-  - Keyboard: `←` / `→` to step frames, `Space` to toggle play/pause, `R` to toggle reject on the current frame
-  - Zoom level and pan position are preserved while stepping between frames
-  - Window size, position, and maximized state are remembered between runs
-  - Cache coverage indicator beside the frame slider — markers are **colored green→yellow→red** by quality score, **struck through** for rejected frames, and outlined with a **blue border** when the frame is in the cache; **click any marker to jump directly to that frame**
-  - Transient status message when a full-resolution image is loaded from disk
-- **Right-click loupe** — visible while RMB is held; follows the cursor and displays local pixel stats: `X`, `Y`, `K` (raw ADU), `Min`, `Max`, `Mean`
+---
 
-### Frame Summary
+## Quality metrics
 
-The *Frame summary* card in the left sidebar provides a live statistical overview of the session:
+Every frame is measured for:
 
-- **Total frames** — count of all frames matching the active filter chip selection (unaffected by the Accepted / Rejected visibility toggles)
-- **Accepted / rejected ratio bar** — a compact two-tone horizontal bar (green = accepted, red = rejected) gives an instant visual read of session quality
-- **Accepted count** with percentage and accepted integration time (e.g. `2.4 h`)
-- **Rejected count** with percentage and total integration time (e.g. `total: 3.2 h`)
-- **Per-filter breakdown** (shown when filter chips are active) — each filter gets its own row with:
-  - Filter name and accepted integration time
-  - Mini accepted/rejected ratio bar
-  - Accepted / total count and acceptance percentage
-
-### Stretch & Normalization
-
-- Per-frame STF (Screen Transfer Function) controls: **Shadows**, **Midtones**, **Highlights**, **Target background**
-- **Auto-stretch per frame** toggle — when enabled, STF parameters are computed independently for each frame instead of a fixed global stretch
-- **Same-background normalization** — aligns all frames to a common target background level so the blink comparison is not confused by varying sky background; the target level is adjustable
-- **Unlinked colour stretch for OSC frames** — shadows, midtones, and highlights are computed independently per channel (R, G, B) so colour balance is retained without manual adjustment
-- STF and ROI controls are mirrored in both the main window and the preview window
-
-### ROI (Region of Interest)
-
-- ROI preview rendered alongside the full-frame thumbnail for every frame
-- **Automatic center detection** — on load, the ROI is positioned automatically using a blur-then-peak algorithm: the image is heavily blurred so that all stars of a dense target (globular cluster, galaxy, nebula) merge into one smooth hump, then the brightest point in the central 80 % is chosen as the ROI center. This works reliably across all target types without any user configuration.
-- **Ctrl + left mouse drag** in the preview window to draw a custom square ROI; the selection is committed on mouse release and persists for the session
-- Press **Escape** to cancel an in-progress ROI drag
-- Automatic orientation normalization to align meridian-flipped and rotated frames
-
-### Quality Metrics
-
-Each frame is measured and displayed for:
-
-| Metric | Notes |
+| Metric | What it tells you |
 |---|---|
-| FWHM (px) | Full width at half maximum of stars |
-| FWHM (arcsec) | Requires focal length and pixel size in FITS header |
-| HFR (px) | Half-flux radius |
-| Star count | |
-| Eccentricity | Star elongation |
-| SQM | Sky quality meter value — parsed from filename when present |
-| Sky temperature | From FITS/XISF `SKYTEMP` keyword |
-| Mean background | Average background level in ADU |
-| Median | |
-| MAD | Median absolute deviation |
-| Min / Max | Including per-value occurrence counters |
-| Satellite trail confidence | Heuristic detection, 0–100 % |
+| **FWHM (px)** | Star sharpness — lower is better |
+| **FWHM (arcsec)** | Same, in sky units (needs focal length + pixel size in the FITS header) |
+| **HFR (px)** | Half-flux radius — secondary sharpness measure |
+| **Star count** | Drops when clouds roll in or transparency suffers |
+| **Eccentricity** | Star roundness — rises with tracking errors, collimation issues, sensor tilt |
+| **SQM** | Sky-quality-meter reading (parsed from filename if present) |
+| **Sky temperature** | From the `SKYTEMP` FITS keyword — useful as a cloud proxy |
+| **Mean background** | Average sky level in ADU |
+| **Median / MAD** | Background level and spread |
+| **Min / Max** | Including per-value occurrence counters (clipping check) |
+| **Satellite trail confidence** | Built-in heuristic, 0–100 % |
 
-Each metric indicator is colour-coded (🟢 / 🟡 / 🔴) relative to the session average.
-A weighted overall score (0.0–5.0) is shown as a numeric value, a star rating (★☆☆☆☆–★★★★★), and a quality label (**GOOD** / **FAIR** / **POOR**).
+Each metric is colour-coded **🟢 / 🟡 / 🔴** relative to the rest of the session, so outliers jump out without having to read numbers.
 
-### Metadata Extraction
+The following metadata is also extracted: focal length · pixel size · exposure date/time · exposure length · filter name · sky temperature · Bayer pattern (`BAYERPAT`, `XBAYROFF`, `YBAYROFF`).
 
-Focal length · Pixel size · Exposure date/time · Exposure length · Filter · Sky temperature · Bayer pattern (`BAYERPAT` / `XBAYROFF` / `YBAYROFF`)
+---
 
-The filter name is shown in the preview window metrics card, directly below the date/time entry.
+## Automatic rejection
 
-### Rejection & Sorting
-
-**Automatic rejection** is driven by configurable per-threshold sliders:
+The *Automatic rejection* card has one slider per threshold. Each slider has a live **Rejects: N** counter that updates as you drag it.
 
 | Threshold | Direction | Default |
 |---|---|---|
-| FWHM | max | 8.0 px |
-| HFR | max | 4.5 px |
-| Eccentricity | max | 0.60 |
-| Mean background | max | 2000 ADU |
-| Sky temperature | max | 40 °C |
-| SQM | min | 0 (disabled) |
-| Stars | min | 0 (disabled) |
-| Satellite trail confidence | min (0 = disabled) | 80 % |
+| Min. trail confidence | min (0 = disabled) | 80 % |
+| Max FWHM | max | 8.0 px |
+| Min SQM | min | 0 (disabled) |
+| Max sky temperature | max | 40 °C |
+| Max HFR | max | 4.5 px |
+| Max eccentricity | max | 0.60 |
+| Max mean background | max | 2000 ADU |
+| Min stars | min | 0 (disabled) |
+| Min score | min | 0 (disabled) |
 
-Each slider shows a live **Rejects: N** counter that updates as you move it.
+You also get:
 
-- **Per-filter thresholds** — when a session contains frames from more than one filter (e.g. Ha, OIII, L, R, G, B), the *Automatic rejection* panel exposes a multi-select **filter scope** dropdown. Use it to tune sliders for a single filter, several filters at once, or all filters together. Each filter remembers its own slider positions, and only frames in the selected scope are evaluated against the current threshold values. A small **⟳ reset** button next to the dropdown restores the sliders for the selected filter group(s) to the loaded-frame maxima/minima (the "everything passes" starting point). Per-filter settings are saved with the session.
-- **Rejection reasons tooltip** — automatically rejected frames display a small **?** badge next to the Reject/Keep button. Hovering the badge shows a list of every violated threshold with the frame's actual value vs. the configured limit (e.g. *FWHM 4.21 px  >  limit 3.50 px*).
-- **Manual keep/reject override** — the per-frame Reject/Keep button overrides the automatic decision without erasing the underlying automatic state. Changing a threshold later does not clear a manual override.
-- **Show Accepted / Show Rejected** toggle chips filter the visible list instantly.
-- **Skip rejected in preview** — optionally skip automatically rejected frames when stepping through the preview window.
-- **One-click Move Rejected** — relocates all currently rejected frames to the configured rejected folder, preserving subfolder structure; collisions are resolved by appending `_1`, `_2`, … suffixes.
+- A **? badge** on every auto-rejected frame in the list — hover to see exactly which thresholds it violated and by how much (e.g. *FWHM 4.21 px > limit 3.50 px*).
+- A **Reject / Keep** button on every row that **overrides the automatic decision**. Manual overrides are independent of the sliders: changing a threshold later does **not** wipe out manual overrides.
 
-**Sorting** is available on any metric column or by Score; multiple sort rules can be stacked.
+### Per-filter thresholds & scope selector
 
-### Satellite Trail Detection
+When your session contains frames from more than one filter (Ha, OIII, L, R, G, B, …), each filter gets its **own independent set of thresholds**. This is essential because, for example, a 600 s Ha sub typically has very different FWHM and background numbers than a 60 s L sub — judging them by the same yardstick would always condemn one or the other.
 
-- Heuristic trail detection built in; no external dependency required
-- Trail confidence shown as 0–100 % in the per-frame metrics
-- Trail overlay rendered on thumbnails when a trail is detected
+Right next to the *Automatic rejection* heading you get two extras:
 
-### Performance
+- A **scope selector** dropdown (multi-select). Pick:
+  - all filters → slider changes apply to every group at once
+  - one filter → tune just that filter; other filters keep their own settings
+  - several filters → edit them together
 
-- Fully async processing — UI stays responsive throughout
-- Batched collection updates and virtualized frame list for large sessions (hundreds of frames)
-- Adaptive preview cache for low-latency frame-to-frame blinking
-- Automatic eviction of cached full-resolution previews to cap memory use
+  The button label shows the current scope (*All filters*, *Ha*, *3 filters*, …).
+- A **⟳ reset** button. Resets the sliders for the **currently selected** filter group(s) back to the loaded-frame maxima/minima — the same "everything passes" state you start with after loading.
+
+Per-filter slider positions are remembered in the session file, so you don't have to re-tune Ha thresholds every time you reopen a project.
 
 ---
 
-## Requirements
+## Quality score (0–5)
 
-- **Windows** (WPF-based UI; headless mode also Windows-only)
-- **.NET 10** runtime (or SDK to build from source)
+Every frame gets a quality score from **0.0** (worst) to **5.0** (best), shown as a number, a star rating, and a label:
+
+| Label | Score | Meaning |
+|---|---|---|
+| **GOOD** | ≥ 4.0 | Top tier of the session |
+| **FAIR** | 2.0 – 3.9 | Average |
+| **POOR** | < 2.0 | Bottom tier |
+
+### How it works
+
+The score is **relative within the session, per filter**. That means:
+
+- The best frame in your session for a given filter scores near **5.0**, the worst near **0.0** — the full scale is always used.
+- Ha frames are ranked against other Ha frames, OIII against OIII, L against L, and so on, so narrowband and broadband subs are always judged against their true peers.
+
+Internally each metric is rank-percentiled (1.0 = best in its group, 0.0 = worst), then combined with these weights:
+
+| Metric | Weight | Why |
+|---|---|---|
+| FWHM | 3.0 | Sharpness — most impactful on resolved detail |
+| Eccentricity | 2.5 | Star roundness — tracking / collimation / tilt |
+| Satellite trail confidence | 2.0 | Frames with detected trails score lower |
+| HFR | 1.5 | Secondary sharpness check |
+| Star count | 1.5 | Transparency / clouds proxy |
+| Mean background | 0.5 | Light pollution / gradient |
+
+The weighted percentiles are averaged and scaled to 0–5.
+
+> **Caveat:** because the score is relative, the same physical frame can score differently in different sessions — just like a podium spot depends on who else is competing. Scores are not comparable across sessions.
 
 ---
 
-## Build
+## Region of Interest (ROI)
 
-```powershell
-dotnet build
-```
+The ROI is a small square crop of each frame, shown next to its full-frame thumbnail. It exists so you can judge fine detail (star shapes, faint structure) without zooming in on each frame individually.
 
----
-
-## Usage — GUI
-
-Run the installer. Find "Rejector" in your start menue to kick it off.
-
-1. Click **Browse** next to the input folder and select the folder containing your light frames.
-2. Optionally enable **Subfolders** to scan recursively.
-3. Wait for loading to complete (progress shown in the status bar).
-4. Adjust the STF stretch and automatic rejection thresholds as needed.
-5. Open the **Preview window** and blink through frames; press `Space` to start/stop auto-play or `R` to reject individual frames.
-6. Click **Move Rejected** to relocate all rejected frames to the configured rejected folder.
-7. Click the **💾 Save Session** icon (top-left) to save all settings, thresholds, sort rules, and per-frame state to a `.boms` file.
-8. Next time, click **📂 Load Session** to restore the session instantly; any new files added to the folder since the last save are detected and appended automatically.
+- **Automatic placement** — on load, the ROI is positioned automatically using a center-aware, content-aware algorithm that prefers regions with high local contrast and extended structure. It works across galaxies, globular clusters, nebulae, and starfields without any configuration, and it is far less likely to lock onto plain background or a single bright star than naive algorithms.
+- **Automatic sizing** — the ROI is sized in preview-pixel terms (~2.5× downsample into the 160 px thumbnail), so stars and fine structure stay visible in the list preview regardless of image scale.
+- **Interactive ROI overlay (preview window)** — toggle **Show / edit ROI** in the preview pane to overlay the current ROI as a golden dotted square on top of the image. While it's visible, you can:
+  - **Drag the square** to move it.
+  - **Drag any corner** to resize it (locked to a 1:1 pixel-square aspect).
+  - **Release the mouse** — or **right-click the ROI** — to apply it to every frame and regenerate all ROI thumbnails immediately.
+- **Ctrl + left drag** in the preview window draws a brand-new ROI from scratch. Press **Escape** to cancel an in-progress drag.
+- The ROI applies to **all frames** at once, and frames with different orientation (meridian-flipped, rotated) are automatically aligned first so the ROI lands on the same patch of sky.
 
 ---
 
-## Usage — Headless / CLI
+## Stretch (Shadows / Midtones / Highlights)
 
-Run without a UI — useful for scripted pipelines or CI workflows.
+Each frame is rendered with a **Screen Transfer Function (STF)** stretch. You get four sliders in the *Stretch* card:
+
+| Slider | Effect |
+|---|---|
+| **Shadows** | Black point |
+| **Midtones** | Gamma / midtone bend |
+| **Highlights** | White point |
+| **Target background** | Target background level for the automatic stretch |
+
+Two more toggles:
+
+- **Auto-stretch per frame** — when on, the STF parameters are recomputed independently per frame (good when frame backgrounds vary a lot). When off, a fixed global stretch is used.
+- **Same-background normalization** — aligns every frame to a common target background level so the blink comparison isn't confused by varying sky brightness. The target is the *Target background* slider value.
+
+OSC (one-shot colour) frames use **unlinked colour stretch**: shadows, midtones, and highlights are computed independently per R/G/B channel so colour balance is naturally preserved without manual white balance.
+
+> Moving **Shadows / Midtones / Highlights** automatically switches the preview into manual stretch mode so your adjustments are immediately visible. The **Target background** slider continues to drive the automatic stretch as before.
+
+The same controls live in both the main window and the preview window.
+
+---
+
+## Frame summary & filter chips
+
+The *Frame summary* card on the left sidebar gives you a live read of session health:
+
+- **Total frames** matching the active filter selection.
+- An **accepted / rejected ratio bar** — green = accepted, red = rejected.
+- **Accepted count** + percentage + accepted integration time (e.g. `2.4 h`).
+- **Rejected count** + percentage + total integration time (e.g. `total: 3.2 h`).
+- A **per-filter breakdown** (when multiple filters are present): one row per filter with name, mini ratio bar, accepted/total/% summary, and accepted integration time.
+
+### Visibility toggles
+
+- **Show Accepted** — hide accepted frames from the list (useful when you want to focus on what's about to be rejected).
+- **Show Rejected** — hide rejected frames from the list.
+
+These only affect the list display — the *Frame summary* counts always reflect the full filter selection.
+
+### Filter chips
+
+Below the visibility toggles, one chip per filter found in your session. Tick / untick to include / exclude frames of that filter from the list.
+
+### Sorting
+
+Stack multiple sort rules in the *Sort* card. You can sort by any metric column or by **Score**. Use **−** to remove a rule and **+** to add another. Default sort is *Observation time, ascending*. Sorting in the main window and the preview window is kept in sync.
+
+---
+
+## Moving rejected frames
+
+When you're happy with the verdicts:
+
+1. Set the **Rejected folder** in the top toolbar (or via *Browse*).
+2. Click the **Reject** button in the top toolbar.
+3. A confirmation dialog appears showing how many frames will be moved and the destination path.
+4. If your session contains multiple filters, the dialog shows a per-filter chip row (e.g. `Ha  (12)`). Untick a chip to exclude that filter's frames; the *Frames to move* count updates live, and *Proceed* is disabled if zero frames would be moved.
+5. Click **Proceed** to perform the move; **Cancel** aborts.
+
+Behaviour:
+
+- **Subfolder structure is preserved.** A frame at `input/night1/foo.fits` ends up at `rejected/night1/foo.fits`.
+- **Collisions are renamed**, not overwritten — `_1`, `_2`, … is appended to the filename as needed.
+- Moved frames are **removed from the current list** automatically.
+
+---
+
+## Saving & loading sessions
+
+Use the icons in the top-left corner of the toolbar:
+
+- **💾 Save Session** — writes a `.boms` file containing **everything** about your current session: input/rejected folder paths, the *Subfolders* toggle, all per-filter rejection thresholds, STF settings, manual ROI rectangle, sort rules, filter chip selection, accepted/rejected state for every frame, all extracted metrics, FITS metadata, plus the thumbnail and ROI images embedded as PNGs. No re-analysis is required when you reopen it.
+- **📂 Load Session** — restores a `.boms` file instantly. Then the input folder is rescanned and any **new** files (not already in the session) are loaded and appended automatically. This makes it easy to add fresh subs to an in-progress culling session.
+
+Sessions from older versions of Rejector are loaded with a sensible fallback for any fields that have been added since.
+
+---
+
+## Keyboard shortcuts
+
+| Key | Where | Action |
+|---|---|---|
+| `Space` | Preview window | Toggle play / pause |
+| `←` / `→` | Preview window | Previous / next frame |
+| `R` | Preview window | Toggle reject on the current frame |
+| `Esc` | Preview window | Cancel an in-progress ROI drag |
+| `Ctrl` + left drag | Preview window | Draw a new manual ROI |
+| Right mouse (hold) | Preview window | Loupe — local pixel stats |
+
+---
+
+## Headless / command-line mode
+
+Rejector can also run without a UI, useful for scripted pipelines.
 
 ```powershell
 rejector -- `
@@ -222,10 +342,6 @@ rejector -- `
 
 All threshold arguments are optional; omitting one keeps its default value.
 
----
-
-## Headless Arguments
-
 | Argument | Description | Default |
 |---|---|---|
 | `--headless` | Run without UI (required) | — |
@@ -235,88 +351,29 @@ All threshold arguments are optional; omitting one keeps its default value.
 | `--max-hfr <value>` | Reject frames with HFR above this value (px) | `4.5` |
 | `--max-ecc <value>` | Reject frames with eccentricity above this value | `0.6` |
 | `--max-bg <value>` | Reject frames with mean background above this value (ADU) | `2000` |
-| `--allow-trails` | Disable satellite trail rejection (sets confidence threshold to 0) | trails rejected at ≥ 80 % |
+| `--allow-trails` | Disable satellite-trail rejection | trails rejected at ≥ 80 % |
 
-> **Note:** `--min-sqm`, `--min-stars`, `--max-sky-temp`, and `--min-trail-confidence` are GUI-only thresholds not yet exposed as CLI arguments.
-
----
-
-## Default Thresholds
-
-| Threshold | Default | Notes |
-|---|---|---|
-| Max FWHM | 8.0 px | |
-| Max HFR | 4.5 px | |
-| Max eccentricity | 0.60 | |
-| Max mean background | 2000 ADU | |
-| Max sky temperature | 40 °C | Requires `SKYTEMP` FITS keyword |
-| Min SQM | 0 | 0 = disabled; parsed from filename |
-| Min stars | 0 | 0 = disabled |
-| Min satellite trail confidence | 80 % | 0 = disabled |
+> `--min-sqm`, `--min-stars`, `--max-sky-temp`, and `--min-trail-confidence` are currently GUI-only.
 
 ---
 
-## Quality Score
+## Notes & caveats
 
-Every frame receives a quality score from **0.0** (worst in session) to **5.0** (best in session), displayed as a numeric value, a star rating (★☆☆☆☆ – ★★★★★), and a colour-coded label:
-
-| Label | Score range | Meaning |
-|-------|-------------|---------|
-| **GOOD** | ≥ 4.0 | Top tier of the session |
-| **FAIR** | 2.0 – 3.9 | Average quality |
-| **POOR** | < 2.0 | Bottom tier of the session |
-
-### Algorithm — weighted rank-percentile
-
-The score is **relative within the session**, not absolute. This design ensures the full 0–5 scale is always used, regardless of whether your seeing was excellent or poor on a given night.
-
-**Step 1 — rank each metric independently**
-
-All frames are sorted from best to worst for each metric independently. Ties receive the average rank of their group.
-
-**Step 2 — convert rank to [0, 1] percentile**
-
-```
-percentile = 1 − (rank / (N − 1))
-```
-
-`1.0` = best frame in the session · `0.0` = worst frame · `0.5` = median
-
-**Step 3 — weighted combination**
-
-| Metric | Weight | Rationale |
-|--------|--------|-----------|
-| FWHM | **3.0** | Seeing quality / sharpness — most impactful on resolved detail |
-| Eccentricity | **2.5** | Star roundness — reflects tracking errors, collimation, and sensor tilt |
-| Satellite trail confidence | **2.0** | Contamination — frames with detected trails score lower |
-| HFR | **1.5** | Half-flux radius — correlated with FWHM, provides secondary confirmation |
-| Star count | **1.5** | Cloud cover / transparency proxy |
-| Mean background | **0.5** | Light pollution / gradient level — affects SNR but rarely sufficient alone to reject |
-
-**Step 4 — scale to 0–5**
-
-```
-score = (Σ (percentile × weight) / Σ weights) × 5
-```
-
-> **Transparency note:** the score reflects *relative* quality within the current session.
-> The same physical frame can receive a different score when more or fewer frames are loaded —
-> just as a podium position depends on who else is competing.
-> Scores are not comparable across different sessions.
->
-> **Per-filter ranking:** when a session contains multiple filters, the score is computed *within each filter group* — Ha frames are ranked against other Ha frames, OIII against OIII, and so on. This keeps narrowband and broadband subs on an even footing.
+- All metrics, trail detection, ROI selection, scoring, and orientation normalization are **heuristic** and tuned for speed, not scientific precision. Rejector is designed for fast subframe culling, not final calibration.
+- Loupe pixel stats are derived from the **stretched preview image**, not raw sensor data.
+- Manual keep / reject overrides are independent of the auto-rejection sliders — changing a threshold after a manual override does not clear the override.
+- Move operations rename on collision (`_1`, `_2`, …) so no file is ever overwritten.
+- The quality score is **relative to the current session and to the frame's filter group** — the same frame can score differently in different sessions.
 
 ---
 
-## Notes
+## Requirements
 
-- All metrics, trail detection, ROI selection, scoring, and orientation normalization are **heuristic** and optimized for speed rather than scientific precision. They are intended for fast subframe culling, not final calibration.
-- Loupe pixel statistics are derived from the currently rendered (stretched) preview image, not raw sensor data.
-- Manual keep/reject overrides are independent of automatic thresholds — changing a threshold after a manual override does not clear the override.
-- Move operations rename files on collision (`_1`, `_2`, …) to prevent accidental overwrites.
+- **Windows 10 or later** (the UI is WPF; the headless mode is also Windows-only).
+- **.NET 10** runtime. The installer bundles what it needs.
 
 ---
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for a full history of changes.
+See [CHANGELOG.md](CHANGELOG.md) for the full version history.
