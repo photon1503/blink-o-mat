@@ -37,6 +37,9 @@ public sealed class SessionData
     // Filter chips selection
     public List<SessionFilterChip> FilterChips { get; set; } = [];
 
+    // Per-filter remembered rejection thresholds (keyed by normalized filter name; empty key = no filter).
+    public List<SessionFilterThresholds> FilterThresholds { get; set; } = [];
+
     // Visibility
     public bool ShowAccepted { get; set; } = true;
     public bool ShowRejected { get; set; } = true;
@@ -63,6 +66,20 @@ public sealed class SessionFilterChip
 {
     public string Key { get; set; } = string.Empty;
     public bool IsSelected { get; set; }
+}
+
+public sealed class SessionFilterThresholds
+{
+    public string Key { get; set; } = string.Empty;
+    public double MaxFwhm { get; set; }
+    public double MaxHfr { get; set; }
+    public double MaxEccentricity { get; set; }
+    public double MaxMeanBackground { get; set; }
+    public double MinStars { get; set; }
+    public double MinSqm { get; set; }
+    public double MaxSkyTemp { get; set; }
+    public int MinSatelliteConfidence { get; set; }
+    public double MinScore { get; set; }
 }
 
 public sealed class SessionFrameEntry

@@ -151,6 +151,7 @@ The filter name is shown in the preview window metrics card, directly below the 
 
 Each slider shows a live **Rejects: N** counter that updates as you move it.
 
+- **Per-filter thresholds** — when a session contains frames from more than one filter (e.g. Ha, OIII, L, R, G, B), the *Automatic rejection* panel exposes a multi-select **filter scope** dropdown. Use it to tune sliders for a single filter, several filters at once, or all filters together. Each filter remembers its own slider positions, and only frames in the selected scope are evaluated against the current threshold values. A small **⟳ reset** button next to the dropdown restores the sliders for the selected filter group(s) to the loaded-frame maxima/minima (the "everything passes" starting point). Per-filter settings are saved with the session.
 - **Rejection reasons tooltip** — automatically rejected frames display a small **?** badge next to the Reject/Keep button. Hovering the badge shows a list of every violated threshold with the frame's actual value vs. the configured limit (e.g. *FWHM 4.21 px  >  limit 3.50 px*).
 - **Manual keep/reject override** — the per-frame Reject/Keep button overrides the automatic decision without erasing the underlying automatic state. Changing a threshold later does not clear a manual override.
 - **Show Accepted / Show Rejected** toggle chips filter the visible list instantly.
@@ -302,6 +303,8 @@ score = (Σ (percentile × weight) / Σ weights) × 5
 > The same physical frame can receive a different score when more or fewer frames are loaded —
 > just as a podium position depends on who else is competing.
 > Scores are not comparable across different sessions.
+>
+> **Per-filter ranking:** when a session contains multiple filters, the score is computed *within each filter group* — Ha frames are ranked against other Ha frames, OIII against OIII, and so on. This keeps narrowband and broadband subs on an even footing.
 
 ---
 

@@ -183,14 +183,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _progressValue;
     private int _progressMaximum = 1;
     private bool _isProgressVisible;
-    private double _maxFwhm = 8.0;
-    private double _maxHfr = 4.5;
-    private double _maxEccentricity = 0.6;
-    private double _maxMeanBackground = 2000.0;
-    private double _minStars;
-    private double _minScore;
     private bool _rejectSatelliteTrail = true;
-    private int _minSatelliteConfidence = 80;
     private double _stfShadows;
     private double _stfMidtones = 0.5;
     private double _stfHighlights = 1.0;
@@ -215,8 +208,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _showRejected = true;
     private bool _isUpdatingFilterSelection;
     private FrameItem? _selectedFrame;
-    private double _minSqm;
-    private double _maxSkyTemp = 40.0;
 
     private readonly List<LoadedFrameContext> _loadedFrames = [];
     private PreviewWindow? _previewWindow;
@@ -242,7 +233,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public RangeObservableCollection<FrameItem> Frames { get; } = [];
     public ICollectionView FilteredFrames { get; }
     public ObservableCollection<FilterChipViewModel> FilterChips { get; } = [];
+    public ObservableCollection<FilterChipViewModel> RejectionScopeChips { get; } = [];
     public ObservableCollection<FilterSummaryViewModel> FilterSummaries { get; } = [];
+
+    // Per-filter thresholds. Key is the normalized filter name (empty string = "(no filter)").
+    private readonly Dictionary<string, Thresholds> _filterThresholds = new(StringComparer.OrdinalIgnoreCase);
+    private bool _isUpdatingRejectionScope;
     public ObservableCollection<FrameSortRuleViewModel> SortRules { get; } = [];
     public IReadOnlyList<SortFieldOption> SortFieldOptions => DefaultSortFieldOptions;
     public IReadOnlyList<SortDirectionOption> SortDirectionOptions => DefaultSortDirectionOptions;
@@ -648,11 +644,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public double MaxFwhm
     {
-        get => _maxFwhm;
+        get => GetScopedDouble(t => t.MaxFwhm);
         set
         {
-            if (Math.Abs(_maxFwhm - value) < double.Epsilon) return;
-            _maxFwhm = value;
+            if (Math.Abs(GetScopedDouble(t => t.MaxFwhm) - value) < double.Epsilon) return;
+            SetScopedDouble((t, v) => t.MaxFwhm = v, value);
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -660,11 +656,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public double MaxSkyTemp
     {
-        get => _maxSkyTemp;
+        get => GetScopedDouble(t => t.MaxSkyTemp);
         set
         {
-            if (Math.Abs(_maxSkyTemp - value) < double.Epsilon) return;
-            _maxSkyTemp = value;
+            if (Math.Abs(GetScopedDouble(t => t.MaxSkyTemp) - value) < double.Epsilon) return;
+            SetScopedDouble((t, v) => t.MaxSkyTemp = v, value);
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -672,11 +668,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public double MaxHfr
     {
-        get => _maxHfr;
+        get => GetScopedDouble(t => t.MaxHfr);
         set
         {
-            if (Math.Abs(_maxHfr - value) < double.Epsilon) return;
-            _maxHfr = value;
+            if (Math.Abs(GetScopedDouble(t => t.MaxHfr) - value) < double.Epsilon) return;
+            SetScopedDouble((t, v) => t.MaxHfr = v, value);
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -684,11 +680,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public double MinSqm
     {
-        get => _minSqm;
+        get => GetScopedDouble(t => t.MinSqm);
         set
         {
-            if (Math.Abs(_minSqm - value) < double.Epsilon) return;
-            _minSqm = value;
+            if (Math.Abs(GetScopedDouble(t => t.MinSqm) - value) < double.Epsilon) return;
+            SetScopedDouble((t, v) => t.MinSqm = v, value);
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -696,11 +692,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public double MaxEccentricity
     {
-        get => _maxEccentricity;
+        get => GetScopedDouble(t => t.MaxEccentricity);
         set
         {
-            if (Math.Abs(_maxEccentricity - value) < double.Epsilon) return;
-            _maxEccentricity = value;
+            if (Math.Abs(GetScopedDouble(t => t.MaxEccentricity) - value) < double.Epsilon) return;
+            SetScopedDouble((t, v) => t.MaxEccentricity = v, value);
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -708,11 +704,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public double MaxMeanBackground
     {
-        get => _maxMeanBackground;
+        get => GetScopedDouble(t => t.MaxMeanBackground);
         set
         {
-            if (Math.Abs(_maxMeanBackground - value) < double.Epsilon) return;
-            _maxMeanBackground = value;
+            if (Math.Abs(GetScopedDouble(t => t.MaxMeanBackground) - value) < double.Epsilon) return;
+            SetScopedDouble((t, v) => t.MaxMeanBackground = v, value);
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -720,11 +716,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public double MinStars
     {
-        get => _minStars;
+        get => GetScopedDouble(t => t.MinStars);
         set
         {
-            if (Math.Abs(_minStars - value) < double.Epsilon) return;
-            _minStars = value;
+            if (Math.Abs(GetScopedDouble(t => t.MinStars) - value) < double.Epsilon) return;
+            SetScopedDouble((t, v) => t.MinStars = v, value);
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -732,11 +728,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public double MinScore
     {
-        get => _minScore;
+        get => GetScopedDouble(t => t.MinScore);
         set
         {
-            if (Math.Abs(_minScore - value) < double.Epsilon) return;
-            _minScore = value;
+            if (Math.Abs(GetScopedDouble(t => t.MinScore) - value) < double.Epsilon) return;
+            SetScopedDouble((t, v) => t.MinScore = v, value);
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -756,11 +752,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public int MinSatelliteConfidence
     {
-        get => _minSatelliteConfidence;
+        get => GetScopedInt(t => t.MinSatelliteConfidence);
         set
         {
-            if (_minSatelliteConfidence == value) return;
-            _minSatelliteConfidence = value;
+            if (GetScopedInt(t => t.MinSatelliteConfidence) == value) return;
+            SetScopedInt((t, v) => t.MinSatelliteConfidence = v, value);
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -878,6 +874,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         OnPropertyChanged(nameof(HasFilterChips));
         OnPropertyChanged(nameof(HasMultipleFilterChips));
+
+        RebuildRejectionScopeChips();
     }
 
     private void FilterChip_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -998,6 +996,187 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return string.IsNullOrWhiteSpace(filterName)
             ? string.Empty
             : filterName.Trim();
+    }
+
+    // ---------- Per-filter (scoped) rejection thresholds ----------
+
+    /// <summary>Filter keys currently selected in the rejection scope dropdown. Empty = none selected (treated as all).</summary>
+    private List<string> GetSelectedScopeKeys()
+    {
+        if (RejectionScopeChips.Count == 0) return [string.Empty];
+        var selected = RejectionScopeChips.Where(c => c.IsSelected).Select(c => c.Key).ToList();
+        return selected.Count == 0 ? RejectionScopeChips.Select(c => c.Key).ToList() : selected;
+    }
+
+    /// <summary>All distinct normalized filter keys present in the current frames (empty string = "(no filter)").</summary>
+    private List<string> GetAllFilterKeys()
+    {
+        return Frames
+            .Select(f => NormalizeFilterValue(f.FilterName))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private Thresholds GetThresholdsForKey(string key)
+    {
+        if (!_filterThresholds.TryGetValue(key, out var t))
+        {
+            t = new Thresholds
+            {
+                MaxFwhm = 8.0,
+                MaxHfr = 4.5,
+                MaxEccentricity = 0.6,
+                MaxMeanBackground = 2000.0,
+                MinStars = 0,
+                MinSqm = 0,
+                MaxSkyTemp = 40.0,
+                MinSatelliteConfidence = 80,
+                MinScore = 0.0,
+            };
+            _filterThresholds[key] = t;
+        }
+        return t;
+    }
+
+    /// <summary>Aggregated threshold value across the currently selected scope. Returns the value of the first in-scope group.</summary>
+    private double GetScopedDouble(Func<Thresholds, double> selector)
+    {
+        var keys = GetSelectedScopeKeys();
+        var first = keys.FirstOrDefault() ?? string.Empty;
+        return selector(GetThresholdsForKey(first));
+    }
+
+    private int GetScopedInt(Func<Thresholds, int> selector)
+    {
+        var keys = GetSelectedScopeKeys();
+        var first = keys.FirstOrDefault() ?? string.Empty;
+        return selector(GetThresholdsForKey(first));
+    }
+
+    private void SetScopedDouble(Action<Thresholds, double> assign, double value)
+    {
+        foreach (var key in GetSelectedScopeKeys())
+        {
+            assign(GetThresholdsForKey(key), value);
+        }
+    }
+
+    private void SetScopedInt(Action<Thresholds, int> assign, int value)
+    {
+        foreach (var key in GetSelectedScopeKeys())
+        {
+            assign(GetThresholdsForKey(key), value);
+        }
+    }
+
+    private void RebuildRejectionScopeChips()
+    {
+        _isUpdatingRejectionScope = true;
+        try
+        {
+            foreach (var chip in RejectionScopeChips)
+            {
+                chip.PropertyChanged -= RejectionScopeChip_PropertyChanged;
+            }
+            RejectionScopeChips.Clear();
+
+            var keys = GetAllFilterKeys();
+            // Sort: real filters alphabetically, "(no filter)" last.
+            var named = keys.Where(k => k.Length > 0).OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToList();
+            var hasUnfiltered = keys.Any(k => k.Length == 0);
+
+            foreach (var key in named)
+            {
+                var chip = new FilterChipViewModel(key, key, isSelected: true);
+                chip.PropertyChanged += RejectionScopeChip_PropertyChanged;
+                RejectionScopeChips.Add(chip);
+            }
+            if (hasUnfiltered)
+            {
+                var chip = new FilterChipViewModel(string.Empty, "(no filter)", isSelected: true);
+                chip.PropertyChanged += RejectionScopeChip_PropertyChanged;
+                RejectionScopeChips.Add(chip);
+            }
+
+            // Ensure each key has a thresholds entry.
+            foreach (var key in keys) GetThresholdsForKey(key);
+        }
+        finally
+        {
+            _isUpdatingRejectionScope = false;
+        }
+
+        OnPropertyChanged(nameof(HasRejectionScopeChips));
+        OnPropertyChanged(nameof(RejectionScopeSummary));
+        RaiseAllThresholdPropertiesChanged();
+    }
+
+    private void RejectionScopeChip_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isUpdatingRejectionScope || e.PropertyName != nameof(FilterChipViewModel.IsSelected)) return;
+        OnPropertyChanged(nameof(RejectionScopeSummary));
+        RaiseAllThresholdPropertiesChanged();
+    }
+
+    private void RaiseAllThresholdPropertiesChanged()
+    {
+        OnPropertyChanged(nameof(MaxFwhm));
+        OnPropertyChanged(nameof(MaxHfr));
+        OnPropertyChanged(nameof(MaxEccentricity));
+        OnPropertyChanged(nameof(MaxMeanBackground));
+        OnPropertyChanged(nameof(MinStars));
+        OnPropertyChanged(nameof(MinSqm));
+        OnPropertyChanged(nameof(MaxSkyTemp));
+        OnPropertyChanged(nameof(MinScore));
+        OnPropertyChanged(nameof(MinSatelliteConfidence));
+    }
+
+    public bool HasRejectionScopeChips => RejectionScopeChips.Count > 1;
+
+    public string RejectionScopeSummary
+    {
+        get
+        {
+            if (RejectionScopeChips.Count == 0) return "All Filters";
+            var selected = RejectionScopeChips.Where(c => c.IsSelected).ToList();
+            if (selected.Count == 0 || selected.Count == RejectionScopeChips.Count) return "All Filters";
+            return selected.Count == 1 ? selected[0].DisplayName : $"{selected.Count} filters";
+        }
+    }
+
+    public ICommand ResetThresholdsCommand => _resetThresholdsCommand ??= new RelayCommand(_ => ResetThresholdsForScope());
+    private ICommand? _resetThresholdsCommand;
+
+    private void ResetThresholdsForScope()
+    {
+        var keys = GetSelectedScopeKeys();
+        if (keys.Count == 0) return;
+
+        foreach (var key in keys)
+        {
+            var framesInGroup = Frames
+                .Where(f => string.Equals(NormalizeFilterValue(f.FilterName), key, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (framesInGroup.Count == 0) continue;
+
+            var t = GetThresholdsForKey(key);
+            t.MaxFwhm = framesInGroup.Max(f => f.Metrics.Fwhm);
+            t.MaxHfr = framesInGroup.Max(f => f.Metrics.Hfr);
+            t.MaxEccentricity = framesInGroup.Max(f => f.Metrics.Eccentricity);
+            t.MaxMeanBackground = framesInGroup.Max(f => f.Metrics.MeanBackground);
+            t.MinStars = framesInGroup.Min(f => (double)f.Metrics.StarCount);
+
+            var sqm = framesInGroup.Where(f => f.Metrics.Sqm.HasValue).Select(f => f.Metrics.Sqm!.Value).ToList();
+            t.MinSqm = sqm.Count > 0 ? sqm.Min() : 0.0;
+
+            var skyTemp = framesInGroup.Where(f => f.Metrics.SkyTemp.HasValue).Select(f => f.Metrics.SkyTemp!.Value).ToList();
+            t.MaxSkyTemp = skyTemp.Count > 0 ? skyTemp.Max() : 40.0;
+
+            t.MinScore = 0.0;
+        }
+
+        RaiseAllThresholdPropertiesChanged();
+        ApplyThresholds();
     }
 
     private void FrameItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1309,6 +1488,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 FilterChips = FilterChips
                     .Select(c => new SessionFilterChip { Key = c.Key, IsSelected = c.IsSelected })
                     .ToList(),
+                FilterThresholds = _filterThresholds
+                    .Select(kvp => new SessionFilterThresholds
+                    {
+                        Key = kvp.Key,
+                        MaxFwhm = kvp.Value.MaxFwhm,
+                        MaxHfr = kvp.Value.MaxHfr,
+                        MaxEccentricity = kvp.Value.MaxEccentricity,
+                        MaxMeanBackground = kvp.Value.MaxMeanBackground,
+                        MinStars = kvp.Value.MinStars,
+                        MinSqm = kvp.Value.MinSqm,
+                        MaxSkyTemp = kvp.Value.MaxSkyTemp,
+                        MinSatelliteConfidence = kvp.Value.MinSatelliteConfidence,
+                        MinScore = kvp.Value.MinScore,
+                    })
+                    .ToList(),
                 Frames = _loadedFrames
                     .Select(ctx => new SessionFrameEntry
                     {
@@ -1433,26 +1627,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(ShowAccepted));
             _showRejected = session.ShowRejected;
             OnPropertyChanged(nameof(ShowRejected));
-            _maxFwhm = session.MaxFwhm;
-            OnPropertyChanged(nameof(MaxFwhm));
-            _maxHfr = session.MaxHfr;
-            OnPropertyChanged(nameof(MaxHfr));
-            _maxEccentricity = session.MaxEccentricity;
-            OnPropertyChanged(nameof(MaxEccentricity));
-            _maxMeanBackground = session.MaxMeanBackground;
-            OnPropertyChanged(nameof(MaxMeanBackground));
-            _minStars = session.MinStars;
-            OnPropertyChanged(nameof(MinStars));
-            _minScore = session.MinScore;
-            OnPropertyChanged(nameof(MinScore));
-            _minSqm = session.MinSqm;
-            OnPropertyChanged(nameof(MinSqm));
-            _maxSkyTemp = session.MaxSkyTemp;
-            OnPropertyChanged(nameof(MaxSkyTemp));
-            _minSatelliteConfidence = session.MinSatelliteConfidence;
-            OnPropertyChanged(nameof(MinSatelliteConfidence));
+
+            // Restore per-filter thresholds (with legacy single-threshold fallback).
+            _filterThresholds.Clear();
+            if (session.FilterThresholds.Count > 0)
+            {
+                foreach (var ft in session.FilterThresholds)
+                {
+                    _filterThresholds[ft.Key ?? string.Empty] = new Thresholds
+                    {
+                        MaxFwhm = ft.MaxFwhm,
+                        MaxHfr = ft.MaxHfr,
+                        MaxEccentricity = ft.MaxEccentricity,
+                        MaxMeanBackground = ft.MaxMeanBackground,
+                        MinStars = ft.MinStars,
+                        MinSqm = ft.MinSqm,
+                        MaxSkyTemp = ft.MaxSkyTemp,
+                        MinSatelliteConfidence = ft.MinSatelliteConfidence,
+                        MinScore = ft.MinScore,
+                    };
+                }
+            }
+            else
+            {
+                // Legacy sessions stored a single global threshold set; apply it to the "" key as a starting point.
+                _filterThresholds[string.Empty] = new Thresholds
+                {
+                    MaxFwhm = session.MaxFwhm,
+                    MaxHfr = session.MaxHfr,
+                    MaxEccentricity = session.MaxEccentricity,
+                    MaxMeanBackground = session.MaxMeanBackground,
+                    MinStars = session.MinStars,
+                    MinSqm = session.MinSqm,
+                    MaxSkyTemp = session.MaxSkyTemp,
+                    MinSatelliteConfidence = session.MinSatelliteConfidence,
+                    MinScore = session.MinScore,
+                };
+            }
             _rejectSatelliteTrail = session.RejectSatelliteTrail;
             OnPropertyChanged(nameof(RejectSatelliteTrail));
+            RaiseAllThresholdPropertiesChanged();
             _stfShadows = session.StfShadows;
             OnPropertyChanged(nameof(StfShadows));
             _stfMidtones = session.StfMidtones;
@@ -1738,8 +1952,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </summary>
     private void ComputePercentileScores()
     {
-        var frames = Frames;
-        if (frames.Count == 0) return;
+        if (Frames.Count == 0) return;
 
         const double fwhmWeight  = 3.0;
         const double eccWeight   = 2.5;
@@ -1749,12 +1962,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         const double trailWeight = 2.0;
         const double totalWeight = fwhmWeight + eccWeight + hfrWeight + starsWeight + bgWeight + trailWeight;
 
-        // Converts a raw value array to [0,1] rank-percentile per frame.
-        // Ties receive the average rank of their group.
-        // 1.0 = best frame, 0.0 = worst frame.
         static double[] RankPercentile(double[] values, bool lowerIsBetter)
         {
             var n = values.Length;
+            if (n == 0) return [];
             if (n == 1) return [1.0];
 
             var indexed = values.Select((v, i) => (v, i)).ToArray();
@@ -1778,23 +1989,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return percentiles;
         }
 
-        var fwhmPct  = RankPercentile(frames.Select(f => f.Metrics.Fwhm).ToArray(),              lowerIsBetter: true);
-        var eccPct   = RankPercentile(frames.Select(f => f.Metrics.Eccentricity).ToArray(),       lowerIsBetter: true);
-        var hfrPct   = RankPercentile(frames.Select(f => f.Metrics.Hfr).ToArray(),                lowerIsBetter: true);
-        var starsPct = RankPercentile(frames.Select(f => (double)f.Metrics.StarCount).ToArray(),  lowerIsBetter: false);
-        var bgPct    = RankPercentile(frames.Select(f => f.Metrics.MeanBackground).ToArray(),     lowerIsBetter: true);
-        var trailPct = RankPercentile(frames.Select(f => (double)f.Metrics.SatelliteTrailConfidence).ToArray(), lowerIsBetter: true);
+        // Score per filter group so each frame is ranked against its peers (same filter).
+        var groups = Frames
+            .Select((f, idx) => (Frame: f, Idx: idx, Key: NormalizeFilterValue(f.FilterName)))
+            .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase);
 
-        for (var i = 0; i < frames.Count; i++)
+        foreach (var group in groups)
         {
-            var weighted = fwhmPct[i]  * fwhmWeight
-                         + eccPct[i]   * eccWeight
-                         + hfrPct[i]   * hfrWeight
-                         + starsPct[i] * starsWeight
-                         + bgPct[i]    * bgWeight
-                         + trailPct[i] * trailWeight;
+            var members = group.ToArray();
+            var fwhmPct  = RankPercentile(members.Select(m => m.Frame.Metrics.Fwhm).ToArray(),              lowerIsBetter: true);
+            var eccPct   = RankPercentile(members.Select(m => m.Frame.Metrics.Eccentricity).ToArray(),       lowerIsBetter: true);
+            var hfrPct   = RankPercentile(members.Select(m => m.Frame.Metrics.Hfr).ToArray(),                lowerIsBetter: true);
+            var starsPct = RankPercentile(members.Select(m => (double)m.Frame.Metrics.StarCount).ToArray(),  lowerIsBetter: false);
+            var bgPct    = RankPercentile(members.Select(m => m.Frame.Metrics.MeanBackground).ToArray(),     lowerIsBetter: true);
+            var trailPct = RankPercentile(members.Select(m => (double)m.Frame.Metrics.SatelliteTrailConfidence).ToArray(), lowerIsBetter: true);
 
-            frames[i].OverallScore = Math.Clamp((weighted / totalWeight) * 5.0, 0.0, 5.0);
+            for (var i = 0; i < members.Length; i++)
+            {
+                var weighted = fwhmPct[i]  * fwhmWeight
+                             + eccPct[i]   * eccWeight
+                             + hfrPct[i]   * hfrWeight
+                             + starsPct[i] * starsWeight
+                             + bgPct[i]    * bgWeight
+                             + trailPct[i] * trailWeight;
+
+                members[i].Frame.OverallScore = Math.Clamp((weighted / totalWeight) * 5.0, 0.0, 5.0);
+            }
         }
     }
 
@@ -1835,31 +2055,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        _maxFwhm = Frames.Max(f => f.Metrics.Fwhm);
-        _maxHfr = Frames.Max(f => f.Metrics.Hfr);
-        _maxEccentricity = Frames.Max(f => f.Metrics.Eccentricity);
-        _maxMeanBackground = Frames.Max(f => f.Metrics.MeanBackground);
-        _minStars = Frames.Min(f => (double)f.Metrics.StarCount);
+        // Initialize per-filter thresholds to "everything passes" defaults (max of each metric within that group).
+        var groups = Frames
+            .GroupBy(f => NormalizeFilterValue(f.FilterName), StringComparer.OrdinalIgnoreCase);
 
-        var sqmValues = Frames
-            .Where(f => f.Metrics.Sqm.HasValue)
-            .Select(f => f.Metrics.Sqm!.Value)
-            .ToList();
-        _minSqm = sqmValues.Count > 0 ? sqmValues.Min() : 0.0;
+        foreach (var group in groups)
+        {
+            var frames = group.ToList();
+            if (frames.Count == 0) continue;
 
-        var skyTempValues = Frames
-            .Where(f => f.Metrics.SkyTemp.HasValue)
-            .Select(f => f.Metrics.SkyTemp!.Value)
-            .ToList();
-        _maxSkyTemp = skyTempValues.Count > 0 ? skyTempValues.Max() : 40.0;
+            var t = GetThresholdsForKey(group.Key);
+            t.MaxFwhm = frames.Max(f => f.Metrics.Fwhm);
+            t.MaxHfr = frames.Max(f => f.Metrics.Hfr);
+            t.MaxEccentricity = frames.Max(f => f.Metrics.Eccentricity);
+            t.MaxMeanBackground = frames.Max(f => f.Metrics.MeanBackground);
+            t.MinStars = frames.Min(f => (double)f.Metrics.StarCount);
 
-        OnPropertyChanged(nameof(MaxFwhm));
-        OnPropertyChanged(nameof(MaxHfr));
-        OnPropertyChanged(nameof(MaxEccentricity));
-        OnPropertyChanged(nameof(MaxMeanBackground));
-        OnPropertyChanged(nameof(MinStars));
-        OnPropertyChanged(nameof(MinSqm));
-        OnPropertyChanged(nameof(MaxSkyTemp));
+            var sqm = frames.Where(f => f.Metrics.Sqm.HasValue).Select(f => f.Metrics.Sqm!.Value).ToList();
+            t.MinSqm = sqm.Count > 0 ? sqm.Min() : 0.0;
+
+            var skyTemp = frames.Where(f => f.Metrics.SkyTemp.HasValue).Select(f => f.Metrics.SkyTemp!.Value).ToList();
+            t.MaxSkyTemp = skyTemp.Count > 0 ? skyTemp.Max() : 40.0;
+        }
+
+        RaiseAllThresholdPropertiesChanged();
     }
 
     private void ScheduleThumbnailRebuild(bool immediate = false)
@@ -2626,23 +2845,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void ApplyThresholds()
     {
-        var thresholds = new Thresholds
-        {
-            MaxFwhm = MaxFwhm,
-            MinSqm = MinSqm,
-            MaxSkyTemp = MaxSkyTemp,
-            MaxHfr = MaxHfr,
-            MaxEccentricity = MaxEccentricity,
-            MaxMeanBackground = MaxMeanBackground,
-            MinStars = MinStars,
-            MinSatelliteConfidence = RejectSatelliteTrail ? MinSatelliteConfidence : 0,
-            MinScore = MinScore
-        };
-
         foreach (var frame in Frames)
         {
-            var autoRejected = _rejection.ShouldReject(frame, thresholds);
-            var reasons = autoRejected ? _rejection.GetRejectionReasons(frame, thresholds) : [];
+            var key = NormalizeFilterValue(frame.FilterName);
+            var t = GetThresholdsForKey(key);
+            var effective = new Thresholds
+            {
+                MaxFwhm = t.MaxFwhm,
+                MinSqm = t.MinSqm,
+                MaxSkyTemp = t.MaxSkyTemp,
+                MaxHfr = t.MaxHfr,
+                MaxEccentricity = t.MaxEccentricity,
+                MaxMeanBackground = t.MaxMeanBackground,
+                MinStars = t.MinStars,
+                MinSatelliteConfidence = RejectSatelliteTrail ? t.MinSatelliteConfidence : 0,
+                MinScore = t.MinScore,
+            };
+
+            var autoRejected = _rejection.ShouldReject(frame, effective);
+            var reasons = autoRejected ? _rejection.GetRejectionReasons(frame, effective) : [];
             frame.SetRejectionReasons(reasons);
             SetFrameRejected(frame, autoRejected, frame.ManualRejectedOverride, refreshStatistics: false);
         }

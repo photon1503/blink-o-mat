@@ -348,7 +348,58 @@
 
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
-                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Automatic rejection" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center" Text="Automatic rejection" Foreground="{StaticResource TextBrush}" />
+                                <Button Grid.Column="1" Margin="6,0,4,0" Padding="6,2" MinWidth="0"
+                                        Background="{StaticResource PanelBackgroundBrush}"
+                                        Foreground="{StaticResource TextBrush}"
+                                        BorderBrush="{StaticResource PanelBorderBrush}"
+                                        ToolTip="Reset thresholds for the selected filter group(s) to their current maxima/minima"
+                                        Command="{Binding ResetThresholdsCommand}">
+                                    <TextBlock Text="&#x21BB;" FontSize="14" Foreground="{StaticResource TextBrush}" />
+                                </Button>
+                                <ToggleButton x:Name="RejectionScopeToggle" Grid.Column="2" Padding="8,2" MinWidth="110"
+                                              Background="{StaticResource PanelBackgroundBrush}"
+                                              Foreground="{StaticResource TextBrush}"
+                                              BorderBrush="{StaticResource PanelBorderBrush}"
+                                              ToolTip="Limit automatic rejection and scoring to selected filter groups">
+                                    <ToggleButton.Style>
+                                        <Style TargetType="ToggleButton">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasRejectionScopeChips}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ToggleButton.Style>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding RejectionScopeSummary}" Foreground="{StaticResource TextBrush}" />
+                                        <TextBlock Text="  &#x25BC;" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" />
+                                    </StackPanel>
+                                </ToggleButton>
+                                <Popup PlacementTarget="{Binding ElementName=RejectionScopeToggle}" Placement="Bottom"
+                                       IsOpen="{Binding IsChecked, ElementName=RejectionScopeToggle, Mode=TwoWay}"
+                                       StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+                                    <Border Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Padding="8" MinWidth="160">
+                                        <ItemsControl ItemsSource="{Binding RejectionScopeChips}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox Margin="0,2"
+                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                              Content="{Binding DisplayName}"
+                                                              Foreground="{StaticResource TextBrush}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </Popup>
+                            </Grid>
                             <controls:MetricSliderControl
                                 Label="Min. trail confidence"
                                 Value="{Binding MinSatelliteConfidence, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -416,10 +467,7 @@
                     </Border>
 
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
-                        <Expander IsExpanded="True">
-                            <Expander.Header>
-                                <TextBlock FontWeight="SemiBold" Text="Stretching" />
-                            </Expander.Header>
+                        
                             <StackPanel Margin="0,8,0,0">
                                 <CheckBox Content="Auto-stretch each frame individually" IsChecked="{Binding AutoStretchPerFrame}" Margin="0,0,0,8" ToolTip="When enabled, STF parameters are computed independently for each frame instead of using a single global stretch" />
                                 <controls:MetricSliderControl
@@ -428,7 +476,7 @@
                                     Minimum="0.01" Maximum="0.5" TickFrequency="0.01" LargeChange="0.05"
                                     Decimals="2" />
                             </StackPanel>
-                        </Expander>
+                       
                     </Border>
                 </StackPanel>
             </ScrollViewer>

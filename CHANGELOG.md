@@ -2,7 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
--- 1.0.17
+## 1.0.17
+
+### Added
+- **Per-filter automatic rejection.** Each filter (Ha, OIII, L, R, G, B, …) now has its own independent set of rejection thresholds. Sessions with mixed filters are no longer forced to share one global setting — Ha frames can be judged against Ha frames, OIII against OIII, and so on.
+- **Filter scope selector.** A new dropdown next to the *Automatic rejection* header lets you pick which filter group(s) the sliders apply to. It is multi-select: tick one filter to tune that filter alone, tick several to edit them together, or leave all ticked to apply changes to every filter at once. The button label shows the current scope (e.g. *All filters*, *Ha*, or *3 filters*).
+- **Reset thresholds button.** A small ⟳ button next to the scope selector restores the sliders for the currently selected filter group(s) to the maxima/minima of the loaded frames — the same "everything passes" starting point you get right after loading, but scoped to just the filters you choose.
+
+### Changed
+- **Quality score is now computed per filter.** The 0–5 star rating used to compare every frame against every other frame in the session, which made narrowband frames look artificially worse than broadband ones (or vice-versa). Scores are now ranked within each filter group, so each frame is judged against its true peers.
+- **Remembered per-filter settings.** Your slider positions for each filter are saved in the session file and restored when you reload it, so you don't have to re-tune Ha thresholds every time you reopen a project.
 
 ### Fixed
 - **UI no longer freezes while loading large folders.** Loading 100+ frames previously made the app appear hung: the first image showed up, then nothing seemed to happen for a long time, and the list suddenly filled in one burst at the end. Frames now appear in the list as soon as each one finishes, the status bar updates continuously, and the window stays responsive throughout the load.
