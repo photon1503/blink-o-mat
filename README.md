@@ -74,13 +74,19 @@ The videos are using IMX571 FITS images and are in realtime.
 
 The main window is divided into three areas:
 
+![alt text](image-9.png)
+
 - **Top toolbar** — input/rejected folder pickers, **Subfolders** toggle, **Load Frames**, **Reject** (move bad frames), and **💾 Save Session** / **📂 Load Session** icons in the top-left corner.
-- **Left sidebar** — *Frame summary*, *Stretch*, *ROI*, *Automatic rejection*, *Visibility*, *Filters*, and *Sort* cards.
+- **Above Frame list** - *Visibility*, *Filters*, and *Sort* cards.
+- **Left sidebar** — *Frame summary*, *Stretch*, *ROI*, *Automatic rejection*, 
 - **Frame list** (right) — one row per frame with thumbnail, ROI preview, metric chips, score, star rating, and a **Reject / Keep** button.
+- **Bottom** - status bar and performance indicators
 
 ### The frame list
 
 Each row shows:
+
+![alt text](image.png)
 
 - A **full-frame thumbnail** of the image (stretched and downsampled).
 - A **ROI thumbnail** showing a zoom into the most interesting part of the image (see [ROI](#region-of-interest-roi)).
@@ -107,6 +113,8 @@ The status bar also shows live **CPU / RAM / Disk / Network** indicators on the 
 ## The preview window
 
 Click **Open preview** in the toolbar (or double-click a frame) to open the preview window for close inspection and blinking.
+
+![alt text](image-8.png)
 
 | Control | Action |
 |---|---|
@@ -158,6 +166,8 @@ The following metadata is also extracted: focal length · pixel size · exposure
 
 The *Automatic rejection* card has one slider per threshold. Each slider has a live **Rejects: N** counter that updates as you drag it.
 
+![alt text](image-7.png)
+
 | Threshold | Direction | Default |
 |---|---|---|
 | Min. trail confidence | min (0 = disabled) | 80 % |
@@ -173,14 +183,16 @@ The *Automatic rejection* card has one slider per threshold. Each slider has a l
 You also get:
 
 - A **? badge** on every auto-rejected frame in the list — hover to see exactly which thresholds it violated and by how much (e.g. *FWHM 4.21 px > limit 3.50 px*).
+  ![alt text](image-11.png)
 - A **Reject / Keep** button on every row that **overrides the automatic decision**. Manual overrides are independent of the sliders: changing a threshold later does **not** wipe out manual overrides.
+  ![alt text](image-10.png)
 
 ### Per-filter thresholds & scope selector
 
 When your session contains frames from more than one filter (Ha, OIII, L, R, G, B, …), each filter gets its **own independent set of thresholds**. This is essential because, for example, a 600 s Ha sub typically has very different FWHM and background numbers than a 60 s L sub — judging them by the same yardstick would always condemn one or the other.
 
 Right next to the *Automatic rejection* heading you get two extras:
-
+![alt text](image-6.png)
 - A **scope selector** dropdown (multi-select). Pick:
   - all filters → slider changes apply to every group at once
   - one filter → tune just that filter; other filters keep their own settings
@@ -270,6 +282,8 @@ The same controls live in both the main window and the preview window.
 
 The *Frame summary* card on the left sidebar gives you a live read of session health:
 
+![alt text](image-1.png)
+
 - **Total frames** matching the active filter selection.
 - An **accepted / rejected ratio bar** — green = accepted, red = rejected.
 - **Accepted count** + percentage + accepted integration time (e.g. `2.4 h`).
@@ -278,16 +292,19 @@ The *Frame summary* card on the left sidebar gives you a live read of session he
 
 ### Visibility toggles
 
+![alt text](image-2.png)
 - **Show Accepted** — hide accepted frames from the list (useful when you want to focus on what's about to be rejected).
 - **Show Rejected** — hide rejected frames from the list.
 
 These only affect the list display — the *Frame summary* counts always reflect the full filter selection.
 
 ### Filter chips
+![alt text](image-3.png)
 
 Below the visibility toggles, one chip per filter found in your session. Tick / untick to include / exclude frames of that filter from the list.
 
 ### Sorting
+![alt text](image-4.png)
 
 Stack multiple sort rules in the *Sort* card. You can sort by any metric column or by **Score**. Use **−** to remove a rule and **+** to add another. Default sort is *Observation time, ascending*. Sorting in the main window and the preview window is kept in sync.
 
@@ -300,6 +317,7 @@ When you're happy with the verdicts:
 1. Set the **Rejected folder** in the top toolbar (or via *Browse*).
 2. Click the **Reject** button in the top toolbar.
 3. A confirmation dialog appears showing how many frames will be moved and the destination path.
+   ![alt text](image-5.png)
 4. If your session contains multiple filters, the dialog shows a per-filter chip row (e.g. `Ha  (12)`). Untick a chip to exclude that filter's frames; the *Frames to move* count updates live, and *Proceed* is disabled if zero frames would be moved.
 5. Click **Proceed** to perform the move; **Cancel** aborts.
 
