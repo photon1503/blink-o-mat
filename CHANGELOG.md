@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ---
 ## 1.0.16
 
+### Added
+- **Interactive ROI overlay in the preview window.** A new "Show / edit ROI" toggle in the ROI section draws the current ROI as a golden dotted square directly over the preview image. While visible, you can drag the rectangle to move it and drag any corner to resize it (locked to a 1:1 pixel-square aspect). Releasing the mouse — or right-clicking the ROI — applies it to every frame and immediately regenerates all ROI thumbnails. The static keyboard-shortcut hint has been removed since the same actions live in the shortcuts list.
+
 ### Changed
 - **Automatic ROI selection is now center-aware and content-aware.** The ROI finder now prefers high-contrast, extended structure near the image center, so it is far less likely to lock onto empty background or a single bright star.
 - **Better target detection for galaxies, globular clusters, and nebulae.** ROI scoring now favors regions that combine structure and local contrast, which improves subject selection across common deep-sky object types.

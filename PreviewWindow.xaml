@@ -1,4 +1,4 @@
-<Window x:Class="blink_o_mat.PreviewWindow"
+ <Window x:Class="blink_o_mat.PreviewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:blink_o_mat.Converters"
@@ -304,6 +304,8 @@
                         </Grid>
                     </Border>
                 </Canvas>
+
+                <Canvas x:Name="RoiOverlayCanvas" IsHitTestVisible="True" Visibility="Collapsed" />
             </Grid>
         </Grid>
 
@@ -447,15 +449,15 @@
                             </StackPanel>
                         </Expander>
 
-                        <Expander IsExpanded="False">
-                            <Expander.Header>
-                                <TextBlock FontWeight="SemiBold" Text="ROI" />
-                            </Expander.Header>
-                            <StackPanel Margin="0,8,0,0">
-                                <TextBlock Text="Hold Ctrl and drag on the image to draw a square ROI. Release to confirm. The selected region is rescaled for the ROI preview in the main window. Escape cancels." TextWrapping="Wrap" FontSize="11" />
-                            </StackPanel>
-                        </Expander>
-                    </StackPanel>
+                        <ToggleButton x:Name="RoiOverlayToggle"
+                                      IsChecked="{Binding IsRoiOverlayVisible, Mode=TwoWay}"
+                                      Content="Show / edit ROI"
+                                      Padding="8,4"
+                                      Margin="0,0,0,0"
+                                      HorizontalAlignment="Stretch"
+                                      ToolTip="Drag to move, drag a corner to resize. Right-click the ROI to apply it to all frames." />
+
+                        </StackPanel>
                 </Border>
 
                 <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">

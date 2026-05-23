@@ -20,6 +20,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Action<double> _setStfTargetBackground;
     private readonly Action _applyAutoStretch;
     private readonly Action<(double Left, double Top, double Width, double Height)> _setManualRoi;
+    private readonly Func<(double Left, double Top, double Width, double Height)?> _getCurrentRoi;
     private readonly Func<int, Task> _navigate;
     private readonly Func<int, Task> _navigateToIndex;
     private readonly Action _toggleReject;
@@ -41,6 +42,20 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private bool _isSynchronizingFrameSlider;
     private string? _previewStatusMessage;
     private int _selectedVisibleFrameIndex;
+    private bool _isRoiOverlayVisible;
+
+    public bool IsRoiOverlayVisible
+    {
+        get => _isRoiOverlayVisible;
+        set
+        {
+            if (_isRoiOverlayVisible == value) return;
+            _isRoiOverlayVisible = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public (double Left, double Top, double Width, double Height)? CurrentManualRoi => _getCurrentRoi();
 
     public FrameItem Item
     {
@@ -234,6 +249,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         Action beginInteractiveStretch,
         Action endInteractiveStretch,
         Action<(double Left, double Top, double Width, double Height)> setManualRoi,
+        Func<(double Left, double Top, double Width, double Height)?> getCurrentRoi,
         Func<int, Task> navigate,
         Func<int, Task> navigateToIndex,
         Action toggleReject,
@@ -259,6 +275,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _beginInteractiveStretch = beginInteractiveStretch;
         _endInteractiveStretch = endInteractiveStretch;
         _setManualRoi = setManualRoi;
+        _getCurrentRoi = getCurrentRoi;
         _navigate = navigate;
         _navigateToIndex = navigateToIndex;
         _toggleReject = toggleReject;
@@ -278,6 +295,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     public void SetManualRoi((double Left, double Top, double Width, double Height) rect)
     {
         _setManualRoi(rect);
+        OnPropertyChanged(nameof(CurrentManualRoi));
     }
 
     public async Task NavigateAsync(int direction)

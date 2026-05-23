@@ -2286,6 +2286,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             BeginInteractiveStretch,
             EndInteractiveStretch,
             SetManualRoi,
+            () => _manualRoiRect,
             NavigatePreviewAsync,
             NavigatePreviewToIndexAsync,
             TogglePreviewReject,

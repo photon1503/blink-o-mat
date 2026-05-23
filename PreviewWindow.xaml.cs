@@ -43,9 +43,20 @@ public partial class PreviewWindow : Window
     private bool _isRoiDragging;
     private WpfPoint _roiDragOriginImage;
     private System.Windows.Shapes.Rectangle? _roiDragOverlay;
+
+    // Persistent ROI overlay (toggled from the side panel)
+    private System.Windows.Shapes.Rectangle? _roiPersistentRect;
+    private readonly System.Windows.Shapes.Rectangle?[] _roiHandles = new System.Windows.Shapes.Rectangle?[4];
+    private bool _isRoiOverlayEditing;
+    private RoiEditMode _roiEditMode;
+    private int _roiActiveHandleIndex = -1;
+    private WpfPoint _roiEditStartMouseImage;
+    private (double Left, double Top, double Width, double Height) _roiEditStartRect;
     private int? _queuedKeyboardNavigationIndex;
     private const int LoupeSampleSize = 31;
     private const int LoupeZoomScale = 4;
+
+    private enum RoiEditMode { None, Move, Resize }
 
     // Playback
     private readonly DispatcherTimer _playTimer;
@@ -67,6 +78,8 @@ public partial class PreviewWindow : Window
         {
             FitToView();
             RedrawCacheIndicators();
+            ImageScrollViewer.ScrollChanged += (_, _) => UpdateRoiOverlay();
+            UpdateRoiOverlay();
             _hasInitializedView = true;
         };
 
@@ -148,6 +161,7 @@ public partial class PreviewWindow : Window
         _vm.Image = null;
         _vm.Image = image;
         HideLoupe();
+        Dispatcher.BeginInvoke(UpdateRoiOverlay, DispatcherPriority.Loaded);
 
         if (!_hasInitializedView)
         {
@@ -688,6 +702,260 @@ public partial class PreviewWindow : Window
         }
     }
 
+    // ---------- Persistent ROI overlay (toggleable, drag-move / corner-resize / right-click-apply) ----------
+
+    private void EnsureRoiOverlayShapes()
+    {
+        if (_roiPersistentRect is not null)
+        {
+            return;
+        }
+
+        var stroke = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xD7, 0x00));
+        stroke.Freeze();
+
+        _roiPersistentRect = new System.Windows.Shapes.Rectangle
+        {
+            Stroke = stroke,
+            StrokeThickness = 1.5,
+            StrokeDashArray = [4, 3],
+            Fill = System.Windows.Media.Brushes.Transparent,
+            Cursor = System.Windows.Input.Cursors.SizeAll,
+        };
+        _roiPersistentRect.MouseLeftButtonDown += RoiBody_MouseLeftButtonDown;
+        _roiPersistentRect.MouseMove += RoiOverlay_MouseMove;
+        _roiPersistentRect.MouseLeftButtonUp += RoiOverlay_MouseLeftButtonUp;
+        _roiPersistentRect.MouseRightButtonUp += RoiOverlay_MouseRightButtonUp;
+        RoiOverlayCanvas.Children.Add(_roiPersistentRect);
+
+        for (var i = 0; i < 4; i++)
+        {
+            var handle = new System.Windows.Shapes.Rectangle
+            {
+                Width = 10,
+                Height = 10,
+                Stroke = stroke,
+                StrokeThickness = 1.0,
+                Fill = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xFF, 0x20, 0x20, 0x20)),
+                Cursor = (i == 0 || i == 3) ? System.Windows.Input.Cursors.SizeNWSE : System.Windows.Input.Cursors.SizeNESW,
+                Tag = i,
+            };
+            handle.MouseLeftButtonDown += RoiHandle_MouseLeftButtonDown;
+            handle.MouseMove += RoiOverlay_MouseMove;
+            handle.MouseLeftButtonUp += RoiOverlay_MouseLeftButtonUp;
+            handle.MouseRightButtonUp += RoiOverlay_MouseRightButtonUp;
+            _roiHandles[i] = handle;
+            RoiOverlayCanvas.Children.Add(handle);
+        }
+    }
+
+    private void UpdateRoiOverlay()
+    {
+        if (!_vm.IsRoiOverlayVisible || _vm.CurrentManualRoi is not { } roi
+            || PreviewImage.Source is not BitmapSource source
+            || PreviewImage.ActualWidth <= 0 || PreviewImage.ActualHeight <= 0)
+        {
+            RoiOverlayCanvas.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        EnsureRoiOverlayShapes();
+        RoiOverlayCanvas.Visibility = Visibility.Visible;
+
+        var imgLeft = roi.Left * PreviewImage.ActualWidth;
+        var imgTop = roi.Top * PreviewImage.ActualHeight;
+        var imgRight = (roi.Left + roi.Width) * PreviewImage.ActualWidth;
+        var imgBottom = (roi.Top + roi.Height) * PreviewImage.ActualHeight;
+
+        var topLeft = PreviewImage.TranslatePoint(new WpfPoint(imgLeft, imgTop), RoiOverlayCanvas);
+        var bottomRight = PreviewImage.TranslatePoint(new WpfPoint(imgRight, imgBottom), RoiOverlayCanvas);
+
+        var x = topLeft.X;
+        var y = topLeft.Y;
+        var w = Math.Max(2.0, bottomRight.X - topLeft.X);
+        var h = Math.Max(2.0, bottomRight.Y - topLeft.Y);
+
+        _roiPersistentRect!.Width = w;
+        _roiPersistentRect.Height = h;
+        Canvas.SetLeft(_roiPersistentRect, x);
+        Canvas.SetTop(_roiPersistentRect, y);
+
+        // Corners: 0=TL, 1=TR, 2=BL, 3=BR
+        PositionHandle(0, x, y);
+        PositionHandle(1, x + w, y);
+        PositionHandle(2, x, y + h);
+        PositionHandle(3, x + w, y + h);
+    }
+
+    private void PositionHandle(int index, double cx, double cy)
+    {
+        var handle = _roiHandles[index];
+        if (handle is null) return;
+        Canvas.SetLeft(handle, cx - handle.Width / 2.0);
+        Canvas.SetTop(handle, cy - handle.Height / 2.0);
+    }
+
+    private void RoiBody_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (PreviewImage.Source is null) return;
+        _isRoiOverlayEditing = true;
+        _roiEditMode = RoiEditMode.Move;
+        _roiActiveHandleIndex = -1;
+        _roiEditStartMouseImage = e.GetPosition(PreviewImage);
+        _roiEditStartRect = _vm.CurrentManualRoi ?? (0, 0, 0, 0);
+        ((System.Windows.IInputElement)sender).CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void RoiHandle_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (PreviewImage.Source is null) return;
+        if (sender is not System.Windows.Shapes.Rectangle handle) return;
+        _isRoiOverlayEditing = true;
+        _roiEditMode = RoiEditMode.Resize;
+        _roiActiveHandleIndex = handle.Tag is int idx ? idx : 0;
+        _roiEditStartMouseImage = e.GetPosition(PreviewImage);
+        _roiEditStartRect = _vm.CurrentManualRoi ?? (0, 0, 0, 0);
+        handle.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void RoiOverlay_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_isRoiOverlayEditing || PreviewImage.ActualWidth <= 0 || PreviewImage.ActualHeight <= 0) return;
+
+        var current = e.GetPosition(PreviewImage);
+        var dxNorm = (current.X - _roiEditStartMouseImage.X) / PreviewImage.ActualWidth;
+        var dyNorm = (current.Y - _roiEditStartMouseImage.Y) / PreviewImage.ActualHeight;
+
+        var start = _roiEditStartRect;
+        (double Left, double Top, double Width, double Height) next = start;
+
+        if (_roiEditMode == RoiEditMode.Move)
+        {
+            next.Left = Math.Clamp(start.Left + dxNorm, 0.0, Math.Max(0.0, 1.0 - start.Width));
+            next.Top = Math.Clamp(start.Top + dyNorm, 0.0, Math.Max(0.0, 1.0 - start.Height));
+        }
+        else if (_roiEditMode == RoiEditMode.Resize)
+        {
+            // Square in IMAGE PIXELS: widthNorm * imgW == heightNorm * imgH.
+            // Work in pixel space, then convert back to normalized.
+            double imgW = PreviewImage.ActualWidth;
+            double imgH = PreviewImage.ActualHeight;
+            // 0=TL, 1=TR, 2=BL, 3=BR
+            double l = start.Left * imgW, t = start.Top * imgH;
+            double r = (start.Left + start.Width) * imgW, b = (start.Top + start.Height) * imgH;
+            double ax, ay; // anchor (pixels)
+            double mx, my; // moving corner start (pixels)
+            switch (_roiActiveHandleIndex)
+            {
+                case 0: ax = r; ay = b; mx = l; my = t; break;
+                case 1: ax = l; ay = b; mx = r; my = t; break;
+                case 2: ax = r; ay = t; mx = l; my = b; break;
+                default: ax = l; ay = t; mx = r; my = b; break;
+            }
+            var dxPx = current.X - _roiEditStartMouseImage.X;
+            var dyPx = current.Y - _roiEditStartMouseImage.Y;
+            var newMx = mx + dxPx;
+            var newMy = my + dyPx;
+            var sx = newMx - ax;
+            var sy = newMy - ay;
+            var sidePx = Math.Max(Math.Abs(sx), Math.Abs(sy));
+            var minSidePx = Math.Max(4.0, 0.005 * Math.Min(imgW, imgH));
+            if (sidePx < minSidePx) sidePx = minSidePx;
+            var signX = sx >= 0 ? 1 : -1;
+            var signY = sy >= 0 ? 1 : -1;
+            newMx = ax + signX * sidePx;
+            newMy = ay + signY * sidePx;
+
+            // Clamp the moving corner to image bounds; if clamped, shrink side accordingly.
+            var clampedMx = Math.Clamp(newMx, 0.0, imgW);
+            var clampedMy = Math.Clamp(newMy, 0.0, imgH);
+            sidePx = Math.Min(Math.Abs(clampedMx - ax), Math.Abs(clampedMy - ay));
+            if (sidePx < minSidePx) sidePx = minSidePx;
+
+            double nlPx = Math.Min(ax, ax + signX * sidePx);
+            double ntPx = Math.Min(ay, ay + signY * sidePx);
+            double sidePxFinal = sidePx;
+
+            next = (
+                Math.Clamp(nlPx / imgW, 0.0, 1.0),
+                Math.Clamp(ntPx / imgH, 0.0, 1.0),
+                Math.Clamp(sidePxFinal / imgW, 0.0, 1.0),
+                Math.Clamp(sidePxFinal / imgH, 0.0, 1.0));
+            next.Left = Math.Clamp(next.Left, 0.0, Math.Max(0.0, 1.0 - next.Width));
+            next.Top = Math.Clamp(next.Top, 0.0, Math.Max(0.0, 1.0 - next.Height));
+
+            DrawRoiPreview(next);
+            e.Handled = true;
+            return;
+        }
+        else
+        {
+            return;
+        }
+
+        DrawRoiPreview(next);
+        e.Handled = true;
+    }
+
+    private (double Left, double Top, double Width, double Height)? _roiPreviewRect;
+
+    private void DrawRoiPreview((double Left, double Top, double Width, double Height) rect)
+    {
+        _roiPreviewRect = rect;
+        if (_roiPersistentRect is null) return;
+
+        var imgLeft = rect.Left * PreviewImage.ActualWidth;
+        var imgTop = rect.Top * PreviewImage.ActualHeight;
+        var imgRight = (rect.Left + rect.Width) * PreviewImage.ActualWidth;
+        var imgBottom = (rect.Top + rect.Height) * PreviewImage.ActualHeight;
+
+        var topLeft = PreviewImage.TranslatePoint(new WpfPoint(imgLeft, imgTop), RoiOverlayCanvas);
+        var bottomRight = PreviewImage.TranslatePoint(new WpfPoint(imgRight, imgBottom), RoiOverlayCanvas);
+
+        var x = topLeft.X;
+        var y = topLeft.Y;
+        var w = Math.Max(2.0, bottomRight.X - topLeft.X);
+        var h = Math.Max(2.0, bottomRight.Y - topLeft.Y);
+
+        _roiPersistentRect.Width = w;
+        _roiPersistentRect.Height = h;
+        Canvas.SetLeft(_roiPersistentRect, x);
+        Canvas.SetTop(_roiPersistentRect, y);
+        PositionHandle(0, x, y);
+        PositionHandle(1, x + w, y);
+        PositionHandle(2, x, y + h);
+        PositionHandle(3, x + w, y + h);
+    }
+
+    private void RoiOverlay_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isRoiOverlayEditing) return;
+        _isRoiOverlayEditing = false;
+        _roiEditMode = RoiEditMode.None;
+        ((System.Windows.IInputElement)sender).ReleaseMouseCapture();
+
+        if (_roiPreviewRect is { } rect)
+        {
+            _vm.SetManualRoi(rect);
+        }
+        _roiPreviewRect = null;
+        // ViewModel will refresh ROI thumbnails; re-sync overlay from authoritative source.
+        UpdateRoiOverlay();
+        e.Handled = true;
+    }
+
+    private void RoiOverlay_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_vm.CurrentManualRoi is { } rect)
+        {
+            _vm.SetManualRoi(rect);
+            UpdateRoiOverlay();
+        }
+        e.Handled = true;
+    }
+
     private static DependencyObject? GetParentObject(DependencyObject? child)
     {
         if (child is null)
@@ -803,6 +1071,14 @@ public partial class PreviewWindow : Window
             {
                 RedrawCacheIndicators();
             }
+            return;
+        }
+
+        if (e.PropertyName is nameof(FramePreviewViewModel.IsRoiOverlayVisible)
+            or nameof(FramePreviewViewModel.Zoom)
+            or nameof(FramePreviewViewModel.CurrentManualRoi))
+        {
+            UpdateRoiOverlay();
         }
     }
 
