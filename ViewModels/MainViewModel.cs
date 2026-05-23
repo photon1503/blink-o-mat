@@ -22,6 +22,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     private const int StretchRefreshDebounceMs = 180;
     private const int PreviewInteractiveMaxLongSide = 1600;
+    // While the user is actively dragging an STF slider we render at this reduced
+    // long-side so each re-stretch stays inside one display frame budget. Once the
+    // user releases the slider we re-render at PreviewInteractiveMaxLongSide and then
+    // upgrade to the full-resolution cached image.
+    private const int PreviewInteractiveScrubbingMaxLongSide = 900;
     private const int PreviewFullResolutionIdleMs = 220;
     private const int MinimumPreviewCacheAhead = 8;
     private const int MinimumPreviewCacheBehind = 2;
@@ -189,7 +194,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _stfShadows;
     private double _stfMidtones = 0.5;
     private double _stfHighlights = 1.0;
-    private double _stfTargetBackground = 0.25;
+    private double _stfTargetBackground = 0.15;
     private double? _sessionFocalLengthMm;
     private double? _sessionPixelSizeUm;
     private int _approvedFrameCount;
@@ -225,6 +230,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isThumbnailRefreshRunning;
     private bool _thumbnailRefreshPendingWhilePreviewOpen;
     private bool _isInteractiveStretchActive;
+    // Cache of the materialized (decoded + oriented) raw pixel data for the currently
+    // previewed frame. Held in memory so STF slider scrubbing can re-stretch without
+    // touching disk or repeating the FITS decode. Cleared when the preview item changes.
+    private FrameItem? _interactiveRawItem;
+    private RustafitsService.LoadedFrame? _interactiveRawFrame;
     private string _totalIntegrationTimeText = string.Empty;
     private string _acceptedIntegrationTimeText = string.Empty;
     private double _overallAcceptedRatio;
@@ -1975,8 +1985,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
 
             var loaded = _loadedFrames[index];
-            var (targetWidth, targetHeight) = GetInteractivePreviewDimensions(loaded);
-            var materialized = await MaterializeFrameAsync(loaded, cancellationToken);
+            var (targetWidth, targetHeight) = GetInteractivePreviewDimensions(loaded, _isInteractiveStretchActive);
+            var materialized = await GetOrCreateInteractiveRawFrameAsync(loaded, cancellationToken);
             var previewImage = await _rustafits.RenderScaledPreviewBitmapAsync(materialized, targetWidth, targetHeight, GetStfForFrame(materialized), cancellationToken);
             if (cancellationToken.IsCancellationRequested ||
                 !ReferenceEquals(_previewWindow, previewWindow) ||
@@ -2050,18 +2060,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private static (int Width, int Height) GetInteractivePreviewDimensions(LoadedFrameContext frame)
+    private static (int Width, int Height) GetInteractivePreviewDimensions(LoadedFrameContext frame, bool scrubbing = false)
     {
         var longestSide = Math.Max(frame.Width, frame.Height);
-        if (longestSide <= PreviewInteractiveMaxLongSide)
+        var maxLongSide = scrubbing ? PreviewInteractiveScrubbingMaxLongSide : PreviewInteractiveMaxLongSide;
+        if (longestSide <= maxLongSide)
         {
             return (frame.Width, frame.Height);
         }
 
-        var scale = PreviewInteractiveMaxLongSide / (double)longestSide;
+        var scale = maxLongSide / (double)longestSide;
         var width = Math.Max(1, (int)Math.Round(frame.Width * scale));
         var height = Math.Max(1, (int)Math.Round(frame.Height * scale));
         return (width, height);
+    }
+
+    /// <summary>
+    /// Returns a cached materialized (decoded + oriented) raw frame for the given
+    /// preview item, decoding from disk only on a cache miss. STF slider scrubbing
+    /// reuses the same pixel buffer to re-stretch in memory in realtime.
+    /// </summary>
+    private async Task<RustafitsService.LoadedFrame> GetOrCreateInteractiveRawFrameAsync(LoadedFrameContext context, CancellationToken cancellationToken)
+    {
+        if (_interactiveRawFrame is { } cached && ReferenceEquals(_interactiveRawItem, context.Item))
+        {
+            return cached;
+        }
+
+        var raw = await MaterializeFrameAsync(context, cancellationToken);
+        _interactiveRawItem = context.Item;
+        _interactiveRawFrame = raw;
+        return raw;
+    }
+
+    private void InvalidateInteractiveRawFrame()
+    {
+        _interactiveRawItem = null;
+        _interactiveRawFrame = null;
     }
 
     private async Task RebuildThumbnailsDeferredAsync(TimeSpan delay, CancellationToken cancellationToken)
@@ -2194,6 +2229,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 Status = loadMessage;
             }
 
+            if (!ReferenceEquals(_previewItem, item))
+            {
+                InvalidateInteractiveRawFrame();
+            }
             _previewItem = item;
             SyncPreviewSelection(item);
             var existingImage = await GetOrCreateFullImageAsync(item);
@@ -2214,6 +2253,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        InvalidateInteractiveRawFrame();
         _previewItem = item;
         SyncPreviewSelection(item);
         var vm = new FramePreviewViewModel(
@@ -2259,6 +2299,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _previewWindow = null;
             _previewVm = null;
             _previewItem = null;
+            InvalidateInteractiveRawFrame();
 
             if (_thumbnailRefreshPendingWhilePreviewOpen)
             {
