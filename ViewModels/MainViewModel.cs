@@ -498,6 +498,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (Math.Abs(_stfTargetBackground - clamped) < 0.001) return;
             _stfTargetBackground = clamped;
             OnPropertyChanged();
+            // The target background affects per-frame auto-stretch results, so any cached
+            // full-resolution images and existing thumbnails/ROI bitmaps must be regenerated.
+            InvalidateFullImageCaches();
+            OnStretchSettingsChanged();
         }
     }
 
@@ -2102,21 +2106,47 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ProgressValue = 0;
             ProgressMaximum = _loadedFrames.Count;
 
-            for (var i = 0; i < _loadedFrames.Count; i++)
+            // Snapshot fields used inside the parallel body so concurrent loop iterations
+            // see a consistent set of inputs even if the caller mutates state mid-run.
+            var framesSnapshot = _loadedFrames.ToArray();
+            var roiSnapshot = _manualRoiRect;
+            var totalFrames = framesSnapshot.Length;
+            var completed = 0;
+
+            var maxParallelism = Math.Max(2, Environment.ProcessorCount);
+            using var gate = new SemaphoreSlim(maxParallelism);
+
+            Status = $"Applying stretch (0/{totalFrames})";
+
+            var pending = new Task[totalFrames];
+            for (var i = 0; i < totalFrames; i++)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                var loaded = framesSnapshot[i];
+                pending[i] = Task.Run(async () =>
+                {
+                    await gate.WaitAsync(cancellationToken);
+                    try
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
 
-                var loaded = _loadedFrames[i];
-                Status = $"Applying stretch ({i + 1}/{_loadedFrames.Count})";
+                        var frameData = await MaterializeFrameAsync(loaded, cancellationToken);
+                        var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, GetStfForFrame(frameData), roiSnapshot, loaded.Item.Metrics, cancellationToken);
 
-                var frameData = await MaterializeFrameAsync(loaded, cancellationToken);
-                var previews = await _rustafits.RenderPreviewBitmapsAsync(frameData, GetStfForFrame(frameData), _manualRoiRect, loaded.Item.Metrics, cancellationToken);
+                        loaded.Item.ThumbnailImage = previews.Full;
+                        loaded.Item.RoiImage = previews.Roi;
 
-                loaded.Item.ThumbnailImage = previews.Full;
-                loaded.Item.RoiImage = previews.Roi;
-
-                ProgressValue = i + 1;
+                        var done = Interlocked.Increment(ref completed);
+                        ProgressValue = done;
+                        Status = $"Applying stretch ({done}/{totalFrames})";
+                    }
+                    finally
+                    {
+                        gate.Release();
+                    }
+                }, cancellationToken);
             }
+
+            await Task.WhenAll(pending);
 
             Status = "Stretch updated.";
         }
@@ -2250,7 +2280,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Math.Clamp(rect.Height, 0.0, 1.0));
         _hasManualRoi = true;
         Status = "Manual ROI set.";
-        ScheduleThumbnailRebuild(immediate: true);
+
+        // Always regenerate the ROI bitmaps immediately when a new ROI is drawn, even
+        // when the preview window is open. ScheduleThumbnailRebuild defers in that case,
+        // which would leave the per-frame ROI thumbnails stale until the preview closes.
+        _stretchRefreshCts?.Cancel();
+        _stretchRefreshCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _stretchRefreshCts = cts;
+        _thumbnailRefreshPendingWhilePreviewOpen = false;
+        _ = RebuildThumbnailsDeferredAsync(TimeSpan.Zero, cts.Token);
     }
 
     private async Task NavigatePreviewAsync(int direction)

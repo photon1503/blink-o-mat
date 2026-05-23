@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 ## 1.0.15
 
 ### Performance
+- **Parallel thumbnail/ROI regeneration** — `RebuildThumbnailsAsync` (the path invoked when stretch parameters, the manual ROI, or the STF target background change) now re-renders frames concurrently using a `SemaphoreSlim` gate sized to `Environment.ProcessorCount`, instead of processing one frame at a time. Regenerating thumbnails over a 100-frame session now scales with available CPU cores.
 - **Faster FITS file I/O** — `LoadFits` now opens the FITS stream with a 1 MB buffer and `FileOptions.SequentialScan`, hinting Windows to prefetch aggressively and replacing thousands of small 4 KB reads with a handful of large ones. Disk utilization during a single-file load is now close to the device's sequential throughput.
 - **Cache-friendly FITS pixel decode** — the per-pixel `Parallel.For` in `TryDecodeFitsImage` was replaced with a range-partitioned `Parallel.ForEach` so each worker processes a contiguous slab of the byte buffer, keeping the CPU cache warm. Header values (`BitPix`, `BScale`, `BZero`) are now hoisted outside the loop instead of being re-read from the record on every iteration.
 - **Optimized OSC debayer** — `DebayerBilinear` no longer indexes a 2D `int[,]` cell map or calls a clamping closure for every neighbour read. The interior of the image (the vast majority of pixels) now uses a flat-array fast path with no bounds checks; only the 1-pixel border falls back to the safe clamped read.
@@ -14,6 +15,10 @@ All notable changes to this project will be documented in this file.
 - **Parallel image resampling** — `ResampleNearest` (used when downscaling frames for star detection and trail analysis) now parallelizes its row loop with `Parallel.For`, utilizing all cores during every downsample step.
 - **Eliminated redundant pixel sampling** — `ComputeMetrics` previously called `Sample()` three times on the same full pixel array (statistics, sigma, and analysis background), each allocating up to 200 K floats. The sample is now computed once and reused, removing ~2 redundant allocations and full-array scans per frame.
 - **Cheaper trail detection buffer** — the 768 px trail-detection downsample now derives from the already-computed 1536 px analysis buffer instead of resampling from the full-resolution source a second time, reducing input pixel count ~4×.
+
+### Changed
+- **STF target background now triggers a full preview refresh** — adjusting the `Target background` value in the main window's STF panel previously updated the bound property but did not regenerate cached full-resolution images or thumbnails. It now invalidates the full-image cache and rebuilds the per-frame previews so the new auto-stretch result is visible immediately.
+- **New ROI is applied instantly** — drawing a new manual ROI in the preview window now regenerates the per-frame ROI thumbnails immediately, even while the preview window remains open. Previously the regeneration was deferred until the preview window closed.
 
 ---
 ## 1.0.14
