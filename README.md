@@ -12,7 +12,7 @@ Rejector loads your FITS and XISF lights, measures the quality of each one (shar
 The videos are using IMX571 FITS images and are in realtime.
 ![alt text](20260523-1934-27.1143931.gif)
 
-![alt text](20260523-1937-29.0171919.gif)
+![alt text](20260523-1940-57.9379078.gif)
 ---
 
 ## Table of Contents
