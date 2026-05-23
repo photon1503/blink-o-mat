@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+-- 1.0.17
+
+### Fixed
+- **UI no longer freezes while loading large folders.** Loading 100+ frames previously made the app appear hung: the first image showed up, then nothing seemed to happen for a long time, and the list suddenly filled in one burst at the end. Frames now appear in the list as soon as each one finishes, the status bar updates continuously, and the window stays responsive throughout the load.
+
+### Changed
+- **Clearer loading progress.** The status bar now shows a single live line of the form `Loading 47/120 • active: 32 • current: NGC7000_L_001.xisf • skipped: 1`, and the progress bar advances steadily from 0 to 100% as frames complete, instead of jumping at the very end.
+
+### Performance
+- **Faster XISF loading.** XISF files are now decoded directly from the source buffer using typed pixel reads (with optimized fast paths for the common 16-bit and 32-bit float formats, both mono and color). This removes a full duplicate copy of every image's pixel data and noticeably reduces the time and memory needed to load large XISF sessions.
+
 ---
 ## 1.0.16
 
