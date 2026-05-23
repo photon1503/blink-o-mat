@@ -262,7 +262,10 @@ public sealed class RustafitsService
 
     private static (float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, float[][]? ColorChannels) LoadFits(string filePath)
     {
-        using var stream = File.OpenRead(filePath);
+        // Use a large sequential-scan buffer: FITS files are read strictly start-to-end in one
+        // small header pass followed by one bulk pixel-array read, so we hint the OS to
+        // prefetch aggressively and avoid thousands of small 4 KB I/O calls.
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, FileOptions.SequentialScan);
         while (stream.Position < stream.Length)
         {
             var header = ReadFitsHeader(stream);
@@ -328,25 +331,40 @@ public sealed class RustafitsService
         var rawBytes = new byte[totalSamples * bytesPerSample];
         ReadExactly(stream, rawBytes);
 
+        // Hoist header values out of the hot path so the closure does not re-read
+        // record-property accessors on every iteration.
+        var bitPix = header.BitPix;
+        var bScale = header.BScale;
+        var bZero  = header.BZero;
+
         if (channels == 1)
         {
-            Parallel.For(0, pixelCount, i =>
+            // Use a range partitioner so each worker decodes a contiguous slab of pixels,
+            // which keeps the byte buffer cache-warm and amortises iteration overhead.
+            Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, pixelCount), range =>
             {
-                result[i] = (float)(ReadFitsSampleFromBuffer(rawBytes, i, header.BitPix, bytesPerSample) * header.BScale + header.BZero);
+                for (var i = range.Item1; i < range.Item2; i++)
+                {
+                    result[i] = (float)(ReadFitsSampleFromBuffer(rawBytes, i, bitPix, bytesPerSample) * bScale + bZero);
+                }
             });
         }
         else
         {
-            Parallel.For(0, pixelCount, i =>
+            var maxChannel = Math.Min(channels, 3);
+            Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, pixelCount), range =>
             {
-                double sum = 0;
-                for (var c = 0; c < Math.Min(channels, 3); c++)
+                for (var i = range.Item1; i < range.Item2; i++)
                 {
-                    var sampleIndex = (long)c * pixelCount + i;
-                    var scaled = ReadFitsSampleFromBuffer(rawBytes, sampleIndex, header.BitPix, bytesPerSample) * header.BScale + header.BZero;
-                    sum += scaled * weights[c];
+                    double sum = 0;
+                    for (var c = 0; c < maxChannel; c++)
+                    {
+                        var sampleIndex = (long)c * pixelCount + i;
+                        var scaled = ReadFitsSampleFromBuffer(rawBytes, sampleIndex, bitPix, bytesPerSample) * bScale + bZero;
+                        sum += scaled * weights[c];
+                    }
+                    result[i] = (float)sum;
                 }
-                result[i] = (float)sum;
             });
         }
 
@@ -392,9 +410,9 @@ public sealed class RustafitsService
     private static FitsHeaderInfo ReadFitsHeader(Stream stream)
     {
         var cards = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var block = new byte[2880];
         while (true)
         {
-            var block = new byte[2880];
             ReadExactly(stream, block);
             for (var i = 0; i < block.Length; i += 80)
             {
@@ -1437,43 +1455,88 @@ public sealed class RustafitsService
         var g = new float[width * height];
         var b = new float[width * height];
 
-        // Helper: clamp read with boundary reflection
-        float Get(int x, int y) => raw[Math.Clamp(y, 0, height - 1) * width + Math.Clamp(x, 0, width - 1)];
+        // Boundary-safe read used by the 1-pixel border only.
+        float GetClamped(int x, int y) => raw[Math.Clamp(y, 0, height - 1) * width + Math.Clamp(x, 0, width - 1)];
+
+        // Flatten the 2D cellMap into 4 ints so the inner loop never indexes a 2D array.
+        int ch00 = cellMap[0, 0], ch01 = cellMap[0, 1];
+        int ch10 = cellMap[1, 0], ch11 = cellMap[1, 1];
 
         Parallel.For(0, height, y =>
         {
+            // Pre-compute which row of the cell map applies to this y.
+            var cellRow = ((y + offsetY) % 2 + 2) % 2;
+            var rowChEven = cellRow == 0 ? ch00 : ch10; // channel at even x
+            var rowChOdd  = cellRow == 0 ? ch01 : ch11; // channel at odd  x
+
+            // Decide whether the slow boundary path is needed for this row.
+            var atTopOrBottom = y == 0 || y == height - 1;
+            var rowOffset = y * width;
+            var rowAbove  = (y - 1) * width;
+            var rowBelow  = (y + 1) * width;
+
             for (var x = 0; x < width; x++)
             {
-                var idx = y * width + x;
-                var cellRow = ((y + offsetY) % 2 + 2) % 2;
+                var idx = rowOffset + x;
                 var cellCol = ((x + offsetX) % 2 + 2) % 2;
-                var channel = cellMap[cellRow, cellCol];
+                var channel = cellCol == 0 ? rowChEven : rowChOdd;
 
+                // Border pixels use clamped reads to mirror the original behaviour.
+                if (atTopOrBottom || x == 0 || x == width - 1)
+                {
+                    switch (channel)
+                    {
+                        case 0:
+                            r[idx] = raw[idx];
+                            g[idx] = (GetClamped(x - 1, y) + GetClamped(x + 1, y) + GetClamped(x, y - 1) + GetClamped(x, y + 1)) * 0.25f;
+                            b[idx] = (GetClamped(x - 1, y - 1) + GetClamped(x + 1, y - 1) + GetClamped(x - 1, y + 1) + GetClamped(x + 1, y + 1)) * 0.25f;
+                            break;
+                        case 2:
+                            b[idx] = raw[idx];
+                            g[idx] = (GetClamped(x - 1, y) + GetClamped(x + 1, y) + GetClamped(x, y - 1) + GetClamped(x, y + 1)) * 0.25f;
+                            r[idx] = (GetClamped(x - 1, y - 1) + GetClamped(x + 1, y - 1) + GetClamped(x - 1, y + 1) + GetClamped(x + 1, y + 1)) * 0.25f;
+                            break;
+                        default:
+                            g[idx] = raw[idx];
+                            if (cellRow == 0)
+                            {
+                                r[idx] = (GetClamped(x - 1, y) + GetClamped(x + 1, y)) * 0.5f;
+                                b[idx] = (GetClamped(x, y - 1) + GetClamped(x, y + 1)) * 0.5f;
+                            }
+                            else
+                            {
+                                b[idx] = (GetClamped(x - 1, y) + GetClamped(x + 1, y)) * 0.5f;
+                                r[idx] = (GetClamped(x, y - 1) + GetClamped(x, y + 1)) * 0.5f;
+                            }
+                            break;
+                    }
+                    continue;
+                }
+
+                // Fast interior path: no bounds checks, raw indexing only.
                 switch (channel)
                 {
                     case 0: // R pixel
                         r[idx] = raw[idx];
-                        // G: average of 4 NESW neighbours
-                        g[idx] = (Get(x - 1, y) + Get(x + 1, y) + Get(x, y - 1) + Get(x, y + 1)) * 0.25f;
-                        // B: average of 4 diagonal neighbours
-                        b[idx] = (Get(x - 1, y - 1) + Get(x + 1, y - 1) + Get(x - 1, y + 1) + Get(x + 1, y + 1)) * 0.25f;
+                        g[idx] = (raw[idx - 1] + raw[idx + 1] + raw[rowAbove + x] + raw[rowBelow + x]) * 0.25f;
+                        b[idx] = (raw[rowAbove + x - 1] + raw[rowAbove + x + 1] + raw[rowBelow + x - 1] + raw[rowBelow + x + 1]) * 0.25f;
                         break;
                     case 2: // B pixel
                         b[idx] = raw[idx];
-                        g[idx] = (Get(x - 1, y) + Get(x + 1, y) + Get(x, y - 1) + Get(x, y + 1)) * 0.25f;
-                        r[idx] = (Get(x - 1, y - 1) + Get(x + 1, y - 1) + Get(x - 1, y + 1) + Get(x + 1, y + 1)) * 0.25f;
+                        g[idx] = (raw[idx - 1] + raw[idx + 1] + raw[rowAbove + x] + raw[rowBelow + x]) * 0.25f;
+                        r[idx] = (raw[rowAbove + x - 1] + raw[rowAbove + x + 1] + raw[rowBelow + x - 1] + raw[rowBelow + x + 1]) * 0.25f;
                         break;
-                    default: // G pixel — determine whether in R-row or B-row
+                    default: // G pixel
                         g[idx] = raw[idx];
-                        if (cellRow == 0) // G in R-row (RGGB top-right / GRBG top-left)
+                        if (cellRow == 0)
                         {
-                            r[idx] = (Get(x - 1, y) + Get(x + 1, y)) * 0.5f;
-                            b[idx] = (Get(x, y - 1) + Get(x, y + 1)) * 0.5f;
+                            r[idx] = (raw[idx - 1] + raw[idx + 1]) * 0.5f;
+                            b[idx] = (raw[rowAbove + x] + raw[rowBelow + x]) * 0.5f;
                         }
-                        else              // G in B-row
+                        else
                         {
-                            b[idx] = (Get(x - 1, y) + Get(x + 1, y)) * 0.5f;
-                            r[idx] = (Get(x, y - 1) + Get(x, y + 1)) * 0.5f;
+                            b[idx] = (raw[idx - 1] + raw[idx + 1]) * 0.5f;
+                            r[idx] = (raw[rowAbove + x] + raw[rowBelow + x]) * 0.5f;
                         }
                         break;
                 }

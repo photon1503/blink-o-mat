@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 ## 1.0.15
 
 ### Performance
+- **Faster FITS file I/O** — `LoadFits` now opens the FITS stream with a 1 MB buffer and `FileOptions.SequentialScan`, hinting Windows to prefetch aggressively and replacing thousands of small 4 KB reads with a handful of large ones. Disk utilization during a single-file load is now close to the device's sequential throughput.
+- **Cache-friendly FITS pixel decode** — the per-pixel `Parallel.For` in `TryDecodeFitsImage` was replaced with a range-partitioned `Parallel.ForEach` so each worker processes a contiguous slab of the byte buffer, keeping the CPU cache warm. Header values (`BitPix`, `BScale`, `BZero`) are now hoisted outside the loop instead of being re-read from the record on every iteration.
+- **Optimized OSC debayer** — `DebayerBilinear` no longer indexes a 2D `int[,]` cell map or calls a clamping closure for every neighbour read. The interior of the image (the vast majority of pixels) now uses a flat-array fast path with no bounds checks; only the 1-pixel border falls back to the safe clamped read.
+- **Lower header-parsing allocation** — `ReadFitsHeader` reuses a single 2880-byte block buffer instead of allocating a new one per header card block.
 - **Parallel star measurement** — `MeasureStar` calls for all selected candidates are now executed concurrently with `Parallel.For` instead of sequentially. Measurement of up to 300 stars scales with available CPU cores.
 - **Parallel image resampling** — `ResampleNearest` (used when downscaling frames for star detection and trail analysis) now parallelizes its row loop with `Parallel.For`, utilizing all cores during every downsample step.
 - **Eliminated redundant pixel sampling** — `ComputeMetrics` previously called `Sample()` three times on the same full pixel array (statistics, sigma, and analysis background), each allocating up to 200 K floats. The sample is now computed once and reused, removing ~2 redundant allocations and full-array scans per frame.
