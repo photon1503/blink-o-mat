@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using blink_o_mat.Services;
 using WpfBrush = System.Windows.Media.Brush;
 using WpfBrushes = System.Windows.Media.Brushes;
 
@@ -186,6 +187,19 @@ public sealed class FrameItem : INotifyPropertyChanged
         : "–";
 
     public string FilterDisplay => string.IsNullOrWhiteSpace(FilterName) ? "n/a" : FilterName;
+
+    public FilterCategory FilterCategory => FilterClassifier.Classify(FilterName);
+
+    public WpfBrush FilterIndicatorBrush
+    {
+        get
+        {
+            var (_, border, _) = FilterClassifier.GetColors(FilterCategory);
+            var brush = (WpfBrush)new BrushConverter().ConvertFromString(border)!;
+            if (brush.CanFreeze && !brush.IsFrozen) brush.Freeze();
+            return brush;
+        }
+    }
 
     public string ExposureDisplay => ExposureSeconds is null ? "n/a" : $"{ExposureSeconds:F1}s";
 

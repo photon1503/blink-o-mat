@@ -234,6 +234,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICollectionView FilteredFrames { get; }
     public ObservableCollection<FilterChipViewModel> FilterChips { get; } = [];
     public ObservableCollection<FilterChipViewModel> RejectionScopeChips { get; } = [];
+    public ObservableCollection<FilterChipGroupViewModel> RejectionScopeGroups { get; } = [];
     public ObservableCollection<FilterSummaryViewModel> FilterSummaries { get; } = [];
 
     // Per-filter thresholds. Key is the normalized filter name (empty string = "(no filter)").
@@ -854,15 +855,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
             FilterChips.Clear();
 
             var filters = Frames
-                .Select(frame => NormalizeFilterKey(frame.FilterName, out var displayName) ? (Key: NormalizeFilterValue(frame.FilterName), DisplayName: displayName) : default)
+                .Select(frame =>
+                {
+                    if (!NormalizeFilterKey(frame.FilterName, out var displayName))
+                    {
+                        return default;
+                    }
+                    var key = NormalizeFilterValue(frame.FilterName);
+                    var category = FilterClassifier.Classify(key);
+                    var canonical = FilterClassifier.GetCanonicalDisplay(category, displayName!);
+                    return (Key: key, DisplayName: canonical, Category: category);
+                })
                 .Where(x => !string.IsNullOrWhiteSpace(x.Key))
-                .DistinctBy(x => x.Key)
-                .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .DistinctBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => FilterClassifier.GetSortOrder(x.Category))
+                .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             foreach (var filter in filters)
             {
-                var chip = new FilterChipViewModel(filter.Key!, filter.DisplayName!, isSelected: true);
+                var chip = new FilterChipViewModel(filter.Key!, filter.DisplayName!, isSelected: true, filter.Category);
                 chip.PropertyChanged += FilterChip_PropertyChanged;
                 FilterChips.Add(chip);
             }
@@ -1079,23 +1091,45 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 chip.PropertyChanged -= RejectionScopeChip_PropertyChanged;
             }
             RejectionScopeChips.Clear();
+            RejectionScopeGroups.Clear();
 
             var keys = GetAllFilterKeys();
-            // Sort: real filters alphabetically, "(no filter)" last.
-            var named = keys.Where(k => k.Length > 0).OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToList();
+            // Sort by classifier order so narrowband appears before LRGB, then unknown.
+            var named = keys
+                .Where(k => k.Length > 0)
+                .Select(k => (Key: k, Category: FilterClassifier.Classify(k)))
+                .OrderBy(x => FilterClassifier.GetSortOrder(x.Category))
+                .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+                .ToList();
             var hasUnfiltered = keys.Any(k => k.Length == 0);
 
-            foreach (var key in named)
+            foreach (var (key, category) in named)
             {
-                var chip = new FilterChipViewModel(key, key, isSelected: true);
+                var display = FilterClassifier.GetCanonicalDisplay(category, key);
+                var chip = new FilterChipViewModel(key, display, isSelected: true, category);
                 chip.PropertyChanged += RejectionScopeChip_PropertyChanged;
                 RejectionScopeChips.Add(chip);
             }
             if (hasUnfiltered)
             {
-                var chip = new FilterChipViewModel(string.Empty, "(no filter)", isSelected: true);
+                var chip = new FilterChipViewModel(string.Empty, "(no filter)", isSelected: true, FilterCategory.Unknown);
                 chip.PropertyChanged += RejectionScopeChip_PropertyChanged;
                 RejectionScopeChips.Add(chip);
+            }
+
+            // Group for the dropdown: Narrowband, LRGB, Other.
+            foreach (var groupVm in RejectionScopeChips
+                         .GroupBy(c => c.Group)
+                         .OrderBy(g => g.First().SortOrder)
+                         .Select(g => new FilterChipGroupViewModel(g.Key, FilterClassifier.GetGroupDisplay(g.Key))
+                         {
+                         }))
+            {
+                foreach (var c in RejectionScopeChips.Where(c => c.Group == groupVm.Group))
+                {
+                    groupVm.Chips.Add(c);
+                }
+                RejectionScopeGroups.Add(groupVm);
             }
 
             // Ensure each key has a thresholds entry.

@@ -386,14 +386,32 @@
                                 <Popup PlacementTarget="{Binding ElementName=RejectionScopeToggle}" Placement="Bottom"
                                        IsOpen="{Binding IsChecked, ElementName=RejectionScopeToggle, Mode=TwoWay}"
                                        StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
-                                    <Border Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Padding="8" MinWidth="160">
-                                        <ItemsControl ItemsSource="{Binding RejectionScopeChips}">
+                                    <Border Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Padding="8" MinWidth="180">
+                                        <ItemsControl ItemsSource="{Binding RejectionScopeGroups}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <CheckBox Margin="0,2"
-                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                              Content="{Binding DisplayName}"
-                                                              Foreground="{StaticResource TextBrush}" />
+                                                    <StackPanel Margin="0,0,0,6">
+                                                        <TextBlock Text="{Binding DisplayName}" FontSize="9" FontWeight="Bold"
+                                                                   Foreground="#888" Margin="0,2,0,2" />
+                                                        <ItemsControl ItemsSource="{Binding Chips}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <CheckBox Margin="6,2,0,2"
+                                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                              Foreground="{StaticResource TextBrush}">
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <Border Width="10" Height="10" CornerRadius="2"
+                                                                                    Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                                    Background="{Binding BackgroundBrush}"
+                                                                                    BorderBrush="{Binding BorderBrush}"
+                                                                                    BorderThickness="1" />
+                                                                            <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                                                                        </StackPanel>
+                                                                    </CheckBox>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
@@ -599,13 +617,14 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <ToggleButton IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                     Margin="0,0,6,0" Padding="10,4" BorderThickness="1" FontWeight="SemiBold">
+                                                     Margin="0,0,6,0" Padding="10,4" BorderThickness="1" FontWeight="SemiBold"
+                                                     Background="{Binding BackgroundBrush}"
+                                                     Foreground="{Binding ForegroundBrush}"
+                                                     BorderBrush="{Binding BorderBrush}">
                                             <ToggleButton.Style>
                                                 <Style TargetType="ToggleButton">
-                                                    <Setter Property="Background" Value="#222F426B" />
-                                                    <Setter Property="Foreground" Value="#FFE8F0FF" />
-                                                    <Setter Property="BorderBrush" Value="#6D88C4" />
                                                     <Setter Property="Cursor" Value="Hand" />
+                                                    <Setter Property="Opacity" Value="1.0" />
                                                     <Setter Property="Template">
                                                         <Setter.Value>
                                                             <ControlTemplate TargetType="ToggleButton">
@@ -616,14 +635,11 @@
                                                         </Setter.Value>
                                                     </Setter>
                                                     <Style.Triggers>
-                                                        <Trigger Property="IsChecked" Value="True">
-                                                            <Setter Property="Background" Value="#334F78D1" />
-                                                            <Setter Property="BorderBrush" Value="#8FB3FF" />
-                                                        </Trigger>
                                                         <Trigger Property="IsChecked" Value="False">
-                                                            <Setter Property="Background" Value="#161616" />
-                                                            <Setter Property="Foreground" Value="#CCBDBDBD" />
-                                                            <Setter Property="BorderBrush" Value="#444" />
+                                                            <Setter Property="Background" Value="#0A0A0A" />
+                                                            <Setter Property="Foreground" Value="#55777777" />
+                                                            <Setter Property="BorderBrush" Value="#222" />
+                                                            <Setter Property="Opacity" Value="0.45" />
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>
