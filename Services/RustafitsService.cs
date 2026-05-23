@@ -1938,18 +1938,19 @@ public sealed class RustafitsService
     private static float[] ResampleNearest(float[] pixels, int width, int height, int targetWidth, int targetHeight)
     {
         var result = new float[targetWidth * targetHeight];
-        for (var y = 0; y < targetHeight; y++)
+        var targetHeightM1 = Math.Max(1, targetHeight - 1);
+        var targetWidthM1  = Math.Max(1, targetWidth  - 1);
+        Parallel.For(0, targetHeight, y =>
         {
-            var sy = Math.Min(height - 1, (int)Math.Round((y / (double)Math.Max(1, targetHeight - 1)) * (height - 1)));
+            var sy     = Math.Min(height - 1, (int)Math.Round((y / (double)targetHeightM1) * (height - 1)));
             var srcRow = sy * width;
-            var dstRow = y * targetWidth;
+            var dstRow = y  * targetWidth;
             for (var x = 0; x < targetWidth; x++)
             {
-                var sx = Math.Min(width - 1, (int)Math.Round((x / (double)Math.Max(1, targetWidth - 1)) * (width - 1)));
+                var sx = Math.Min(width - 1, (int)Math.Round((x / (double)targetWidthM1) * (width - 1)));
                 result[dstRow + x] = pixels[srcRow + sx];
             }
-        }
-
+        });
         return result;
     }
 
@@ -2147,10 +2148,35 @@ public sealed class RustafitsService
         var mad = MedianAbsoluteDeviation(statsSample, median, alreadySorted: true);
         var (minValue, minCount, maxValue, maxCount) = ComputeExtremaWithCounts(pixels);
         var background = median;
-        var sigma = ComputeSigma(pixels, background);
+        var sigma = ComputeSigmaFromSample(statsSample, background);
         var analysisPixels = CreateAnalysisPixels(pixels, width, height, 1536, out var analysisWidth, out var analysisHeight, out var xScale, out var yScale);
-        var analysisBackground = analysisPixels == pixels ? background : Percentile(analysisPixels, 0.5);
-        var analysisSigma = analysisPixels == pixels ? sigma : ComputeSigma(analysisPixels, analysisBackground);
+        double analysisBackground;
+        double analysisSigma;
+        if (analysisPixels == pixels)
+        {
+            analysisBackground = background;
+            analysisSigma = sigma;
+        }
+        else
+        {
+            var analysisSample = Sample(analysisPixels);
+            Array.Sort(analysisSample);
+            analysisBackground = PercentileFromSorted(analysisSample, 0.5);
+            analysisSigma = ComputeSigmaFromSample(analysisSample, analysisBackground);
+        }
+
+        // Derive 768-px trail buffer from the already-computed 1536-px analysis pixels
+        // instead of resampling from the full-resolution source again.
+        float[] trailPixels;
+        int trailWidth, trailHeight;
+        if (analysisPixels == pixels)
+        {
+            trailPixels = CreateAnalysisPixels(pixels, width, height, 768, out trailWidth, out trailHeight, out _, out _);
+        }
+        else
+        {
+            trailPixels = CreateAnalysisPixels(analysisPixels, analysisWidth, analysisHeight, 768, out trailWidth, out trailHeight, out _, out _);
+        }
 
         var stars = DetectStars(pixels, width, height, analysisPixels, analysisWidth, analysisHeight, analysisBackground, analysisSigma, xScale, yScale);
         var orderedStars = stars.OrderByDescending(s => s.Peak).Take(300).ToList();
@@ -2158,7 +2184,6 @@ public sealed class RustafitsService
         var fwhm = Median(orderedStars.Select(s => s.Fwhm));
         var hfr = Median(orderedStars.Select(s => s.Hfr));
         var eccentricity = Median(orderedStars.Select(s => s.Eccentricity));
-        var trailPixels = CreateAnalysisPixels(pixels, width, height, 768, out var trailWidth, out var trailHeight, out _, out _);
         var trail = DetectTrail(trailPixels, trailWidth, trailHeight);
         var starCount = orderedStars.Count;
 
@@ -2315,7 +2340,7 @@ public sealed class RustafitsService
 
         var suppressionRadius = Math.Max(6.0, 4.0 * Math.Max(xScale, yScale));
         var suppressionRadiusSq = suppressionRadius * suppressionRadius;
-        var selected = new List<(int X, int Y)>(maxMeasuredStars);
+        var selected = new List<(double Peak, int X, int Y)>(maxMeasuredStars);
 
         foreach (var candidate in candidates.OrderByDescending(c => c.Peak).Take(maxCandidates))
         {
@@ -2331,22 +2356,29 @@ public sealed class RustafitsService
                 }
             }
 
-            if (tooClose)
+            if (!tooClose)
             {
-                continue;
+                selected.Add((candidate.Peak, candidate.X, candidate.Y));
+                if (selected.Count >= maxMeasuredStars)
+                {
+                    break;
+                }
             }
+        }
 
-            var measurement = MeasureStar(pixels, width, height, candidate.X, candidate.Y, background);
-            if (measurement.Fwhm <= 0 || measurement.Hfr <= 0)
-            {
-                continue;
-            }
+        var measurements = new (double Peak, double Fwhm, double Hfr, double Eccentricity)[selected.Count];
+        Parallel.For(0, selected.Count, i =>
+        {
+            var (peak, cx, cy) = selected[i];
+            var m = MeasureStar(pixels, width, height, cx, cy, background);
+            measurements[i] = (peak, m.Fwhm, m.Hfr, m.Eccentricity);
+        });
 
-            selected.Add((candidate.X, candidate.Y));
-            result.Add((candidate.Peak, measurement.Fwhm, measurement.Hfr, measurement.Eccentricity));
-            if (result.Count >= maxMeasuredStars)
+        foreach (var m in measurements)
+        {
+            if (m.Fwhm > 0 && m.Hfr > 0)
             {
-                break;
+                result.Add(m);
             }
         }
 
@@ -2943,7 +2975,11 @@ public sealed class RustafitsService
 
     private static double ComputeSigma(float[] values, double mean)
     {
-        var sample = Sample(values);
+        return ComputeSigmaFromSample(Sample(values), mean);
+    }
+
+    private static double ComputeSigmaFromSample(float[] sample, double mean)
+    {
         if (sample.Length == 0)
         {
             return 1;

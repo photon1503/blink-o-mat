@@ -3,9 +3,18 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## 1.0.15
+
+### Performance
+- **Parallel star measurement** — `MeasureStar` calls for all selected candidates are now executed concurrently with `Parallel.For` instead of sequentially. Measurement of up to 300 stars scales with available CPU cores.
+- **Parallel image resampling** — `ResampleNearest` (used when downscaling frames for star detection and trail analysis) now parallelizes its row loop with `Parallel.For`, utilizing all cores during every downsample step.
+- **Eliminated redundant pixel sampling** — `ComputeMetrics` previously called `Sample()` three times on the same full pixel array (statistics, sigma, and analysis background), each allocating up to 200 K floats. The sample is now computed once and reused, removing ~2 redundant allocations and full-array scans per frame.
+- **Cheaper trail detection buffer** — the 768 px trail-detection downsample now derives from the already-computed 1536 px analysis buffer instead of resampling from the full-resolution source a second time, reducing input pixel count ~4×.
+
+---
 ## 1.0.14
 - Added performance indicators (CPU, RAM, Disk and Network).
-- Rejected frames will now be removed from the list.
+- Rejected frames will now be removed from the current list after moving the actual files.
 
 ---
 ## 1.0.10
