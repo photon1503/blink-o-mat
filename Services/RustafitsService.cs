@@ -2503,21 +2503,7 @@ public sealed class RustafitsService
         var (minValue, minCount, maxValue, maxCount) = ComputeExtremaWithCounts(pixels);
         var background = median;
         var sigma = ComputeSigmaFromSample(statsSample, background);
-        var analysisPixels = CreateAnalysisPixels(pixels, width, height, 1536, out var analysisWidth, out var analysisHeight, out var xScale, out var yScale);
-        double analysisBackground;
-        double analysisSigma;
-        if (analysisPixels == pixels)
-        {
-            analysisBackground = background;
-            analysisSigma = sigma;
-        }
-        else
-        {
-            var analysisSample = Sample(analysisPixels);
-            Array.Sort(analysisSample);
-            analysisBackground = PercentileFromSorted(analysisSample, 0.5);
-            analysisSigma = ComputeSigmaFromSample(analysisSample, analysisBackground);
-        }
+        var analysisPixels = CreateAnalysisPixels(pixels, width, height, 1536, out var analysisWidth, out var analysisHeight, out _, out _);
 
         // Derive 768-px trail buffer from the already-computed 1536-px analysis pixels
         // instead of resampling from the full-resolution source again.
@@ -2532,14 +2518,14 @@ public sealed class RustafitsService
             trailPixels = CreateAnalysisPixels(analysisPixels, analysisWidth, analysisHeight, 768, out trailWidth, out trailHeight, out _, out _);
         }
 
-        var stars = DetectStars(pixels, width, height, analysisPixels, analysisWidth, analysisHeight, analysisBackground, analysisSigma, xScale, yScale);
-        var orderedStars = stars.OrderByDescending(s => s.Peak).Take(300).ToList();
+        var (stars, totalStarCount) = DetectStars(pixels, width, height, background, sigma);
+        var orderedStars = stars.OrderByDescending(s => s.Peak).ToList();
 
         var fwhm = Median(orderedStars.Select(s => s.Fwhm));
         var hfr = Median(orderedStars.Select(s => s.Hfr));
         var eccentricity = Median(orderedStars.Select(s => s.Eccentricity));
         var trail = DetectTrail(trailPixels, trailWidth, trailHeight);
-        var starCount = orderedStars.Count;
+        var starCount = totalStarCount;
 
         double? fwhmArcsec = null;
         if (frame.FocalLengthMm is > 0 && frame.PixelSizeUm is > 0 && fwhm > 0)
@@ -2624,119 +2610,179 @@ public sealed class RustafitsService
         return initialized ? (min, minCount, max, maxCount) : (0, 0, 0, 0);
     }
 
-    private static List<(double Peak, double Fwhm, double Hfr, double Eccentricity)> DetectStars(float[] pixels, int width, int height, float[] analysisPixels, int analysisWidth, int analysisHeight, double background, double sigma, double xScale, double yScale)
+    private static (List<(double Peak, double Fwhm, double Hfr, double Eccentricity)> Measurements, int TotalCount) DetectStars(float[] pixels, int width, int height, double background, double sigma)
     {
-        const int maxCandidates = 768;
-        const int maxMeasuredStars = 300;
+        // Detect on full-resolution image. Use a permissive 3-sigma threshold
+        // similar to PixInsight / Hocus Focus defaults, then suppress duplicates
+        // via a coarse spatial hash so we don't run an O(N^2) scan.
+        const int maxMeasuredStars = 500;
+        const double suppressionRadius = 4.0;
+        const double suppressionRadiusSq = suppressionRadius * suppressionRadius;
+        const int cellSize = 8; // > 2 * suppressionRadius
 
-        var threshold = background + (5.0 * sigma);
-        var minNeighborLevel = background + (2.0 * sigma);
-        var candidateBag = new System.Collections.Concurrent.ConcurrentBag<(double Peak, int X, int Y)>();
+        var threshold = background + (3.0 * sigma);
+        var minNeighborLevel = background + (1.5 * sigma);
 
-        Parallel.For(1, analysisHeight - 1, y =>
+        if (width < 5 || height < 5)
         {
-            var row = y * analysisWidth;
-            for (var x = 1; x < analysisWidth - 1; x++)
+            return (new List<(double, double, double, double)>(), 0);
+        }
+
+        // Parallel local-max scan over horizontal stripes.
+        const int stripeHeight = 64;
+        var stripeCount = ((height - 2) + stripeHeight - 1) / stripeHeight;
+        var stripeLists = new List<(float Peak, int X, int Y)>[stripeCount];
+
+        Parallel.For(0, stripeCount, stripe =>
+        {
+            var yStart = 1 + (stripe * stripeHeight);
+            var yEnd = Math.Min(yStart + stripeHeight, height - 1);
+            var local = new List<(float, int, int)>(1024);
+
+            for (var y = yStart; y < yEnd; y++)
             {
-                var center = analysisPixels[row + x];
-                if (center < threshold)
+                var row = y * width;
+                var rowUp = row - width;
+                var rowDn = row + width;
+                for (var x = 1; x < width - 1; x++)
                 {
-                    continue;
-                }
-
-                if (center < analysisPixels[row + x - 1] ||
-                    center < analysisPixels[row + x + 1] ||
-                    center < analysisPixels[row - analysisWidth + x] ||
-                    center < analysisPixels[row + analysisWidth + x] ||
-                    center < analysisPixels[row - analysisWidth + x - 1] ||
-                    center < analysisPixels[row - analysisWidth + x + 1] ||
-                    center < analysisPixels[row + analysisWidth + x - 1] ||
-                    center < analysisPixels[row + analysisWidth + x + 1])
-                {
-                    continue;
-                }
-
-                var supportNeighbors = 0;
-                for (var ny = -1; ny <= 1; ny++)
-                {
-                    for (var nx = -1; nx <= 1; nx++)
+                    var center = pixels[row + x];
+                    if (center < threshold)
                     {
-                        if (nx == 0 && ny == 0)
-                        {
-                            continue;
-                        }
+                        continue;
+                    }
 
-                        var neighbor = analysisPixels[((y + ny) * analysisWidth) + (x + nx)];
-                        if (neighbor >= minNeighborLevel)
+                    // Strict 3x3 local maximum.
+                    if (center < pixels[row + x - 1] ||
+                        center <= pixels[row + x + 1] ||
+                        center < pixels[rowUp + x] ||
+                        center <= pixels[rowDn + x] ||
+                        center < pixels[rowUp + x - 1] ||
+                        center <= pixels[rowUp + x + 1] ||
+                        center < pixels[rowDn + x - 1] ||
+                        center <= pixels[rowDn + x + 1])
+                    {
+                        continue;
+                    }
+
+                    // Require at least 3 bright neighbours so single hot pixels
+                    // (with a dark 8-neighbourhood) are rejected.
+                    var support = 0;
+                    if (pixels[row + x - 1] >= minNeighborLevel) support++;
+                    if (pixels[row + x + 1] >= minNeighborLevel) support++;
+                    if (pixels[rowUp + x] >= minNeighborLevel) support++;
+                    if (pixels[rowDn + x] >= minNeighborLevel) support++;
+                    if (pixels[rowUp + x - 1] >= minNeighborLevel) support++;
+                    if (pixels[rowUp + x + 1] >= minNeighborLevel) support++;
+                    if (pixels[rowDn + x - 1] >= minNeighborLevel) support++;
+                    if (pixels[rowDn + x + 1] >= minNeighborLevel) support++;
+
+                    if (support < 3)
+                    {
+                        continue;
+                    }
+
+                    local.Add((center, x, y));
+                }
+            }
+
+            stripeLists[stripe] = local;
+        });
+
+        var totalCandidates = 0;
+        for (var i = 0; i < stripeLists.Length; i++)
+        {
+            totalCandidates += stripeLists[i]?.Count ?? 0;
+        }
+
+        var result = new List<(double Peak, double Fwhm, double Hfr, double Eccentricity)>(Math.Min(maxMeasuredStars, totalCandidates));
+        if (totalCandidates == 0)
+        {
+            return (result, 0);
+        }
+
+        var candidates = new (float Peak, int X, int Y)[totalCandidates];
+        var offset = 0;
+        for (var i = 0; i < stripeLists.Length; i++)
+        {
+            var list = stripeLists[i];
+            if (list == null) continue;
+            for (var j = 0; j < list.Count; j++)
+            {
+                candidates[offset++] = list[j];
+            }
+        }
+
+        // Sort brightest-first.
+        Array.Sort(candidates, (a, b) => b.Peak.CompareTo(a.Peak));
+
+        // Spatial-hash suppression: keep brightest, reject anything within radius.
+        var gridW = (width / cellSize) + 1;
+        var gridH = (height / cellSize) + 1;
+        var grid = new List<int>[gridW * gridH];
+        var keptX = new int[candidates.Length];
+        var keptY = new int[candidates.Length];
+        var keptPeak = new float[candidates.Length];
+        var keptCount = 0;
+
+        for (var i = 0; i < candidates.Length; i++)
+        {
+            var (peak, x, y) = candidates[i];
+            var gx = x / cellSize;
+            var gy = y / cellSize;
+            var tooClose = false;
+            for (var ay = Math.Max(0, gy - 1); ay <= Math.Min(gridH - 1, gy + 1) && !tooClose; ay++)
+            {
+                for (var ax = Math.Max(0, gx - 1); ax <= Math.Min(gridW - 1, gx + 1); ax++)
+                {
+                    var bucket = grid[(ay * gridW) + ax];
+                    if (bucket == null) continue;
+                    for (var k = 0; k < bucket.Count; k++)
+                    {
+                        var idx = bucket[k];
+                        var dx = keptX[idx] - x;
+                        var dy = keptY[idx] - y;
+                        if ((dx * dx) + (dy * dy) <= suppressionRadiusSq)
                         {
-                            supportNeighbors++;
+                            tooClose = true;
+                            break;
                         }
                     }
+                    if (tooClose) break;
                 }
-
-                if (supportNeighbors < 2)
-                {
-                    continue;
-                }
-
-                var sourceX = Math.Clamp((int)Math.Round(((x + 0.5) * xScale) - 0.5), 3, width - 4);
-                var sourceY = Math.Clamp((int)Math.Round(((y + 0.5) * yScale) - 0.5), 3, height - 4);
-                candidateBag.Add((center, sourceX, sourceY));
             }
-        });
 
-        var candidates = candidateBag;
-        var result = new List<(double Peak, double Fwhm, double Hfr, double Eccentricity)>(Math.Min(maxMeasuredStars, candidates.Count));
-        if (candidates.Count == 0)
-        {
-            return result;
+            if (tooClose) continue;
+
+            keptX[keptCount] = x;
+            keptY[keptCount] = y;
+            keptPeak[keptCount] = peak;
+            var cellIdx = (gy * gridW) + gx;
+            (grid[cellIdx] ??= new List<int>(4)).Add(keptCount);
+            keptCount++;
         }
 
-        var suppressionRadius = Math.Max(6.0, 4.0 * Math.Max(xScale, yScale));
-        var suppressionRadiusSq = suppressionRadius * suppressionRadius;
-        var selected = new List<(double Peak, int X, int Y)>(maxMeasuredStars);
-
-        foreach (var candidate in candidates.OrderByDescending(c => c.Peak).Take(maxCandidates))
+        // Measure the brightest subset only (perf); the total kept count is the star count.
+        var measureCount = Math.Min(keptCount, maxMeasuredStars);
+        var measurements = new (double Peak, double Fwhm, double Hfr, double Eccentricity)[measureCount];
+        Parallel.For(0, measureCount, i =>
         {
-            var tooClose = false;
-            foreach (var existing in selected)
-            {
-                var dx = existing.X - candidate.X;
-                var dy = existing.Y - candidate.Y;
-                if ((dx * dx) + (dy * dy) <= suppressionRadiusSq)
-                {
-                    tooClose = true;
-                    break;
-                }
-            }
-
-            if (!tooClose)
-            {
-                selected.Add((candidate.Peak, candidate.X, candidate.Y));
-                if (selected.Count >= maxMeasuredStars)
-                {
-                    break;
-                }
-            }
-        }
-
-        var measurements = new (double Peak, double Fwhm, double Hfr, double Eccentricity)[selected.Count];
-        Parallel.For(0, selected.Count, i =>
-        {
-            var (peak, cx, cy) = selected[i];
+            var cx = Math.Clamp(keptX[i], 3, width - 4);
+            var cy = Math.Clamp(keptY[i], 3, height - 4);
             var m = MeasureStar(pixels, width, height, cx, cy, background);
-            measurements[i] = (peak, m.Fwhm, m.Hfr, m.Eccentricity);
+            measurements[i] = (keptPeak[i], m.Fwhm, m.Hfr, m.Eccentricity);
         });
 
-        foreach (var m in measurements)
+        for (var i = 0; i < measureCount; i++)
         {
+            var m = measurements[i];
             if (m.Fwhm > 0 && m.Hfr > 0)
             {
                 result.Add(m);
             }
         }
 
-        return result;
+        return (result, keptCount);
     }
 
     private static float[] MedianFilter3x3(float[] pixels, int width, int height)

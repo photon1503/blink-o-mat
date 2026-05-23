@@ -369,12 +369,19 @@
                                               BorderBrush="{StaticResource PanelBorderBrush}"
                                               ToolTip="Limit automatic rejection and scoring to selected filter groups">
                                     <ToggleButton.Style>
-                                        <Style TargetType="ToggleButton">
+                                        <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding HasRejectionScopeChips}" Value="True">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
+                                                <!-- Keep the toggle subtle when the popup is open: the global
+                                                     ToggleButton style flips Background to the bright accent
+                                                     SelectionBrush on IsChecked, which is too loud here. -->
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource ControlBackgroundBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                                </Trigger>
                                             </Style.Triggers>
                                         </Style>
                                     </ToggleButton.Style>
@@ -387,34 +394,65 @@
                                        IsOpen="{Binding IsChecked, ElementName=RejectionScopeToggle, Mode=TwoWay}"
                                        StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
                                     <Border Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Padding="8" MinWidth="180">
-                                        <ItemsControl ItemsSource="{Binding RejectionScopeGroups}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <StackPanel Margin="0,0,0,6">
-                                                        <TextBlock Text="{Binding DisplayName}" FontSize="9" FontWeight="Bold"
-                                                                   Foreground="#888" Margin="0,2,0,2" />
-                                                        <ItemsControl ItemsSource="{Binding Chips}">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <CheckBox Margin="6,2,0,2"
-                                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                                              Foreground="{StaticResource TextBrush}">
-                                                                        <StackPanel Orientation="Horizontal">
-                                                                            <Border Width="10" Height="10" CornerRadius="2"
-                                                                                    Margin="0,0,6,0" VerticalAlignment="Center"
-                                                                                    Background="{Binding BackgroundBrush}"
-                                                                                    BorderBrush="{Binding BorderBrush}"
-                                                                                    BorderThickness="1" />
-                                                                            <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
-                                                                        </StackPanel>
-                                                                    </CheckBox>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
+                                        <Border.Resources>
+                                            <!-- Local CheckBox style: forces the chip-row foreground to stay
+                                                 readable when the group header is highlighted / hovered by the
+                                                 system. Without this the dark theme's Highlight* system colors
+                                                 leak into the checkbox content and make labels disappear. -->
+                                            <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                                                <Setter Property="Background" Value="Transparent" />
+                                                <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}" />
+                                            </Style>
+                                        </Border.Resources>
+                                        <StackPanel>
+                                            <!-- Quick-select presets -->
+                                            <WrapPanel Margin="0,0,0,6">
+                                                <Button Content="All"
+                                                        Padding="6,1" Margin="0,0,4,4" FontSize="11"
+                                                        Command="{Binding SelectAllScopeCommand}"
+                                                        ToolTip="Select every filter" />
+                                                <Button Content="Narrowband"
+                                                        Padding="6,1" Margin="0,0,4,4" FontSize="11"
+                                                        Command="{Binding SelectNarrowbandScopeCommand}"
+                                                        ToolTip="Select only Ha, Oiii and Sii" />
+                                                <Button Content="LRGB"
+                                                        Padding="6,1" Margin="0,0,4,4" FontSize="11"
+                                                        Command="{Binding SelectLrgbScopeCommand}"
+                                                        ToolTip="Select L, R, G and B" />
+                                                <Button Content="RGB"
+                                                        Padding="6,1" Margin="0,0,4,4" FontSize="11"
+                                                        Command="{Binding SelectRgbScopeCommand}"
+                                                        ToolTip="Select only R, G and B (no Luminance)" />
+                                            </WrapPanel>
+                                            <ItemsControl ItemsSource="{Binding RejectionScopeGroups}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,0,0,6">
+                                                            <TextBlock Text="{Binding DisplayName}" FontSize="9" FontWeight="Bold"
+                                                                       Foreground="#888" Margin="0,2,0,2" />
+                                                            <ItemsControl ItemsSource="{Binding Chips}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <CheckBox Margin="6,2,0,2"
+                                                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                                            <StackPanel Orientation="Horizontal">
+                                                                                <Border Width="10" Height="10" CornerRadius="2"
+                                                                                        Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                                        Background="{Binding BackgroundBrush}"
+                                                                                        BorderBrush="{Binding BorderBrush}"
+                                                                                        BorderThickness="1" />
+                                                                                <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                                                                            </StackPanel>
+                                                                        </CheckBox>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
                                     </Border>
                                 </Popup>
                             </Grid>

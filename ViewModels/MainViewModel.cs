@@ -1181,6 +1181,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand ResetThresholdsCommand => _resetThresholdsCommand ??= new RelayCommand(_ => ResetThresholdsForScope());
     private ICommand? _resetThresholdsCommand;
 
+    /// <summary>Selects every chip in the rejection scope dropdown.</summary>
+    public ICommand SelectAllScopeCommand => _selectAllScopeCommand ??= new RelayCommand(_ => SetRejectionScopeSelection(_ => true));
+    private ICommand? _selectAllScopeCommand;
+
+    /// <summary>Selects only narrowband filters (Ha / Oiii / Sii) in the rejection scope dropdown.</summary>
+    public ICommand SelectNarrowbandScopeCommand => _selectNarrowbandScopeCommand
+        ??= new RelayCommand(_ => SetRejectionScopeSelection(c => c.Group == FilterGroup.Narrowband));
+    private ICommand? _selectNarrowbandScopeCommand;
+
+    /// <summary>Selects only LRGB filters (L / R / G / B) in the rejection scope dropdown.</summary>
+    public ICommand SelectLrgbScopeCommand => _selectLrgbScopeCommand
+        ??= new RelayCommand(_ => SetRejectionScopeSelection(c => c.Group == FilterGroup.Lrgb));
+    private ICommand? _selectLrgbScopeCommand;
+
+    /// <summary>Selects only R / G / B filters (excluding L) in the rejection scope dropdown.</summary>
+    public ICommand SelectRgbScopeCommand => _selectRgbScopeCommand
+        ??= new RelayCommand(_ => SetRejectionScopeSelection(c => c.Category is FilterCategory.Red or FilterCategory.Green or FilterCategory.Blue));
+    private ICommand? _selectRgbScopeCommand;
+
+    private void SetRejectionScopeSelection(Func<FilterChipViewModel, bool> predicate)
+    {
+        if (RejectionScopeChips.Count == 0) return;
+
+        _isUpdatingRejectionScope = true;
+        try
+        {
+            foreach (var chip in RejectionScopeChips)
+            {
+                chip.IsSelected = predicate(chip);
+            }
+        }
+        finally
+        {
+            _isUpdatingRejectionScope = false;
+        }
+
+        OnPropertyChanged(nameof(RejectionScopeSummary));
+        RaiseAllThresholdPropertiesChanged();
+    }
+
     private void ResetThresholdsForScope()
     {
         var keys = GetSelectedScopeKeys();
