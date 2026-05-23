@@ -6,26 +6,20 @@ All notable changes to this project will be documented in this file.
 ## 1.0.15
 
 ### Fixed
-- **Shadows / Midtones / Highlights sliders now affect the preview** — the STF sliders had almost no visible impact because every preview render path (`RefreshActivePreviewInteractiveAsync`, full-resolution refresh, thumbnails, ROI) called `GetStfForFrame`, which while `AutoStretchPerFrame == true` re-ran `ComputeAutoStretch` on every render and discarded the slider values. Adjusting any of the three sliders now automatically switches the view-model into manual stretch mode (`AutoStretchPerFrame = false`), so the slider-derived `Shadows / Midtones / Highlights` are actually applied. Target Background still drives the auto-stretch math, so moving that slider keeps auto mode enabled (it is an input to `ComputeAutoStretch`, not an override of it).
-- **Pre-cache now follows the vertical slider order**
+- **Shadows / Midtones / Highlights sliders now actually change the preview.** Previously these three sliders had almost no visible effect because the preview kept re-applying its automatic stretch on every render. Moving any of the three sliders now switches the preview into manual stretch mode so your adjustments are applied immediately. The Target Background slider still drives the automatic stretch as before.
+- **Pre-cached frames now match the order of the vertical slider.** The pre-ahead cache was warming up whatever frames happened to load next from disk, which often didn't match what you'd see next when scrolling. The next/previous cached frame now always corresponds to the next/previous frame on the slider, and changing the sort order immediately re-warms the cache against the new order.
 
 ### Performance
-- **Faster preview pre-caching**
-- **Realtime STF slider in preview**
-- **Parallel thumbnail/ROI regeneration** — `RebuildThumbnailsAsync` (the path invoked when stretch parameters, the manual ROI, or the STF target background change) now re-renders frames concurrently using a `SemaphoreSlim` gate sized to `Environment.ProcessorCount`, instead of processing one frame at a time. Regenerating thumbnails over a 100-frame session now scales with available CPU cores.
-- **Faster FITS file I/O** — `LoadFits` now opens the FITS stream with a 1 MB buffer and `FileOptions.SequentialScan`, hinting Windows to prefetch aggressively and replacing thousands of small 4 KB reads with a handful of large ones. Disk utilization during a single-file load is now close to the device's sequential throughput.
-- **Cache-friendly FITS pixel decode** — the per-pixel `Parallel.For` in `TryDecodeFitsImage` was replaced with a range-partitioned `Parallel.ForEach` so each worker processes a contiguous slab of the byte buffer, keeping the CPU cache warm. Header values (`BitPix`, `BScale`, `BZero`) are now hoisted outside the loop instead of being re-read from the record on every iteration.
-- **Optimized OSC debayer** — `DebayerBilinear` no longer indexes a 2D `int[,]` cell map or calls a clamping closure for every neighbour read. The interior of the image (the vast majority of pixels) now uses a flat-array fast path with no bounds checks; only the 1-pixel border falls back to the safe clamped read.
-- **Lower header-parsing allocation** — `ReadFitsHeader` reuses a single 2880-byte block buffer instead of allocating a new one per header card block.
-- **Parallel star measurement** — `MeasureStar` calls for all selected candidates are now executed concurrently with `Parallel.For` instead of sequentially. Measurement of up to 300 stars scales with available CPU cores.
-- **Parallel image resampling** — `ResampleNearest` (used when downscaling frames for star detection and trail analysis) now parallelizes its row loop with `Parallel.For`, utilizing all cores during every downsample step.
-- **Eliminated redundant pixel sampling** — `ComputeMetrics` previously called `Sample()` three times on the same full pixel array (statistics, sigma, and analysis background), each allocating up to 200 K floats. The sample is now computed once and reused, removing ~2 redundant allocations and full-array scans per frame.
-- **Cheaper trail detection buffer** — the 768 px trail-detection downsample now derives from the already-computed 1536 px analysis buffer instead of resampling from the full-resolution source a second time, reducing input pixel count ~4×.
+- **Faster frame loading.** FITS files are now read with large sequential I/O, and pixel decoding, OSC debayering, star measurement, and image resampling all run in parallel across CPU cores. Disk and CPU utilization during loading is now much closer to the hardware's capability.
+- **Realtime STF sliders.** Moving the Shadows / Midtones / Highlights / Target Background sliders no longer reloads the file from disk on every tick — the preview updates live as you drag, and snaps back to full resolution as soon as you release the slider.
+- **Faster preview pre-caching.** Neighbouring frames are now warmed nearest-first with two workers running in parallel, roughly halving the time it takes to fill the cache around the current frame. At least one neighbour is always scheduled for caching, even when free memory is tight.
+- **Faster thumbnail and ROI regeneration.** When you change the stretch, ROI, or target background, all thumbnails are now rebuilt in parallel across CPU cores instead of one at a time.
+- **Lower memory pressure during loading.** Reduced redundant pixel sampling and buffer allocations during frame analysis, so loading large sessions creates less GC churn.
 
 ### Changed
-- **STF target background default lowered to 0.15** — the app default for the auto-stretch target background was changed from `0.25` to `0.15`, producing a darker (less aggressively stretched) background that more closely matches typical PixInsight STF presets. The PixInsight MTF formula (`MTF(x; m) = (m−1)x / ((2m−1)x − m)`) is unchanged — it was already implemented exactly per the PixInsight reference.
-- **STF target background now triggers a full preview refresh** — adjusting the `Target background` value in the main window's STF panel previously updated the bound property but did not regenerate cached full-resolution images or thumbnails. It now invalidates the full-image cache and rebuilds the per-frame previews so the new auto-stretch result is visible immediately.
-- **New ROI is applied instantly** — drawing a new manual ROI in the preview window now regenerates the per-frame ROI thumbnails immediately, even while the preview window remains open. Previously the regeneration was deferred until the preview window closed.
+- **Default STF target background lowered to 0.15.** The automatic stretch now produces a darker, less aggressive background by default, closer to a typical PixInsight STF preset. You can still adjust this with the Target Background slider.
+- **Changing the STF target background refreshes everything.** Adjusting `Target background` in the main window now immediately regenerates the full-resolution preview and all thumbnails to match.
+- **New ROI applies instantly.** Drawing a new manual ROI in the preview window now regenerates the per-frame ROI thumbnails right away, even with the preview window still open.
 
 ---
 ## 1.0.14
