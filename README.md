@@ -1,4 +1,4 @@
-# Rejector
+﻿# Rejector
 
 > **Cull bad subframes from your astrophotography session before stacking.**
 
@@ -9,31 +9,41 @@
 
 Rejector loads your FITS and XISF lights, measures the quality of each one (sharpness, star roundness, background, trails, …), shows you the results in one place, and lets you blink through frames to spot satellites, clouds, gusts of wind, and bad seeing at a glance. Frames that fail your thresholds are flagged automatically, and you can move them all to a rejected folder with one click.
 
-![alt text](20260521-1827-42.7131635.gif)
-![alt text](20260521-1829-16.2179826.gif)
+The videos are using IMX571 FITS images and are in realtime.
+![alt text](20260523-1934-27.1143931.gif)
 
+![alt text](20260523-1937-29.0171919.gif)
 ---
 
 ## Table of Contents
 
-- [Install & launch](#install--launch)
-- [Quick start (5 minutes)](#quick-start-5-minutes)
-- [The main window](#the-main-window)
-- [The preview window](#the-preview-window)
-- [Quality metrics](#quality-metrics)
-- [Automatic rejection](#automatic-rejection)
-- [Per-filter thresholds & scope selector](#per-filter-thresholds--scope-selector)
-- [Quality score (0–5 stars)](#quality-score-05-stars)
-- [Region of Interest (ROI)](#region-of-interest-roi)
-- [Stretch (Shadows / Midtones / Highlights)](#stretch-shadows--midtones--highlights)
-- [Frame summary & filter chips](#frame-summary--filter-chips)
-- [Moving rejected frames](#moving-rejected-frames)
-- [Saving & loading sessions](#saving--loading-sessions)
-- [Keyboard shortcuts](#keyboard-shortcuts)
-- [Headless / command-line mode](#headless--command-line-mode)
-- [Notes & caveats](#notes--caveats)
-- [Requirements](#requirements)
-- [Changelog](#changelog)
+- [Rejector](#rejector)
+  - [](#)
+  - [Table of Contents](#table-of-contents)
+  - [Install \& launch](#install--launch)
+  - [Quick start](#quick-start)
+  - [The main window](#the-main-window)
+    - [The frame list](#the-frame-list)
+    - [Status bar \& loading progress](#status-bar--loading-progress)
+  - [The preview window](#the-preview-window)
+  - [Quality metrics](#quality-metrics)
+  - [Automatic rejection](#automatic-rejection)
+    - [Per-filter thresholds \& scope selector](#per-filter-thresholds--scope-selector)
+  - [Quality score (0–5)](#quality-score-05)
+    - [How it works](#how-it-works)
+  - [Region of Interest (ROI)](#region-of-interest-roi)
+  - [Stretch (Shadows / Midtones / Highlights)](#stretch-shadows--midtones--highlights)
+  - [Frame summary \& filter chips](#frame-summary--filter-chips)
+    - [Visibility toggles](#visibility-toggles)
+    - [Filter chips](#filter-chips)
+    - [Sorting](#sorting)
+  - [Moving rejected frames](#moving-rejected-frames)
+  - [Saving \& loading sessions](#saving--loading-sessions)
+  - [Keyboard shortcuts](#keyboard-shortcuts)
+  - [Headless / command-line mode](#headless--command-line-mode)
+  - [Notes \& caveats](#notes--caveats)
+  - [Requirements](#requirements)
+  - [Changelog](#changelog)
 
 ---
 
