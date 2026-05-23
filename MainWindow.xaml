@@ -693,7 +693,28 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis" />
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="{Binding Status}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                    <!-- Performance indicators (fixed-width columns to prevent layout shifts) -->
+                    <Grid Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0" Opacity="0.65">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="62" />
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="110" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding Performance.Cpu}"  FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextBrush}" />
+                        <TextBlock Grid.Column="1" Text="{Binding Performance.Ram}"  FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextBrush}" />
+                        <TextBlock Grid.Column="2" Text="{Binding Performance.Net}"  FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextBrush}" />
+                        <TextBlock Grid.Column="3" Text="{Binding Performance.Disk}" FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextBrush}" />
+                    </Grid>
+                </Grid>
 
                 <ProgressBar Grid.Row="1"
                              Margin="0,6,0,0"

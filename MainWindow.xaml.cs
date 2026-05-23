@@ -61,6 +61,8 @@ namespace blink_o_mat
         private void MainWindow_Closing(object? sender, CancelEventArgs e)
         {
             WindowPlacementService.SaveMainWindow(this);
+            if (DataContext is MainViewModel vm)
+                vm.Performance.Dispose();
         }
     }
 }

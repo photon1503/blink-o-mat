@@ -168,6 +168,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly UpdateCheckService _updateCheck = new();
 
     public UpdateBannerViewModel UpdateBanner { get; } = new();
+    public PerformanceIndicatorViewModel Performance { get; } = new();
 
     private string? _inputFolder;
     private string? _rejectedFolder;
