@@ -11,12 +11,13 @@ public sealed class FrameMoveService
     /// When non-null, only rejected frames whose FilterName (or "(no filter)" for blanks) is
     /// in this set are moved. When null every rejected frame is moved.
     /// </param>
-    public int MoveRejected(IEnumerable<FrameItem> frames, string destinationFolder,
+    /// <returns>The list of <see cref="FrameItem"/> objects that were successfully moved.</returns>
+    public IReadOnlyList<FrameItem> MoveRejected(IEnumerable<FrameItem> frames, string destinationFolder,
         IReadOnlyCollection<string>? filterKeys = null)
     {
         if (string.IsNullOrWhiteSpace(destinationFolder))
         {
-            return 0;
+            return [];
         }
 
         var toMove = frames.Where(f => f.IsRejected);
@@ -30,8 +31,8 @@ public sealed class FrameMoveService
             });
         }
 
-        var moved = 0;
-        foreach (var frame in toMove)
+        var moved = new List<FrameItem>();
+        foreach (var frame in toMove.ToList())
         {
             string targetFolder;
             if (!string.IsNullOrWhiteSpace(frame.RelativePath))
@@ -52,7 +53,7 @@ public sealed class FrameMoveService
             }
 
             File.Move(frame.FilePath, destination);
-            moved++;
+            moved.Add(frame);
         }
 
         return moved;

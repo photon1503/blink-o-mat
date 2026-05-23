@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## 1.0.14
+- Added performance indicators (CPU, RAM, Disk and Network).
+- Rejected frames will now be removed from the list.
+
+---
 ## 1.0.10
 
 ### Added

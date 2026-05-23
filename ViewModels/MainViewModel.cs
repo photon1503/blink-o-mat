@@ -2483,8 +2483,33 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var moved = _move.MoveRejected(Frames, RejectedFolder, filterKeys);
-            Status = $"Moved {moved} rejected frame(s).";
+            var movedItems = _move.MoveRejected(Frames, RejectedFolder, filterKeys);
+
+            if (movedItems.Count > 0)
+            {
+                // Remove moved frames from both observable and backing lists
+                foreach (var item in movedItems)
+                {
+                    item.PropertyChanged -= FrameItem_PropertyChanged;
+                    Frames.Remove(item);
+                    var idx = _loadedFrames.FindIndex(f => ReferenceEquals(f.Item, item));
+                    if (idx >= 0)
+                        _loadedFrames.RemoveAt(idx);
+                }
+
+                // Clear selection if selected frame was moved
+                if (SelectedFrame is not null && movedItems.Contains(SelectedFrame))
+                    SelectedFrame = null;
+
+                // Refresh statistics and the preview window
+                FilteredFrames.Refresh();
+                UpdateFrameStatistics();
+                RefreshPreviewVisibleFrames();
+                ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
+                OnPropertyChanged(nameof(MoveRejectedEnabled));
+            }
+
+            Status = $"Moved {movedItems.Count} rejected frame(s).";
         }
         catch (Exception ex)
         {
