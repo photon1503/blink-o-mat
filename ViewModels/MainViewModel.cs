@@ -1090,7 +1090,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ProgressMaximum = Math.Max(1, files.Count);
             var loadedCount = 0;
             var skippedCount = 0;
-            IProgress<string> statusProgress = new Progress<string>(message => Status = message);
 
             if (files.Count == 0)
             {
@@ -1098,12 +1097,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return;
             }
 
+            using var reporter = new BulkLoadProgressReporter(
+                files.Count,
+                s => Status = s,
+                v => ProgressValue = v);
+            reporter.Start();
+
             var firstSuccessfulIndex = -1;
             RustafitsService.LoadedFrame? orientationReference = null;
             for (var i = 0; i < files.Count; i++)
             {
                 var file = files[i];
-                Status = $"Loading first frame {i + 1}/{files.Count}: {Path.GetFileName(file)}";
+                reporter.NotifyFirstFrameStarted(Path.GetFileName(file));
 
                 try
                 {
@@ -1140,15 +1145,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     SessionPixelSizeUm ??= raw.PixelSizeUm;
                     loadedCount++;
                     firstSuccessfulIndex = i;
-                    ProgressValue = i + 1;
-                    Status = $"Loaded {loadedCount}/{files.Count}. Building previews and metrics in background...";
+                    reporter.NotifyFirstFrameCompleted(item.FileName);
                     break;
                 }
                 catch (Exception ex)
                 {
                     skippedCount++;
-                    Status = $"Skipped {Path.GetFileName(file)} ({skippedCount} skipped): {ex.Message}";
-                    ProgressValue = i + 1;
+                    reporter.NotifyFirstFrameSkipped(Path.GetFileName(file));
+                    Debug.WriteLine($"Skipped {file}: {ex.Message}");
                 }
             }
 
@@ -1161,34 +1165,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
 
                 var totalBackgroundFrames = filesToProcess.Count;
-                var startedBackgroundFrames = 0;
-                var activeBackgroundFrames = 0;
-                var completedBackgroundFrames = 0;
                 var maxParallelism = Math.Max(2, Environment.ProcessorCount);
                 using var gate = new SemaphoreSlim(maxParallelism);
 
-                statusProgress.Report($"Loaded {loadedCount}/{files.Count}. Queueing {totalBackgroundFrames} remaining frame(s) for decode, orientation, metrics, and preview generation...");
-
-                var pending = filesToProcess.Select(async entry =>
+                var pending = filesToProcess.Select(entry => Task.Run(async () =>
                 {
-                    await gate.WaitAsync(CancellationToken.None);
+                    await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
                     var fileName = Path.GetFileName(entry.File);
-                    var activeCount = Interlocked.Increment(ref activeBackgroundFrames);
-                    var startedCount = Interlocked.Increment(ref startedBackgroundFrames);
-                    statusProgress.Report($"Background processing {startedCount}/{totalBackgroundFrames}: decoding {fileName} (active: {activeCount}, completed: {Volatile.Read(ref completedBackgroundFrames)})");
+                    reporter.NotifyStarted(fileName);
 
                     try
                     {
-                        var raw = await _rustafits.LoadRawFrameAsync(entry.File, CancellationToken.None);
-                        statusProgress.Report($"Background processing {startedCount}/{totalBackgroundFrames}: orienting {fileName} (active: {Volatile.Read(ref activeBackgroundFrames)}, completed: {Volatile.Read(ref completedBackgroundFrames)})");
+                        var raw = await _rustafits.LoadRawFrameAsync(entry.File, CancellationToken.None).ConfigureAwait(false);
                         var rotate180 = _rustafits.ShouldRotate180ForOrientation(raw, orientationReference);
                         var oriented = _rustafits.ApplyOrientation(raw, rotate180);
-
-                        statusProgress.Report($"Background processing {startedCount}/{totalBackgroundFrames}: computing metrics for {fileName} (active: {Volatile.Read(ref activeBackgroundFrames)}, completed: {Volatile.Read(ref completedBackgroundFrames)})");
                         var metrics = _rustafits.AnalyzeFrame(oriented);
-
-                        statusProgress.Report($"Background processing {startedCount}/{totalBackgroundFrames}: building previews for {fileName} (active: {Volatile.Read(ref activeBackgroundFrames)}, completed: {Volatile.Read(ref completedBackgroundFrames)})");
-                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, GetStfForFrame(oriented), _manualRoiRect, metrics, CancellationToken.None);
+                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, GetStfForFrame(oriented), _manualRoiRect, metrics, CancellationToken.None).ConfigureAwait(false);
 
                         var item = new FrameItem
                         {
@@ -1203,46 +1195,48 @@ public sealed class MainViewModel : INotifyPropertyChanged
                             Metrics = metrics
                         };
 
-                        item.PropertyChanged += FrameItem_PropertyChanged;
-                        return (Item: item, Frame: oriented, Rotate180: rotate180, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: item.FileName);
+                        return (Item: (FrameItem?)item, Frame: (RustafitsService.LoadedFrame?)oriented, Rotate180: rotate180, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: item.FileName);
                     }
                     catch (Exception ex)
                     {
-                        return (Item: (FrameItem?)null, Frame: (RustafitsService.LoadedFrame?)null, Rotate180: false, Error: ex, SourceIndex: entry.SourceIndex, FileName: Path.GetFileName(entry.File));
+                        return (Item: (FrameItem?)null, Frame: (RustafitsService.LoadedFrame?)null, Rotate180: false, Error: (Exception?)ex, SourceIndex: entry.SourceIndex, FileName: Path.GetFileName(entry.File));
                     }
                     finally
                     {
-                        Interlocked.Decrement(ref activeBackgroundFrames);
                         gate.Release();
                     }
-                }).ToList();
+                })).ToList();
 
                 while (pending.Count > 0)
                 {
                     var completedTask = await Task.WhenAny(pending);
                     pending.Remove(completedTask);
                     var result = await completedTask;
-                    var finishedBackgroundFrames = Interlocked.Increment(ref completedBackgroundFrames);
 
                     if (result.Item is not null && result.Frame is not null)
                     {
+                        result.Item.PropertyChanged += FrameItem_PropertyChanged;
                         Frames.Add(result.Item);
                         _loadedFrames.Add(CreateLoadedFrameContext(result.Item, result.Frame, result.Item.FilePath, result.Rotate180));
                         SessionFocalLengthMm ??= result.Frame.FocalLengthMm;
                         SessionPixelSizeUm ??= result.Frame.PixelSizeUm;
                         loadedCount++;
-                        Status = $"Loaded {loadedCount}/{files.Count}. Background processing complete for {finishedBackgroundFrames}/{totalBackgroundFrames}: {result.Item.FileName} (active: {Volatile.Read(ref activeBackgroundFrames)})";
+                        reporter.NotifyCompleted(result.Item.FileName);
                     }
-                    else if (result.Error is not null)
+                    else
                     {
                         skippedCount++;
-                        Status = $"Skipped {result.FileName} ({skippedCount} skipped). Background processing complete for {finishedBackgroundFrames}/{totalBackgroundFrames} (active: {Volatile.Read(ref activeBackgroundFrames)}): {result.Error.Message}";
+                        reporter.NotifySkipped(result.FileName);
                     }
 
-                    ProgressValue += 1;
+                    // Yield to the dispatcher so WPF can layout/render the newly added row
+                    // before the next completion is processed. Without this the listview's
+                    // render passes get starved when many completions arrive in rapid bursts.
+                    await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
                 }
             }
 
+            reporter.Stop();
             Status = "Finalizing frame comparisons...";
             UpdateFrameComparisons();
             Status = "Building filter chips...";
@@ -3165,5 +3159,120 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    /// <summary>
+    /// Coalesces high-frequency progress updates from many background workers into a single
+    /// UI-thread tick every ~150 ms. Workers post updates via lock-free counters; the timer
+    /// composes a single status string and pushes <see cref="ProgressValue"/> so the bar
+    /// advances steadily even when the listview is busy rendering.
+    /// </summary>
+    private sealed class BulkLoadProgressReporter : IDisposable
+    {
+        private readonly Action<string> _publishStatus;
+        private readonly Action<double> _publishProgress;
+        private readonly System.Windows.Threading.DispatcherTimer _timer;
+        private readonly int _total;
+        private int _completed;
+        private int _active;
+        private int _skipped;
+        private string? _currentFile;
+        private string? _lastPublishedStatus;
+        private int _lastPublishedCompleted = -1;
+
+        public BulkLoadProgressReporter(int total, Action<string> publishStatus, Action<double> publishProgress)
+        {
+            _total = total;
+            _publishStatus = publishStatus;
+            _publishProgress = publishProgress;
+            _timer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(150)
+            };
+            _timer.Tick += (_, _) => Flush();
+        }
+
+        public void Start() => _timer.Start();
+
+        public void NotifyStarted(string fileName)
+        {
+            Interlocked.Increment(ref _active);
+            Volatile.Write(ref _currentFile, fileName);
+        }
+
+        public void NotifyCompleted(string? fileName = null)
+        {
+            Interlocked.Increment(ref _completed);
+            Interlocked.Decrement(ref _active);
+            if (fileName is not null)
+            {
+                Volatile.Write(ref _currentFile, fileName);
+            }
+        }
+
+        public void NotifySkipped(string? fileName = null)
+        {
+            Interlocked.Increment(ref _completed);
+            Interlocked.Increment(ref _skipped);
+            Interlocked.Decrement(ref _active);
+            if (fileName is not null)
+            {
+                Volatile.Write(ref _currentFile, fileName);
+            }
+        }
+
+        public void NotifyFirstFrameStarted(string fileName)
+        {
+            Volatile.Write(ref _currentFile, fileName);
+        }
+
+        public void NotifyFirstFrameCompleted(string fileName)
+        {
+            Interlocked.Increment(ref _completed);
+            Volatile.Write(ref _currentFile, fileName);
+        }
+
+        public void NotifyFirstFrameSkipped(string fileName)
+        {
+            Interlocked.Increment(ref _completed);
+            Interlocked.Increment(ref _skipped);
+            Volatile.Write(ref _currentFile, fileName);
+        }
+
+        private void Flush()
+        {
+            var completed = Volatile.Read(ref _completed);
+            var active = Volatile.Read(ref _active);
+            var skipped = Volatile.Read(ref _skipped);
+            var current = Volatile.Read(ref _currentFile);
+
+            if (completed != _lastPublishedCompleted)
+            {
+                _publishProgress(completed);
+                _lastPublishedCompleted = completed;
+            }
+
+            var status = current is null
+                ? $"Loading {completed}/{_total} \u2022 active: {active}"
+                : $"Loading {completed}/{_total} \u2022 active: {active} \u2022 current: {current}";
+            if (skipped > 0)
+            {
+                status += $" \u2022 skipped: {skipped}";
+            }
+
+            if (!string.Equals(status, _lastPublishedStatus, StringComparison.Ordinal))
+            {
+                _publishStatus(status);
+                _lastPublishedStatus = status;
+            }
+        }
+
+        public void Stop()
+        {
+            _timer.Stop();
+            Flush();
+        }
+
+        public void Dispose() => Stop();
     }
 }

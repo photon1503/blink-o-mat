@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -771,9 +772,7 @@ public sealed class RustafitsService
     private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
     {
         var image = await XisfImage.LoadAsync(filePath, cancellationToken);
-        // Copy to a regular byte array so it can be captured in Parallel.For lambdas (Span<T> is ref struct)
-        var bytesSpan = image.Data.Span;
-        var rawData = bytesSpan.ToArray();
+        var memory = image.Data; // ReadOnlyMemory<byte> — no full-buffer copy
         var width = image.Width;
         var height = image.Height;
         var channels = Math.Max(1, image.Channels);
@@ -781,7 +780,7 @@ public sealed class RustafitsService
         var pixelCount = width * height;
         var bytesPerSample = GetBytesPerSample(image.SampleFormat);
         var sampleCount = pixelCount * channels;
-        if (rawData.Length < sampleCount * bytesPerSample)
+        if (memory.Length < sampleCount * bytesPerSample)
         {
             throw new InvalidOperationException("XISF data size mismatch.");
         }
@@ -789,25 +788,57 @@ public sealed class RustafitsService
         var luminance = new float[pixelCount];
         var planar = image.PixelStorage == PixelStorage.Planar;
         var sampleFormat = image.SampleFormat;
+
         if (channels == 1)
         {
-            Parallel.For(0, pixelCount, i =>
+            switch (sampleFormat)
             {
-                luminance[i] = (float)ReadSample(rawData, i, sampleFormat);
-            });
+                case SampleFormat.UInt16:
+                    DecodeMonoUInt16(memory, luminance, pixelCount, cancellationToken);
+                    break;
+                case SampleFormat.Float32:
+                    DecodeMonoFloat32(memory, luminance, pixelCount, cancellationToken);
+                    break;
+                case SampleFormat.UInt8:
+                    DecodeMonoUInt8(memory, luminance, pixelCount, cancellationToken);
+                    break;
+                default:
+                    DecodeMonoGeneric(memory, luminance, pixelCount, sampleFormat, cancellationToken);
+                    break;
+            }
         }
         else
         {
-            Parallel.For(0, pixelCount, i =>
+            if (planar)
             {
-                var r = planar ? ReadSample(rawData, i, sampleFormat) : ReadSample(rawData, (i * channels), sampleFormat);
-                var g = planar ? ReadSample(rawData, i + pixelCount, sampleFormat) : ReadSample(rawData, (i * channels) + 1, sampleFormat);
-                var b = planar
-                    ? ReadSample(rawData, i + (2 * pixelCount), sampleFormat)
-                    : ReadSample(rawData, (i * channels) + Math.Min(2, channels - 1), sampleFormat);
-
-                luminance[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
-            });
+                switch (sampleFormat)
+                {
+                    case SampleFormat.UInt16:
+                        DecodeColorPlanarUInt16(memory, luminance, pixelCount, cancellationToken);
+                        break;
+                    case SampleFormat.Float32:
+                        DecodeColorPlanarFloat32(memory, luminance, pixelCount, cancellationToken);
+                        break;
+                    default:
+                        DecodeColorGeneric(memory, luminance, pixelCount, channels, sampleFormat, planar: true, cancellationToken);
+                        break;
+                }
+            }
+            else
+            {
+                switch (sampleFormat)
+                {
+                    case SampleFormat.UInt16:
+                        DecodeColorInterleavedUInt16(memory, luminance, pixelCount, channels, cancellationToken);
+                        break;
+                    case SampleFormat.Float32:
+                        DecodeColorInterleavedFloat32(memory, luminance, pixelCount, channels, cancellationToken);
+                        break;
+                    default:
+                        DecodeColorGeneric(memory, luminance, pixelCount, channels, sampleFormat, planar: false, cancellationToken);
+                        break;
+                }
+            }
         }
 
         var focalLengthMm = ResolveXisfFocalLengthMm(image);
@@ -817,6 +848,143 @@ public sealed class RustafitsService
         var filterName = ResolveXisfFilterName(image);
         var skyTemp = ResolveXisfSkyTemp(image);
         return (luminance, width, height, GetNormalizationMax(image.SampleFormat), focalLengthMm, pixelSizeUm, exposureDateTime, exposureSeconds, filterName, skyTemp);
+    }
+
+    private const int XisfDecodeChunkSize = 65536;
+
+    private static void DecodeMonoUInt16(ReadOnlyMemory<byte> source, float[] destination, int pixelCount, CancellationToken cancellationToken)
+    {
+        var partitioner = Partitioner.Create(0, pixelCount, XisfDecodeChunkSize);
+        Parallel.ForEach(partitioner, new ParallelOptions { CancellationToken = cancellationToken }, range =>
+        {
+            var src = MemoryMarshal.Cast<byte, ushort>(source.Span);
+            for (var i = range.Item1; i < range.Item2; i++)
+            {
+                destination[i] = src[i];
+            }
+        });
+    }
+
+    private static void DecodeMonoFloat32(ReadOnlyMemory<byte> source, float[] destination, int pixelCount, CancellationToken cancellationToken)
+    {
+        var partitioner = Partitioner.Create(0, pixelCount, XisfDecodeChunkSize);
+        Parallel.ForEach(partitioner, new ParallelOptions { CancellationToken = cancellationToken }, range =>
+        {
+            var src = MemoryMarshal.Cast<byte, float>(source.Span);
+            src.Slice(range.Item1, range.Item2 - range.Item1).CopyTo(destination.AsSpan(range.Item1, range.Item2 - range.Item1));
+        });
+    }
+
+    private static void DecodeMonoUInt8(ReadOnlyMemory<byte> source, float[] destination, int pixelCount, CancellationToken cancellationToken)
+    {
+        var partitioner = Partitioner.Create(0, pixelCount, XisfDecodeChunkSize);
+        Parallel.ForEach(partitioner, new ParallelOptions { CancellationToken = cancellationToken }, range =>
+        {
+            var src = source.Span;
+            for (var i = range.Item1; i < range.Item2; i++)
+            {
+                destination[i] = src[i];
+            }
+        });
+    }
+
+    private static void DecodeMonoGeneric(ReadOnlyMemory<byte> source, float[] destination, int pixelCount, SampleFormat sampleFormat, CancellationToken cancellationToken)
+    {
+        var partitioner = Partitioner.Create(0, pixelCount, XisfDecodeChunkSize);
+        Parallel.ForEach(partitioner, new ParallelOptions { CancellationToken = cancellationToken }, range =>
+        {
+            var src = source.Span;
+            for (var i = range.Item1; i < range.Item2; i++)
+            {
+                destination[i] = (float)ReadSample(src, i, sampleFormat);
+            }
+        });
+    }
+
+    private static void DecodeColorPlanarUInt16(ReadOnlyMemory<byte> source, float[] destination, int pixelCount, CancellationToken cancellationToken)
+    {
+        var partitioner = Partitioner.Create(0, pixelCount, XisfDecodeChunkSize);
+        Parallel.ForEach(partitioner, new ParallelOptions { CancellationToken = cancellationToken }, range =>
+        {
+            var src = MemoryMarshal.Cast<byte, ushort>(source.Span);
+            for (var i = range.Item1; i < range.Item2; i++)
+            {
+                var r = src[i];
+                var g = src[i + pixelCount];
+                var b = src[i + (2 * pixelCount)];
+                destination[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
+            }
+        });
+    }
+
+    private static void DecodeColorPlanarFloat32(ReadOnlyMemory<byte> source, float[] destination, int pixelCount, CancellationToken cancellationToken)
+    {
+        var partitioner = Partitioner.Create(0, pixelCount, XisfDecodeChunkSize);
+        Parallel.ForEach(partitioner, new ParallelOptions { CancellationToken = cancellationToken }, range =>
+        {
+            var src = MemoryMarshal.Cast<byte, float>(source.Span);
+            for (var i = range.Item1; i < range.Item2; i++)
+            {
+                var r = src[i];
+                var g = src[i + pixelCount];
+                var b = src[i + (2 * pixelCount)];
+                destination[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
+            }
+        });
+    }
+
+    private static void DecodeColorInterleavedUInt16(ReadOnlyMemory<byte> source, float[] destination, int pixelCount, int channels, CancellationToken cancellationToken)
+    {
+        var bChannelOffset = Math.Min(2, channels - 1);
+        var partitioner = Partitioner.Create(0, pixelCount, XisfDecodeChunkSize);
+        Parallel.ForEach(partitioner, new ParallelOptions { CancellationToken = cancellationToken }, range =>
+        {
+            var src = MemoryMarshal.Cast<byte, ushort>(source.Span);
+            for (var i = range.Item1; i < range.Item2; i++)
+            {
+                var baseIdx = i * channels;
+                var r = src[baseIdx];
+                var g = src[baseIdx + 1];
+                var b = src[baseIdx + bChannelOffset];
+                destination[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
+            }
+        });
+    }
+
+    private static void DecodeColorInterleavedFloat32(ReadOnlyMemory<byte> source, float[] destination, int pixelCount, int channels, CancellationToken cancellationToken)
+    {
+        var bChannelOffset = Math.Min(2, channels - 1);
+        var partitioner = Partitioner.Create(0, pixelCount, XisfDecodeChunkSize);
+        Parallel.ForEach(partitioner, new ParallelOptions { CancellationToken = cancellationToken }, range =>
+        {
+            var src = MemoryMarshal.Cast<byte, float>(source.Span);
+            for (var i = range.Item1; i < range.Item2; i++)
+            {
+                var baseIdx = i * channels;
+                var r = src[baseIdx];
+                var g = src[baseIdx + 1];
+                var b = src[baseIdx + bChannelOffset];
+                destination[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
+            }
+        });
+    }
+
+    private static void DecodeColorGeneric(ReadOnlyMemory<byte> source, float[] destination, int pixelCount, int channels, SampleFormat sampleFormat, bool planar, CancellationToken cancellationToken)
+    {
+        var partitioner = Partitioner.Create(0, pixelCount, XisfDecodeChunkSize);
+        Parallel.ForEach(partitioner, new ParallelOptions { CancellationToken = cancellationToken }, range =>
+        {
+            var src = source.Span;
+            for (var i = range.Item1; i < range.Item2; i++)
+            {
+                var r = planar ? ReadSample(src, i, sampleFormat) : ReadSample(src, i * channels, sampleFormat);
+                var g = planar ? ReadSample(src, i + pixelCount, sampleFormat) : ReadSample(src, (i * channels) + 1, sampleFormat);
+                var b = planar
+                    ? ReadSample(src, i + (2 * pixelCount), sampleFormat)
+                    : ReadSample(src, (i * channels) + Math.Min(2, channels - 1), sampleFormat);
+                destination[i] = (float)((0.2126 * r) + (0.7152 * g) + (0.0722 * b));
+            }
+        });
     }
 
     private static double? ResolveXisfFocalLengthMm(XisfImage image)
