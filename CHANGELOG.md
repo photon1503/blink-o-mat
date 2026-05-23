@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.18
+
+### Added
+- **Color-coded filter chips.** Filters in the toolbar are now color-coded by type: red for Ha and R, teal for OIII, gold for SII, white for L (Luminance), green for G, and blue for B. Unknown filter names (such as IRCUT) keep a neutral color. The chip label is shortened to the canonical short name (Ha, Oiii, Sii, L, R, G, B) so the same filter looks the same no matter how it was named in the FITS/XISF header (e.g. *Halpha*, *H_a*, *Lum*, *Red* all collapse to a single recognizable chip).
+- **Filter indicator dot in the frame list.** Each frame row now shows a small colored dot in front of its filter name, using the same palette as the chips, so you can scan the list and tell narrowband from broadband at a glance.
+- **Grouped rejection scope dropdown.** The filter-scope dropdown in the *Automatic rejection* panel now groups filters into **Narrowband** (Ha, Oiii, Sii), **LRGB** (L, R, G, B), and **Other** (anything that doesn't match), each with its own colored swatch. This makes it much faster to select, say, "all narrowband" or "just L" when tuning thresholds.
+
+### Changed
+- **Filter detection is forgiving of naming.** Filter classification now uses the first letter of the filter name, so common variations (`Halpha`, `H-alpha`, `OIII_3nm`, `Sii_5nm`, `Lum`, `Red`, `Green`, `Blue`) are all recognized automatically. Anything that doesn't match a known letter is shown unchanged.
+- **Deselected filter chips are now clearly off.** Unchecked chips drop to a much darker background, faded text, and reduced opacity, so it's obvious at a glance which filters are active and which are hidden.
+
+---
 ## 1.0.17
 
 ### Added
