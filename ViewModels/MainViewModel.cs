@@ -2473,40 +2473,111 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task PrecacheAroundPreviewAsync(FrameItem centerItem, int ahead, int behind, CancellationToken cancellationToken)
     {
-        var centerIndex = _loadedFrames.FindIndex(f => f.Item == centerItem);
-        if (centerIndex < 0)
+        var centerLoadedIndex = _loadedFrames.FindIndex(f => f.Item == centerItem);
+        if (centerLoadedIndex < 0)
         {
             return;
         }
 
-        TrimFullImageCache(centerIndex, ahead, behind);
+        // The vertical slider iterates the visible (filtered + sorted) order, not the
+        // load order. Resolve neighbours in that same order so the pre-cache follows
+        // whatever sort the user has applied. When the sort changes, FilteredFrames
+        // (a ListCollectionView) reorders automatically, so the next caching pass will
+        // naturally follow the new order.
+        var visibleIndices = GetVisiblePreviewFrameIndices();
+        var centerVisible = -1;
+        for (var i = 0; i < visibleIndices.Count; i++)
+        {
+            if (visibleIndices[i] == centerLoadedIndex)
+            {
+                centerVisible = i;
+                break;
+            }
+        }
+
+        if (centerVisible < 0)
+        {
+            // Center item is not part of the current visible set (e.g., filtered out).
+            // Nothing meaningful to pre-cache around it.
+            return;
+        }
+
+        TrimFullImageCache(centerVisible, ahead, behind, visibleIndices);
         PublishPreviewCacheState();
+
+        // Build a priority-ordered list of LOADED indices: nearest visible neighbours
+        // first, ahead-weighted (+1, -1, +2, -2, +3, -3, ...). This keeps the forward
+        // navigation bias while ensuring the immediate neighbour is warmed before
+        // far-away ones, so even on cancellation at least one cached frame is retained.
+        var priority = new List<int>(ahead + behind);
+        var aheadStep = 1;
+        var behindStep = 1;
+        while (aheadStep <= ahead || behindStep <= behind)
+        {
+            if (aheadStep <= ahead)
+            {
+                var visIdx = centerVisible + aheadStep;
+                if (visIdx < visibleIndices.Count)
+                {
+                    priority.Add(visibleIndices[visIdx]);
+                }
+                aheadStep++;
+            }
+            if (behindStep <= behind)
+            {
+                var visIdx = centerVisible - behindStep;
+                if (visIdx >= 0)
+                {
+                    priority.Add(visibleIndices[visIdx]);
+                }
+                behindStep++;
+            }
+        }
+
+        if (priority.Count == 0)
+        {
+            return;
+        }
 
         try
         {
-            for (var i = 1; i <= ahead; i++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var idx = centerIndex + i;
-                if (idx >= _loadedFrames.Count)
-                {
-                    break;
-                }
+            // Always materialize the closest neighbour first and synchronously, so that
+            // a rapid cancellation (e.g. user keeps navigating) still leaves at least
+            // one cached frame around the new center.
+            await EnsureFullImageCachedAsync(priority[0], cancellationToken);
 
-                await EnsureFullImageCachedAsync(idx, cancellationToken);
+            if (priority.Count == 1)
+            {
+                return;
             }
 
-            for (var i = 1; i <= behind; i++)
+            // Warm the remaining frames with bounded parallelism. Two workers is enough
+            // to overlap FITS read + decode + full-bitmap render across neighbours
+            // without saturating the CPU or the file system.
+            using var concurrency = new SemaphoreSlim(2);
+            var tasks = new List<Task>(priority.Count - 1);
+            for (var i = 1; i < priority.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var idx = centerIndex - i;
-                if (idx < 0)
+                var idx = priority[i];
+                await concurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
+                tasks.Add(Task.Run(async () =>
                 {
-                    break;
-                }
-
-                await EnsureFullImageCachedAsync(idx, cancellationToken);
+                    try
+                    {
+                        await EnsureFullImageCachedAsync(idx, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    finally
+                    {
+                        concurrency.Release();
+                    }
+                }, cancellationToken));
             }
+
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -2515,15 +2586,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task EnsureFullImageCachedAsync(int index, CancellationToken cancellationToken)
     {
-        var loaded = _loadedFrames[index];
-        if (loaded.FullImage is not null)
+        LoadedFrameContext loaded;
+        lock (_loadedFrames)
         {
-            return;
+            if ((uint)index >= (uint)_loadedFrames.Count)
+            {
+                return;
+            }
+            loaded = _loadedFrames[index];
+            if (loaded.FullImage is not null)
+            {
+                return;
+            }
         }
 
         var materializedCached = await MaterializeFrameAsync(loaded, cancellationToken);
         var full = await _rustafits.RenderFullBitmapAsync(materializedCached, GetStfForFrame(materializedCached), cancellationToken);
-        _loadedFrames[index] = loaded with { FullImage = full };
+
+        lock (_loadedFrames)
+        {
+            if ((uint)index < (uint)_loadedFrames.Count && ReferenceEquals(_loadedFrames[index].Item, loaded.Item))
+            {
+                _loadedFrames[index] = _loadedFrames[index] with { FullImage = full };
+            }
+        }
         PublishPreviewCacheState();
     }
 
@@ -2728,6 +2814,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
             preferAhead = ahead < MinimumPreviewCacheAhead || (ahead < maxAheadAvailable && ahead < MaximumPreviewCacheAhead && (ahead - behind) < 6);
         }
 
+        // Guarantee at least one cached neighbour whenever one is available, even under
+        // tight memory pressure where the budget loop would otherwise return (0, 0).
+        if (ahead == 0 && behind == 0)
+        {
+            if (maxAheadAvailable > 0)
+            {
+                ahead = 1;
+            }
+            else if (maxBehindAvailable > 0)
+            {
+                behind = 1;
+            }
+        }
+
         return (ahead, behind);
     }
 
@@ -2775,11 +2875,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private void TrimFullImageCache(int centerIndex, int ahead, int behind)
+    private void TrimFullImageCache(int centerVisibleIndex, int ahead, int behind, IReadOnlyList<int> visibleIndices)
     {
+        // Build the set of loaded-frame indices that should be RETAINED, expressed in
+        // visible (sorted/filtered) order so the cache follows the slider rather than
+        // the on-disk load order.
+        var retain = new HashSet<int>();
+        var minVisible = Math.Max(0, centerVisibleIndex - behind);
+        var maxVisible = Math.Min(visibleIndices.Count - 1, centerVisibleIndex + ahead);
+        for (var v = minVisible; v <= maxVisible; v++)
+        {
+            retain.Add(visibleIndices[v]);
+        }
+
         for (var i = 0; i < _loadedFrames.Count; i++)
         {
-            if (i >= centerIndex - behind && i <= centerIndex + ahead)
+            if (retain.Contains(i))
             {
                 continue;
             }
@@ -2915,6 +3026,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         _previewVm.UpdateFramePosition(currentVisibleIndex, visibleFrameIndices.Count);
         PublishPreviewCacheState();
+
+        // Visible order may have changed (sort/filter toggled), so the previous
+        // pre-cache window no longer reflects the user's navigation neighbours.
+        // Re-launch caching around the same center item — TrimFullImageCache will
+        // evict any cached frames that fell out of the new window, and the priority
+        // walk will warm the new immediate neighbours first.
+        if (_previewItem is FrameItem currentCenter)
+        {
+            StartAdaptivePreviewCaching(currentCenter);
+        }
     }
 
     private void ResetFrameStatistics()

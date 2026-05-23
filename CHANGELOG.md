@@ -5,8 +5,12 @@ All notable changes to this project will be documented in this file.
 ---
 ## 1.0.15
 
+### Fixed
+- **Pre-cache now follows the vertical slider order** — the pre-ahead cache previously selected neighbours by load (disk) order, so `+1`/`-1` were whichever frames happened to load adjacent on disk rather than the next/previous frame the user would actually navigate to with the slider. The pre-cache now walks `FilteredFrames` (the same filtered + sorted view the slider uses), so neighbours match what `PageUp`/`PageDown`/slider movement will hit next, and changing the sort immediately re-runs the pre-cache against the new order (evicting frames that fell out of the new window and warming the new immediate neighbours first).
+
 ### Performance
-- **Realtime STF slider in preview** — moving the Shadows / Midtones / Highlights / Target background sliders no longer re-reads the FITS file from disk on every tick. The materialized (decoded + oriented) raw pixel buffer for the active preview item is now cached in memory and reused; each slider change only re-runs the cheap STF re-stretch + downsample. While the slider thumb is actively being dragged the preview also renders at a reduced 900-px long side, and snaps back to the full 1600-px interactive size + cached full-resolution image when the drag ends.
+- **Faster preview pre-caching**
+- **Realtime STF slider in preview**
 - **Parallel thumbnail/ROI regeneration** — `RebuildThumbnailsAsync` (the path invoked when stretch parameters, the manual ROI, or the STF target background change) now re-renders frames concurrently using a `SemaphoreSlim` gate sized to `Environment.ProcessorCount`, instead of processing one frame at a time. Regenerating thumbnails over a 100-frame session now scales with available CPU cores.
 - **Faster FITS file I/O** — `LoadFits` now opens the FITS stream with a 1 MB buffer and `FileOptions.SequentialScan`, hinting Windows to prefetch aggressively and replacing thousands of small 4 KB reads with a handful of large ones. Disk utilization during a single-file load is now close to the device's sequential throughput.
 - **Cache-friendly FITS pixel decode** — the per-pixel `Parallel.For` in `TryDecodeFitsImage` was replaced with a range-partitioned `Parallel.ForEach` so each worker processes a contiguous slab of the byte buffer, keeping the CPU cache warm. Header values (`BitPix`, `BScale`, `BZero`) are now hoisted outside the loop instead of being re-read from the record on every iteration.
