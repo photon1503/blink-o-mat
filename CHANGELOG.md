@@ -6,7 +6,8 @@ All notable changes to this project will be documented in this file.
 ## 1.0.15
 
 ### Fixed
-- **Pre-cache now follows the vertical slider order** — the pre-ahead cache previously selected neighbours by load (disk) order, so `+1`/`-1` were whichever frames happened to load adjacent on disk rather than the next/previous frame the user would actually navigate to with the slider. The pre-cache now walks `FilteredFrames` (the same filtered + sorted view the slider uses), so neighbours match what `PageUp`/`PageDown`/slider movement will hit next, and changing the sort immediately re-runs the pre-cache against the new order (evicting frames that fell out of the new window and warming the new immediate neighbours first).
+- **Shadows / Midtones / Highlights sliders now affect the preview** — the STF sliders had almost no visible impact because every preview render path (`RefreshActivePreviewInteractiveAsync`, full-resolution refresh, thumbnails, ROI) called `GetStfForFrame`, which while `AutoStretchPerFrame == true` re-ran `ComputeAutoStretch` on every render and discarded the slider values. Adjusting any of the three sliders now automatically switches the view-model into manual stretch mode (`AutoStretchPerFrame = false`), so the slider-derived `Shadows / Midtones / Highlights` are actually applied. Target Background still drives the auto-stretch math, so moving that slider keeps auto mode enabled (it is an input to `ComputeAutoStretch`, not an override of it).
+- **Pre-cache now follows the vertical slider order**
 
 ### Performance
 - **Faster preview pre-caching**

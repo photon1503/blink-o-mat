@@ -467,6 +467,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (Math.Abs(_stfShadows - clamped) < 0.0001) return;
             _stfShadows = clamped;
             OnPropertyChanged();
+            SwitchToManualStretch();
             OnStretchSettingsChanged();
         }
     }
@@ -480,6 +481,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (Math.Abs(_stfMidtones - clamped) < 0.0001) return;
             _stfMidtones = clamped;
             OnPropertyChanged();
+            SwitchToManualStretch();
             OnStretchSettingsChanged();
         }
     }
@@ -493,8 +495,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (Math.Abs(_stfHighlights - clamped) < 0.0001) return;
             _stfHighlights = clamped;
             OnPropertyChanged();
+            SwitchToManualStretch();
             OnStretchSettingsChanged();
         }
+    }
+
+    private void SwitchToManualStretch()
+    {
+        if (!_autoStretchPerFrame)
+        {
+            return;
+        }
+
+        // Adjusting Shadows / Midtones / Highlights is a manual override of the
+        // per-frame auto-stretch. Without this switch, GetStfForFrame would call
+        // ComputeAutoStretch on every render and discard the slider values, so the
+        // sliders would appear to have no visible effect. The Target Background
+        // slider stays in auto mode because it is an INPUT to the auto-stretch.
+        _autoStretchPerFrame = false;
+        OnPropertyChanged(nameof(AutoStretchPerFrame));
     }
 
     private StfParameters ActiveStf => new(_stfShadows, _stfMidtones, _stfHighlights);
