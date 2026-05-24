@@ -34,6 +34,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private readonly Action _refreshVisibleFrames;
     private readonly Action _beginInteractiveStretch;
     private readonly Action _endInteractiveStretch;
+    private readonly Func<bool> _getAlignmentEnabled;
+    private readonly Action<bool> _setAlignmentEnabled;
     private FrameItem _item;
     private BitmapSource? _image;
     private double _zoom = 1.0;
@@ -93,6 +95,22 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
+
+    public bool IsAlignmentEnabled
+    {
+        get => _getAlignmentEnabled();
+        set
+        {
+            if (_getAlignmentEnabled() == value) return;
+            _setAlignmentEnabled(value);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Raise <see cref="IsAlignmentEnabled"/> change notification when the
+    /// underlying alignment state is toggled from outside this view-model
+    /// (e.g. from the main window's Align toggle).</summary>
+    public void NotifyAlignmentChanged() => OnPropertyChanged(nameof(IsAlignmentEnabled));
 
     public BitmapSource? Image
     {
@@ -260,7 +278,9 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         ObservableCollection<FilterChipViewModel> filterChips,
         Func<IReadOnlyList<int>> getVisibleFrameIndices,
         Func<IReadOnlyList<(double Score, bool IsRejected)>> getVisibleFrameData,
-        Action refreshVisibleFrames)
+        Action refreshVisibleFrames,
+        Func<bool> getAlignmentEnabled,
+        Action<bool> setAlignmentEnabled)
     {
         _item = item;
         _getStfShadows = getStfShadows;
@@ -287,6 +307,8 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         _getVisibleFrameIndices = getVisibleFrameIndices;
         _getVisibleFrameData = getVisibleFrameData;
         _refreshVisibleFrames = refreshVisibleFrames;
+        _getAlignmentEnabled = getAlignmentEnabled;
+        _setAlignmentEnabled = setAlignmentEnabled;
         _image = null;
         AutoStretchCommand = new RelayCommand(_ => ApplyAutoStretchAndRefresh());
         _filterChips.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasFilterChips));

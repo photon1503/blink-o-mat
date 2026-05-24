@@ -155,6 +155,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         int Height,
         double NormalizationMax,
         bool Rotate180,
+        int ShiftX,
+        int ShiftY,
         double? FocalLengthMm,
         double? PixelSizeUm,
         DateTimeOffset? ExposureDateTime,
@@ -221,6 +223,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isThumbnailRefreshRunning;
     private bool _thumbnailRefreshPendingWhilePreviewOpen;
     private bool _isInteractiveStretchActive;
+    private bool _isAlignmentEnabled;
     // Cache of the materialized (decoded + oriented) raw pixel data for the currently
     // previewed frame. Held in memory so STF slider scrubbing can re-stretch without
     // touching disk or repeating the FITS decode. Cleared when the preview item changes.
@@ -1430,10 +1433,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     try
                     {
                         var raw = await _rustafits.LoadRawFrameAsync(entry.File, CancellationToken.None).ConfigureAwait(false);
-                        var rotate180 = _rustafits.ShouldRotate180ForOrientation(raw, orientationReference);
-                        var oriented = _rustafits.ApplyOrientation(raw, rotate180);
+                        var orientation = _rustafits.DetectOrientation(raw, orientationReference);
+                        var oriented = _rustafits.ApplyOrientation(raw, orientation.Rotate180);
                         var metrics = _rustafits.AnalyzeFrame(oriented);
-                        var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, GetStfForFrame(oriented), _manualRoiRect, metrics, CancellationToken.None).ConfigureAwait(false);
+                        var renderFrame = _isAlignmentEnabled
+                            ? _rustafits.ApplyShift(oriented, orientation.ShiftX, orientation.ShiftY)
+                            : oriented;
+                        var previews = await _rustafits.RenderPreviewBitmapsAsync(renderFrame, GetStfForFrame(renderFrame), _manualRoiRect, metrics, CancellationToken.None).ConfigureAwait(false);
 
                         var item = new FrameItem
                         {
@@ -1448,11 +1454,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                             Metrics = metrics
                         };
 
-                        return (Item: (FrameItem?)item, Frame: (RustafitsService.LoadedFrame?)oriented, Rotate180: rotate180, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: item.FileName);
+                        return (Item: (FrameItem?)item, Frame: (RustafitsService.LoadedFrame?)oriented, Rotate180: orientation.Rotate180, ShiftX: orientation.ShiftX, ShiftY: orientation.ShiftY, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: item.FileName);
                     }
                     catch (Exception ex)
                     {
-                        return (Item: (FrameItem?)null, Frame: (RustafitsService.LoadedFrame?)null, Rotate180: false, Error: (Exception?)ex, SourceIndex: entry.SourceIndex, FileName: Path.GetFileName(entry.File));
+                        return (Item: (FrameItem?)null, Frame: (RustafitsService.LoadedFrame?)null, Rotate180: false, ShiftX: 0, ShiftY: 0, Error: (Exception?)ex, SourceIndex: entry.SourceIndex, FileName: Path.GetFileName(entry.File));
                     }
                     finally
                     {
@@ -1470,7 +1476,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     {
                         result.Item.PropertyChanged += FrameItem_PropertyChanged;
                         Frames.Add(result.Item);
-                        _loadedFrames.Add(CreateLoadedFrameContext(result.Item, result.Frame, result.Item.FilePath, result.Rotate180));
+                        _loadedFrames.Add(CreateLoadedFrameContext(result.Item, result.Frame, result.Item.FilePath, result.Rotate180, result.ShiftX, result.ShiftY));
                         SessionFocalLengthMm ??= result.Frame.FocalLengthMm;
                         SessionPixelSizeUm ??= result.Frame.PixelSizeUm;
                         loadedCount++;
@@ -1613,6 +1619,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         Width = ctx.Width,
                         Height = ctx.Height,
                         Rotate180 = ctx.Rotate180,
+                        ShiftX = ctx.ShiftX,
+                        ShiftY = ctx.ShiftY,
                         NormalizationMax = ctx.NormalizationMax,
                         ThumbnailPng = SessionService.EncodeBitmap(ctx.Item.ThumbnailImage),
                         RoiPng = SessionService.EncodeBitmap(ctx.Item.RoiImage)
@@ -1846,6 +1854,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     entry.Height,
                     entry.NormalizationMax,
                     entry.Rotate180,
+                    entry.ShiftX,
+                    entry.ShiftY,
                     entry.FocalLengthMm,
                     entry.PixelSizeUm,
                     entry.ExposureDateTime,
@@ -1886,10 +1896,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         try
                         {
                             var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
-                            var rotate180 = orientationReference is not null && _rustafits.ShouldRotate180ForOrientation(raw, orientationReference);
-                            var oriented = _rustafits.ApplyOrientation(raw, rotate180);
+                            var orientation = orientationReference is not null
+                                ? _rustafits.DetectOrientation(raw, orientationReference)
+                                : (Rotate180: false, ShiftX: 0, ShiftY: 0);
+                            var oriented = _rustafits.ApplyOrientation(raw, orientation.Rotate180);
                             var metrics = _rustafits.AnalyzeFrame(oriented);
-                            var previews = await _rustafits.RenderPreviewBitmapsAsync(oriented, GetStfForFrame(oriented), _manualRoiRect, metrics, CancellationToken.None);
+                            var renderFrame = _isAlignmentEnabled
+                                ? _rustafits.ApplyShift(oriented, orientation.ShiftX, orientation.ShiftY)
+                                : oriented;
+                            var previews = await _rustafits.RenderPreviewBitmapsAsync(renderFrame, GetStfForFrame(renderFrame), _manualRoiRect, metrics, CancellationToken.None);
 
                             var newItem = new FrameItem
                             {
@@ -1906,7 +1921,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                             newItem.PropertyChanged += FrameItem_PropertyChanged;
                             Frames.Add(newItem);
-                            _loadedFrames.Add(CreateLoadedFrameContext(newItem, oriented, file, rotate180));
+                            _loadedFrames.Add(CreateLoadedFrameContext(newItem, oriented, file, orientation.Rotate180, orientation.ShiftX, orientation.ShiftY));
                             SessionFocalLengthMm ??= oriented.FocalLengthMm;
                             SessionPixelSizeUm ??= oriented.PixelSizeUm;
                             orientationReference ??= oriented;
@@ -2219,6 +2234,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         _isInteractiveStretchActive = false;
         OnStretchSettingsChanged();
+    }
+
+    private void SetAlignmentEnabled(bool enabled)
+    {
+        if (_isAlignmentEnabled == enabled)
+        {
+            return;
+        }
+
+        _isAlignmentEnabled = enabled;
+        // Drop any cached materialized frame so the next render uses the new alignment state.
+        InvalidateInteractiveRawFrame();
+        // Drop any cached full-resolution preview bitmaps. They were rendered under the previous
+        // alignment state, so without clearing them the preview window briefly shows the stale
+        // unaligned (or previously aligned) bitmap before the new render completes.
+        ClearAllFullImageCaches();
+        OnPropertyChanged(nameof(IsAlignmentEnabled));
+        // Mirror the change into the preview view-model (if open) so its Align chip stays in sync
+        // when the toggle is flipped from the main window.
+        _previewVm?.NotifyAlignmentChanged();
+        // Refresh the active preview canvas immediately and rebuild list thumbnails / ROI in the
+        // background so the rest of the UI also reflects the new alignment state.
+        _ = RefreshActivePreviewFullResolutionAsync(CancellationToken.None);
+        _ = RebuildThumbnailsDeferredAsync(TimeSpan.Zero, CancellationToken.None);
+    }
+
+    public bool IsAlignmentEnabled
+    {
+        get => _isAlignmentEnabled;
+        set => SetAlignmentEnabled(value);
     }
 
     private async Task ApplyAutoStretchAsync()
@@ -2584,7 +2629,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             FilterChips,
             GetVisiblePreviewFrameIndices,
             GetVisiblePreviewFrameData,
-            RefreshPreviewVisibleFrames);
+            RefreshPreviewVisibleFrames,
+            () => _isAlignmentEnabled,
+            SetAlignmentEnabled);
         var visibleFrameIndices = GetVisiblePreviewFrameIndices();
         var currentVisibleIndex = FindVisibleFrameIndex(visibleFrameIndices, currentIndex);
         vm.UpdateFramePosition(currentVisibleIndex, visibleFrameIndices.Count);
@@ -3012,7 +3059,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _manualRoiRect = _rustafits.DetectRoiNormalizedRect(await MaterializeFrameAsync(_loadedFrames[0], cancellationToken));
     }
 
-    private static LoadedFrameContext CreateLoadedFrameContext(FrameItem item, RustafitsService.LoadedFrame frame, string filePath, bool rotate180)
+    private static LoadedFrameContext CreateLoadedFrameContext(FrameItem item, RustafitsService.LoadedFrame frame, string filePath, bool rotate180, int shiftX = 0, int shiftY = 0)
     {
         return new LoadedFrameContext(
             item,
@@ -3021,6 +3068,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             frame.Height,
             frame.NormalizationMax,
             rotate180,
+            shiftX,
+            shiftY,
             frame.FocalLengthMm,
             frame.PixelSizeUm,
             frame.ExposureDateTime,
@@ -3034,7 +3083,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private async Task<RustafitsService.LoadedFrame> MaterializeFrameAsync(LoadedFrameContext context, CancellationToken cancellationToken)
     {
         var raw = await _rustafits.LoadRawFrameAsync(context.FilePath, cancellationToken);
-        return _rustafits.ApplyOrientation(raw, context.Rotate180);
+        var oriented = _rustafits.ApplyOrientation(raw, context.Rotate180);
+        return _isAlignmentEnabled ? _rustafits.ApplyShift(oriented, context.ShiftX, context.ShiftY) : oriented;
     }
 
     private (int Ahead, int Behind) CalculateAdaptivePreviewCacheWindow(FrameItem centerItem)

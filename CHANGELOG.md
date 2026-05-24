@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.19
+
+### Added
+- **Frame alignment.** When loading frames, the app now also detects an integer per-frame pixel shift in addition to the existing 180° orientation check, and remembers it for each frame. Full-frame previews, list thumbnails and ROI crops are translated by that shift so all images line up across the session, making it much easier to spot blinking, satellite trails, focus changes and field rotation at a glance. The alignment is quick (integer pixels, no subpixel interpolation) and has negligible runtime cost.
+- **Align toggle in the frame preview.** A new "Align" chip in the preview window's visibility toolbar lets you switch alignment on or off on the fly. Turning it off shows each frame in its raw, un-shifted position, which is useful for inspecting actual guiding/centering behavior. Toggling rebuilds the preview canvas immediately and refreshes list thumbnails / ROI in the background.
+- **Align toggle on the main window.** The same "Align" toggle is also available in the main window's visibility toolbar next to Accepted/Rejected, so alignment can be switched without opening the frame preview. Both toggles stay in sync.
+- **Persisted alignment in sessions.** The detected per-frame shift is now written into `.boms` session files alongside the rotate-180 flag, so reopening a session preserves the alignment exactly without re-detecting.
+
+### Changed
+- **Alignment is off by default.** Frames now load and display in their original position; enable the new "Align" toggle in the main window or frame preview to line them up using the detected shifts.
+- **Tighter alignment.** Orientation detection now uses a denser 512×512 sample grid plus a small image-pixel refinement pass around the coarse estimate, so frames sit much closer to the reference and the residual jitter when stepping through the preview is significantly reduced.
+- **No more unaligned flash in the preview.** Toggling the "Align" chip now also drops cached full-resolution preview bitmaps, so the preview no longer briefly shows the previously rendered (unaligned) frame before the new aligned image arrives.
+
 ## 1.0.18
 
 

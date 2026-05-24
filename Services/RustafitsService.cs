@@ -274,8 +274,22 @@ public sealed class RustafitsService
 
     public bool ShouldRotate180ForOrientation(LoadedFrame frame, LoadedFrame reference)
     {
-        const int sampleSize = 256;
-        const int maxOffset = 48;
+        return DetectOrientation(frame, reference).Rotate180;
+    }
+
+    /// <summary>
+    /// Detects whether the frame must be rotated 180° to match the reference and reports the
+    /// integer pixel shift (in original-image coordinates, after any required rotation) needed
+    /// to align the frame to the reference. Used for quick, non-subpixel canvas alignment.
+    /// </summary>
+    public (bool Rotate180, int ShiftX, int ShiftY) DetectOrientation(LoadedFrame frame, LoadedFrame reference)
+    {
+        // Sample size controls the residual alignment quantization: on an image of side W the
+        // resulting integer shift is rounded to multiples of roughly W / (sampleSize - 1) pixels.
+        // 512 keeps that under ~8 px on a 4K sensor, which is below the visual jitter threshold
+        // for the small preview canvas without breaking the "quick, no big perf impact" budget.
+        const int sampleSize = 512;
+        const int maxOffset = 96;
         const double minImprovement = 0.04;
 
         var referenceSample = CreateOrientationSample(reference.Pixels, reference.Width, reference.Height, sampleSize, rotate180: false);
@@ -288,23 +302,199 @@ public sealed class RustafitsService
 
         double originalScore;
         double rotatedScore;
+        int originalSampleDx, originalSampleDy;
+        int rotatedSampleDx, rotatedSampleDy;
         if (referenceStars.Count >= 10 && originalStars.Count >= 10 && rotatedStars.Count >= 10)
         {
-            originalScore = ComputeStarAlignmentScore(referenceStars, originalStars, sampleSize, sampleSize);
-            rotatedScore = ComputeStarAlignmentScore(referenceStars, rotatedStars, sampleSize, sampleSize);
+            (originalScore, originalSampleDx, originalSampleDy) = ComputeStarAlignmentScoreWithShift(referenceStars, originalStars, sampleSize, sampleSize);
+            (rotatedScore, rotatedSampleDx, rotatedSampleDy) = ComputeStarAlignmentScoreWithShift(referenceStars, rotatedStars, sampleSize, sampleSize);
         }
         else
         {
-            originalScore = ComputeBestCorrelationWithOffsets(referenceSample, originalSample, sampleSize, maxOffset);
-            rotatedScore = ComputeBestCorrelationWithOffsets(referenceSample, rotatedSample, sampleSize, maxOffset);
+            (originalScore, originalSampleDx, originalSampleDy) = ComputeBestCorrelationWithOffsetsAndShift(referenceSample, originalSample, sampleSize, maxOffset);
+            (rotatedScore, rotatedSampleDx, rotatedSampleDy) = ComputeBestCorrelationWithOffsetsAndShift(referenceSample, rotatedSample, sampleSize, maxOffset);
         }
 
-        return rotatedScore > originalScore + minImprovement;
+        var rotate180 = rotatedScore > originalScore + minImprovement;
+        var sampleDx = rotate180 ? rotatedSampleDx : originalSampleDx;
+        var sampleDy = rotate180 ? rotatedSampleDy : originalSampleDy;
+
+        // Convert the sample-space shift back to original-image pixel coordinates. The sample is
+        // a uniform grid spanning [0..width-1] × [0..height-1], so each sample step corresponds
+        // to (width-1)/(sampleSize-1) image pixels (and likewise for height).
+        var sampleDenom = Math.Max(1, sampleSize - 1);
+        var scaleX = (frame.Width - 1) / (double)sampleDenom;
+        var scaleY = (frame.Height - 1) / (double)sampleDenom;
+        var shiftX = (int)Math.Round(sampleDx * scaleX);
+        var shiftY = (int)Math.Round(sampleDy * scaleY);
+
+        // Refine the shift in image-pixel space to remove the sample-grid quantization (which is
+        // ~scaleX × scaleY pixels per step). This is a cheap, small search using a center-cropped
+        // luminance patch — about one quick correlation pass over an area smaller than the coarse
+        // sample, so it has negligible additional cost.
+        (shiftX, shiftY) = RefineShiftInImagePixels(reference, frame, rotate180, shiftX, shiftY,
+            refineRadiusX: (int)Math.Ceiling(scaleX) + 1,
+            refineRadiusY: (int)Math.Ceiling(scaleY) + 1);
+
+        // Clamp shifts to a sensible fraction of the image so a noisy correlation cannot push
+        // the canvas completely off-screen.
+        var maxShiftX = Math.Max(1, frame.Width / 4);
+        var maxShiftY = Math.Max(1, frame.Height / 4);
+        shiftX = Math.Clamp(shiftX, -maxShiftX, maxShiftX);
+        shiftY = Math.Clamp(shiftY, -maxShiftY, maxShiftY);
+
+        return (rotate180, shiftX, shiftY);
+    }
+
+    /// <summary>
+    /// Refines an integer pixel shift in original-image coordinates by searching a small window
+    /// (±refineRadius) around the coarse estimate using a downsampled center patch of both frames.
+    /// Returns the best matching (dx, dy) in image pixels.
+    /// </summary>
+    private static (int Dx, int Dy) RefineShiftInImagePixels(LoadedFrame reference, LoadedFrame frame, bool rotate180, int seedDx, int seedDy, int refineRadiusX, int refineRadiusY)
+    {
+        // Use a center-aligned square patch that is large enough to contain plenty of stars but
+        // small enough to keep the inner loop cheap. The patch is taken at a fixed stride from the
+        // full-resolution image so its sampling is independent of the coarse pass.
+        const int patchSize = 192;            // patchSize × patchSize comparisons per offset
+        const int patchStride = 4;            // sample every 4th pixel inside the patch region
+        var sampleSpan = patchSize * patchStride; // image-pixel span the patch covers
+
+        var minDim = Math.Min(frame.Width, frame.Height);
+        if (minDim < sampleSpan + (2 * Math.Max(refineRadiusX, refineRadiusY)) + 4)
+        {
+            return (seedDx, seedDy);
+        }
+
+        // Center patch in the reference frame.
+        var refCx = reference.Width / 2;
+        var refCy = reference.Height / 2;
+        var refStartX = refCx - (sampleSpan / 2);
+        var refStartY = refCy - (sampleSpan / 2);
+
+        // The candidate patch is taken from the same image-space center but, when rotate180 is
+        // true, the source pixels must be read from the rotated frame. We model rotation as a
+        // coordinate flip while reading. After rotation, the alignment shift (seedDx, seedDy)
+        // is applied: a positive shiftX means the candidate must be moved +shiftX to match the
+        // reference, so the source read coordinate is offset by -shiftX.
+        var refPatch = ExtractStridedPatch(reference.Pixels, reference.Width, reference.Height,
+            refStartX, refStartY, patchSize, patchStride, rotate180: false);
+
+        var best = double.MinValue;
+        var bestDx = seedDx;
+        var bestDy = seedDy;
+
+        for (var ddy = -refineRadiusY; ddy <= refineRadiusY; ddy++)
+        {
+            for (var ddx = -refineRadiusX; ddx <= refineRadiusX; ddx++)
+            {
+                var dx = seedDx + ddx;
+                var dy = seedDy + ddy;
+                var candStartX = refStartX - dx;
+                var candStartY = refStartY - dy;
+                if (candStartX < 0 || candStartY < 0 ||
+                    candStartX + sampleSpan > frame.Width ||
+                    candStartY + sampleSpan > frame.Height)
+                {
+                    continue;
+                }
+
+                var candPatch = ExtractStridedPatch(frame.Pixels, frame.Width, frame.Height,
+                    candStartX, candStartY, patchSize, patchStride, rotate180);
+                var score = ComputeCorrelation(refPatch, candPatch);
+                if (score > best)
+                {
+                    best = score;
+                    bestDx = dx;
+                    bestDy = dy;
+                }
+            }
+        }
+
+        return (bestDx, bestDy);
+    }
+
+    private static float[] ExtractStridedPatch(float[] pixels, int width, int height, int startX, int startY, int patchSize, int stride, bool rotate180)
+    {
+        var patch = new float[patchSize * patchSize];
+        for (var py = 0; py < patchSize; py++)
+        {
+            var sy = startY + (py * stride);
+            for (var px = 0; px < patchSize; px++)
+            {
+                var sx = startX + (px * stride);
+                var sourceX = rotate180 ? (width - 1) - sx : sx;
+                var sourceY = rotate180 ? (height - 1) - sy : sy;
+                if ((uint)sourceX >= (uint)width || (uint)sourceY >= (uint)height)
+                {
+                    patch[(py * patchSize) + px] = 0f;
+                    continue;
+                }
+                patch[(py * patchSize) + px] = pixels[(sourceY * width) + sourceX];
+            }
+        }
+
+        return patch;
     }
 
     public LoadedFrame ApplyOrientation(LoadedFrame frame, bool rotate180)
     {
         return rotate180 ? Rotate180(frame) : frame;
+    }
+
+    /// <summary>
+    /// Returns a frame whose pixel content is translated by (shiftX, shiftY). Exposed border
+    /// pixels are filled with zero. This is a cheap, integer-pixel alignment used for visual
+    /// preview only — no subpixel interpolation is performed.
+    /// </summary>
+    public LoadedFrame ApplyShift(LoadedFrame frame, int shiftX, int shiftY)
+    {
+        if (shiftX == 0 && shiftY == 0)
+        {
+            return frame;
+        }
+
+        var shiftedPixels = ShiftPixels(frame.Pixels, frame.Width, frame.Height, shiftX, shiftY);
+        float[][]? shiftedChannels = null;
+        if (frame.ColorChannels is { Length: 3 } cc)
+        {
+            shiftedChannels =
+            [
+                ShiftPixels(cc[0], frame.Width, frame.Height, shiftX, shiftY),
+                ShiftPixels(cc[1], frame.Width, frame.Height, shiftX, shiftY),
+                ShiftPixels(cc[2], frame.Width, frame.Height, shiftX, shiftY)
+            ];
+        }
+
+        return new LoadedFrame(shiftedPixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, frame.Sqm, frame.SkyTemp, shiftedChannels);
+    }
+
+    private static float[] ShiftPixels(float[] source, int width, int height, int shiftX, int shiftY)
+    {
+        var result = new float[source.Length];
+        // For each destination row y, read from source row (y - shiftY); copy a horizontal span.
+        for (var y = 0; y < height; y++)
+        {
+            var srcY = y - shiftY;
+            if ((uint)srcY >= (uint)height)
+            {
+                continue;
+            }
+
+            // Destination span [destXStart .. destXStart + spanWidth) maps to source span
+            // starting at (destXStart - shiftX). Both must lie in [0, width).
+            var destXStart = Math.Max(0, shiftX);
+            var srcXStart = Math.Max(0, -shiftX);
+            var spanWidth = width - Math.Abs(shiftX);
+            if (spanWidth <= 0)
+            {
+                continue;
+            }
+
+            Array.Copy(source, (srcY * width) + srcXStart, result, (y * width) + destXStart, spanWidth);
+        }
+
+        return result;
     }
 
     private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, float[][]? ColorChannels)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
@@ -1385,7 +1575,14 @@ public sealed class RustafitsService
 
     private static double ComputeBestCorrelationWithOffsets(float[] reference, float[] candidate, int size, int maxOffset)
     {
+        return ComputeBestCorrelationWithOffsetsAndShift(reference, candidate, size, maxOffset).Score;
+    }
+
+    private static (double Score, int Dx, int Dy) ComputeBestCorrelationWithOffsetsAndShift(float[] reference, float[] candidate, int size, int maxOffset)
+    {
         var best = -1.0;
+        var bestDx = 0;
+        var bestDy = 0;
         for (var dy = -maxOffset; dy <= maxOffset; dy++)
         {
             for (var dx = -maxOffset; dx <= maxOffset; dx++)
@@ -1394,11 +1591,13 @@ public sealed class RustafitsService
                 if (score > best)
                 {
                     best = score;
+                    bestDx = dx;
+                    bestDy = dy;
                 }
             }
         }
 
-        return best;
+        return (best, bestDx, bestDy);
     }
 
     private static double ComputeCorrelationWithOffset(float[] reference, float[] candidate, int size, int dx, int dy)
@@ -1515,9 +1714,14 @@ public sealed class RustafitsService
 
     private static double ComputeStarAlignmentScore(IReadOnlyList<StarPoint> referenceStars, IReadOnlyList<StarPoint> candidateStars, int width, int height)
     {
+        return ComputeStarAlignmentScoreWithShift(referenceStars, candidateStars, width, height).Score;
+    }
+
+    private static (double Score, int Dx, int Dy) ComputeStarAlignmentScoreWithShift(IReadOnlyList<StarPoint> referenceStars, IReadOnlyList<StarPoint> candidateStars, int width, int height)
+    {
         if (referenceStars.Count < 3 || candidateStars.Count < 3)
         {
-            return -1;
+            return (-1, 0, 0);
         }
 
         const int maxStarsForShift = 18;
@@ -1527,6 +1731,8 @@ public sealed class RustafitsService
 
         var occupancy = BuildStarOccupancy(referenceStars, width, height);
         var best = 0.0;
+        var bestDx = 0;
+        var bestDy = 0;
         foreach (var r in refTop)
         {
             foreach (var c in candTop)
@@ -1537,11 +1743,13 @@ public sealed class RustafitsService
                 if (score > best)
                 {
                     best = score;
+                    bestDx = dx;
+                    bestDy = dy;
                 }
             }
         }
 
-        return best;
+        return (best, bestDx, bestDy);
     }
 
     private static bool[] BuildStarOccupancy(IReadOnlyList<StarPoint> stars, int width, int height)
