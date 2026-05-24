@@ -15,6 +15,7 @@ jobs:
 
     env:
       DOTNET_CONFIGURATION: Release
+      PROJECT_PATH: ${{ github.workspace }}\src\blink-o-mat.csproj
       PUBLISH_DIR: ${{ github.workspace }}\artifacts\publish
       INSTALLER_DIR: ${{ github.workspace }}\installer
 
@@ -37,11 +38,11 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Restore
-        run: dotnet restore .\blink-o-mat.csproj
+        run: dotnet restore "${{ env.PROJECT_PATH }}"
 
       - name: Publish application
         run: >
-          dotnet publish .\blink-o-mat.csproj
+          dotnet publish "${{ env.PROJECT_PATH }}"
           -c ${{ env.DOTNET_CONFIGURATION }}
           -o "${{ env.PUBLISH_DIR }}"
           /p:Version=${{ steps.version.outputs.version }}
