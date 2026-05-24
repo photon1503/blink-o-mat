@@ -31,6 +31,7 @@ The videos are using IMX571 FITS images and are in realtime.
     - [Per-filter thresholds \& scope selector](#per-filter-thresholds--scope-selector)
   - [Quality score (0–5)](#quality-score-05)
     - [How it works](#how-it-works)
+  - [Frame alignment](#frame-alignment)
   - [Region of Interest (ROI)](#region-of-interest-roi)
   - [Stretch (Shadows / Midtones / Highlights)](#stretch-shadows--midtones--highlights)
   - [Frame summary \& filter chips](#frame-summary--filter-chips)
@@ -135,6 +136,22 @@ Click **Open preview** in the toolbar (or double-click a frame) to open the prev
 - The window remembers its **size, position, and maximized state** between launches.
 - A transient status line appears whenever a full-resolution image is loaded from disk (vs. served from cache).
 - The preview window also has its own **Accepted / Rejected** filter chips and a **Skip rejected** toggle so playback can skip over the bad ones.
+
+---
+
+## Frame alignment
+
+To make blinking, satellite-trail spotting, focus checks, and field-rotation comparisons easier, Rejector can line every frame in your session up against a reference frame.
+
+- **What it does.** During loading, Rejector detects both a possible **180° orientation flip** (e.g. meridian flips) and an **integer per-frame pixel shift** against the reference frame, and remembers them for every frame.
+- **Where it applies.** When the **Align** toggle is on, full-frame previews, list thumbnails, and ROI crops are all translated by the detected shift so the same patch of sky lands on the same screen pixels across the whole session.
+- **How accurate.** Alignment is integer-pixel only (no subpixel interpolation), which keeps it fast and adds essentially no runtime cost. Orientation detection uses a dense 512×512 sample grid plus a small image-pixel refinement pass, so the residual jitter when stepping through frames is small.
+- **Where to toggle it.**
+  - The **Align** chip in the main window's *Visibility* toolbar — alongside *Accepted* / *Rejected*.
+  - The **Align** chip in the preview window's visibility toolbar.
+  - Both chips stay in sync. Toggling rebuilds the preview canvas immediately and refreshes list thumbnails and ROI crops in the background.
+- **Default.** Alignment is **off by default**, so frames load and display in their original position. Turning alignment off is also useful when you specifically want to inspect actual guiding / centering behaviour.
+- **Sessions.** The detected per-frame shift (and the rotate-180 flag) is persisted in `.boms` session files, so reopening a session preserves alignment exactly without re-detecting.
 
 ---
 
@@ -250,7 +267,7 @@ The ROI is a small square crop of each frame, shown next to its full-frame thumb
   - **Drag any corner** to resize it (locked to a 1:1 pixel-square aspect).
   - **Release the mouse** — or **right-click the ROI** — to apply it to every frame and regenerate all ROI thumbnails immediately.
 - **Ctrl + left drag** in the preview window draws a brand-new ROI from scratch. Press **Escape** to cancel an in-progress drag.
-- The ROI applies to **all frames** at once, and frames with different orientation (meridian-flipped, rotated) are automatically aligned first so the ROI lands on the same patch of sky.
+- The ROI applies to **all frames** at once. Frames with a different orientation (meridian-flipped, rotated) are automatically corrected so the ROI lands on the same patch of sky, and the per-frame pixel shift from [Frame alignment](#frame-alignment) is applied to the ROI crop whenever **Align** is on.
 
 ---
 
@@ -295,8 +312,9 @@ The *Frame summary* card on the left sidebar gives you a live read of session he
 ![alt text](src/image-2.png)
 - **Show Accepted** — hide accepted frames from the list (useful when you want to focus on what's about to be rejected).
 - **Show Rejected** — hide rejected frames from the list.
+- **Align** — line every frame up against the reference frame using the detected per-frame pixel shift. See [Frame alignment](#frame-alignment) for details. Off by default. Stays in sync with the same toggle in the preview window.
 
-These only affect the list display — the *Frame summary* counts always reflect the full filter selection.
+These only affect the list display
 
 ### Filter chips
 ![alt text](src/image-3.png)
