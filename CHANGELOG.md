@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.19
+
+### Added
+- **Frame alignment.** When loading frames, the app now also detects an integer per-frame pixel shift in addition to the existing 180° orientation check, and remembers it for each frame. Full-frame previews, list thumbnails and ROI crops are translated by that shift so all images line up across the session, making it much easier to spot blinking, satellite trails, focus changes and field rotation at a glance. The alignment is quick (integer pixels, no subpixel interpolation) and has negligible runtime cost.
+- **Align toggle in the frame preview.** A new "Align" chip in the preview window's visibility toolbar lets you switch alignment on or off on the fly. Turning it off shows each frame in its raw, un-shifted position, which is useful for inspecting actual guiding/centering behavior. Toggling rebuilds the preview canvas immediately and refreshes list thumbnails / ROI in the background.
+- **Persisted alignment in sessions.** The detected per-frame shift is now written into `.boms` session files alongside the rotate-180 flag, so reopening a session preserves the alignment exactly without re-detecting.
+
 ## 1.0.18
 
 ### Added

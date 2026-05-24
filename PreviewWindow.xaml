@@ -179,6 +179,16 @@
                                           ToolTip="Show or hide rejected frames in the slider and navigation">
                                 <TextBlock Text="Rejected" />
                             </ToggleButton>
+
+                            <ToggleButton IsChecked="{Binding IsAlignmentEnabled, Mode=TwoWay}"
+                                          Style="{StaticResource AcceptedFilterChipStyle}"
+                                          Margin="8,0,0,0"
+                                          Padding="12,4"
+                                          BorderThickness="1"
+                                          FontWeight="SemiBold"
+                                          ToolTip="Align frames using the detected per-frame pixel shift">
+                                <TextBlock Text="Align" />
+                            </ToggleButton>
                         </WrapPanel>
                     </StackPanel>
                 </Border>

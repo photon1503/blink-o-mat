@@ -121,6 +121,8 @@ public sealed class SessionFrameEntry
     public int Width { get; set; }
     public int Height { get; set; }
     public bool Rotate180 { get; set; }
+    public int ShiftX { get; set; }
+    public int ShiftY { get; set; }
     public double NormalizationMax { get; set; }
 
     // Thumbnails as base64-encoded PNG
