@@ -107,6 +107,11 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Raise <see cref="IsAlignmentEnabled"/> change notification when the
+    /// underlying alignment state is toggled from outside this view-model
+    /// (e.g. from the main window's Align toggle).</summary>
+    public void NotifyAlignmentChanged() => OnPropertyChanged(nameof(IsAlignmentEnabled));
+
     public BitmapSource? Image
     {
         get => _image;

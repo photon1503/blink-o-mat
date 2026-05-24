@@ -223,7 +223,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isThumbnailRefreshRunning;
     private bool _thumbnailRefreshPendingWhilePreviewOpen;
     private bool _isInteractiveStretchActive;
-    private bool _isAlignmentEnabled = true;
+    private bool _isAlignmentEnabled;
     // Cache of the materialized (decoded + oriented) raw pixel data for the currently
     // previewed frame. Held in memory so STF slider scrubbing can re-stretch without
     // touching disk or repeating the FITS decode. Cleared when the preview item changes.
@@ -2206,10 +2206,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _isAlignmentEnabled = enabled;
         // Drop any cached materialized frame so the next render uses the new alignment state.
         InvalidateInteractiveRawFrame();
+        // Drop any cached full-resolution preview bitmaps. They were rendered under the previous
+        // alignment state, so without clearing them the preview window briefly shows the stale
+        // unaligned (or previously aligned) bitmap before the new render completes.
+        ClearAllFullImageCaches();
+        OnPropertyChanged(nameof(IsAlignmentEnabled));
+        // Mirror the change into the preview view-model (if open) so its Align chip stays in sync
+        // when the toggle is flipped from the main window.
+        _previewVm?.NotifyAlignmentChanged();
         // Refresh the active preview canvas immediately and rebuild list thumbnails / ROI in the
         // background so the rest of the UI also reflects the new alignment state.
         _ = RefreshActivePreviewFullResolutionAsync(CancellationToken.None);
         _ = RebuildThumbnailsDeferredAsync(TimeSpan.Zero, CancellationToken.None);
+    }
+
+    public bool IsAlignmentEnabled
+    {
+        get => _isAlignmentEnabled;
+        set => SetAlignmentEnabled(value);
     }
 
     private async Task ApplyAutoStretchAsync()
