@@ -6,9 +6,9 @@
 #define MyAppPublisher "Gerald Hitz"
 #define MyAppURL "https://github.com/photon1503/blink-o-mat"
 #ifndef MyAppPublishDir
-  #define MyAppPublishDir "bin\\Release\\net10.0-windows\\publish"
+	#define MyAppPublishDir "src\\bin\\Release\\net10.0-windows\\publish"
 #endif
-#define MyAppIcon "Icon\\6dd39f16-9f8b-454e-86c4-b44c409cb647.ico"
+#define MyAppIcon "src\\Icon\\6dd39f16-9f8b-454e-86c4-b44c409cb647.ico"
 
 [Setup]
 AppId={{C2C8C9B2-47C6-4B34-B37B-7F36B317A61A}
