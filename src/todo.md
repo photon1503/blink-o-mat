@@ -18,3 +18,5 @@ ok * add reason for rejection
 * expressions like in sfs?  For example exclude stars where star count / sqm < 2@std dev (star count/sqm) and skytemp > -18?
 ok * On the scroll bar to the right of the image, with the little squares, worth having rejected subs squares turn red?
 ok * And are the squares selectable?  Can you click on one and jump to that image?
+
+* dass man die selektionparameter an/abhaken kann (ich brauche zb fast ausschließlich FWHM arcsec (der wäre super) und die Eccentricity) und diese als Profil speichern kann
