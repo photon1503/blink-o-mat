@@ -823,6 +823,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         InputFolder = settings.InputFolder;
         RejectedFolder = settings.RejectedFolder;
         _includeSubfolders = settings.IncludeSubfolders;
+        _isAlignmentEnabled = settings.IsAlignmentEnabled;
 
         // Fire-and-forget update check — non-blocking, never throws to the caller.
         _ = CheckForUpdateAsync();
@@ -1303,7 +1304,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             InputFolder = InputFolder,
             RejectedFolder = RejectedFolder,
-            IncludeSubfolders = IncludeSubfolders
+            IncludeSubfolders = IncludeSubfolders,
+            IsAlignmentEnabled = _isAlignmentEnabled
         });
     }
 
@@ -2244,6 +2246,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         _isAlignmentEnabled = enabled;
+        SaveFolderSettings();
         // Drop any cached materialized frame so the next render uses the new alignment state.
         InvalidateInteractiveRawFrame();
         // Drop any cached full-resolution preview bitmaps. They were rendered under the previous
