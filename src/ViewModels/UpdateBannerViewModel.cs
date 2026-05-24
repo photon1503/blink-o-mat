@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using blink_o_mat.Infrastructure;
 using blink_o_mat.Services;
+using blink_o_mat.Views;
 
 namespace blink_o_mat.ViewModels;
 
@@ -13,6 +14,8 @@ public sealed class UpdateBannerViewModel : INotifyPropertyChanged
 {
     private bool _isVisible;
     private string _latestVersion = string.Empty;
+    private string _releaseNotesMarkdown = string.Empty;
+    private string? _installerUrl;
     private bool _isDownloading;
     private string _statusMessage = string.Empty;
 
@@ -67,8 +70,11 @@ public sealed class UpdateBannerViewModel : INotifyPropertyChanged
 
     public string UpdateButtonText => IsDownloading ? "Downloading…" : "Download & Install";
 
+    public bool HasReleaseNotes => !string.IsNullOrWhiteSpace(_releaseNotesMarkdown);
+
     public ICommand DismissCommand { get; }
     public ICommand DownloadAndUpdateCommand { get; }
+    public ICommand ShowReleaseNotesCommand { get; }
 
     public UpdateBannerViewModel()
     {
@@ -76,6 +82,18 @@ public sealed class UpdateBannerViewModel : INotifyPropertyChanged
         DownloadAndUpdateCommand = new RelayCommand(
             _ => _ = DownloadAndUpdateAsync(),
             _ => !IsDownloading);
+        ShowReleaseNotesCommand = new RelayCommand(
+            _ => ShowReleaseNotes(),
+            _ => HasReleaseNotes);
+    }
+
+    private void ShowReleaseNotes()
+    {
+        var window = new ReleaseNotesWindow(LatestVersion, _releaseNotesMarkdown)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        window.ShowDialog();
     }
 
     private async Task DownloadAndUpdateAsync()
@@ -84,8 +102,12 @@ public sealed class UpdateBannerViewModel : INotifyPropertyChanged
         StatusMessage = "Fetching installer URL…";
         try
         {
-            var service = new UpdateCheckService();
-            var downloadUrl = await service.GetInstallerDownloadUrlAsync();
+            var downloadUrl = _installerUrl;
+            if (string.IsNullOrEmpty(downloadUrl))
+            {
+                var service = new UpdateCheckService();
+                downloadUrl = await service.GetInstallerDownloadUrlAsync();
+            }
 
             if (string.IsNullOrEmpty(downloadUrl))
             {
@@ -124,6 +146,15 @@ public sealed class UpdateBannerViewModel : INotifyPropertyChanged
     public void ShowUpdate(string latestVersion)
     {
         LatestVersion = latestVersion;
+        IsVisible = true;
+    }
+
+    public void ShowUpdate(UpdateInfo info)
+    {
+        _releaseNotesMarkdown = info.ReleaseNotesMarkdown ?? string.Empty;
+        _installerUrl = info.InstallerUrl;
+        LatestVersion = info.Version;
+        OnPropertyChanged(nameof(HasReleaseNotes));
         IsVisible = true;
     }
 

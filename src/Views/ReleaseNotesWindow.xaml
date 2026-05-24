@@ -1,0 +1,51 @@
+<Window x:Class="blink_o_mat.Views.ReleaseNotesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:markdig="clr-namespace:Markdig.Wpf;assembly=Markdig.Wpf"
+        xmlns:wpf="clr-namespace:Markdig.Wpf;assembly=Markdig.Wpf"
+        Title="What's new"
+        Height="600" Width="700"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource WindowBackgroundBrush}">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Markdig.Wpf;component/Styles/Markdown.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   x:Name="HeaderText"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,8"
+                   Foreground="{StaticResource TextBrush}" />
+
+        <Border Grid.Row="1"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1"
+                Padding="8">
+            <markdig:MarkdownViewer x:Name="NotesViewer"
+                                    Background="{StaticResource PanelBackgroundBrush}" />
+        </Border>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,10,0,0">
+            <Button Content="Close"
+                    Padding="14,4"
+                    IsCancel="True"
+                    IsDefault="True"
+                    Click="CloseButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

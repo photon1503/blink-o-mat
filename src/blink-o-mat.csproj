@@ -15,6 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Markdig.Wpf" Version="0.5.0.1" />
     <PackageReference Include="NETStdFITS" Version="3.0.271" />
     <PackageReference Include="XisfSharp" Version="1.0.2" />
   </ItemGroup>

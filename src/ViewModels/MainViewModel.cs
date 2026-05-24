@@ -830,9 +830,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task CheckForUpdateAsync()
     {
-        var latest = await _updateCheck.GetLatestVersionAsync();
-        if (!string.IsNullOrWhiteSpace(latest))
-            UpdateBanner.ShowUpdate(latest);
+        var info = await _updateCheck.GetLatestUpdateAsync();
+        if (info is not null)
+            UpdateBanner.ShowUpdate(info);
     }
 
     private bool FilterFrame(object item)

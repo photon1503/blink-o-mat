@@ -127,25 +127,43 @@
                       Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                       Fill="#4CAF82" Stretch="Uniform" Width="16" Height="16" />
                 <!-- Message (clickable) -->
-                <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center"
-                           Text="{Binding UpdateBanner.Message}"
-                           Foreground="#B2DFCC" FontSize="12"
-                           Cursor="Hand">
-                    <TextBlock.InputBindings>
-                        <MouseBinding MouseAction="LeftClick"
-                                      Command="{Binding UpdateBanner.DownloadAndUpdateCommand}" />
-                    </TextBlock.InputBindings>
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="TextDecorations" Value="Underline" />
-                                    <Setter Property="Foreground" Value="#FFFFFF" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock VerticalAlignment="Center"
+                               Text="{Binding UpdateBanner.Message}"
+                               Foreground="#B2DFCC" FontSize="12"
+                               Cursor="Hand">
+                        <TextBlock.InputBindings>
+                            <MouseBinding MouseAction="LeftClick"
+                                          Command="{Binding UpdateBanner.DownloadAndUpdateCommand}" />
+                        </TextBlock.InputBindings>
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="TextDecorations" Value="Underline" />
+                                        <Setter Property="Foreground" Value="#FFFFFF" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12">
+                        <Hyperlink Foreground="#80BFAA"
+                                   Command="{Binding UpdateBanner.ShowReleaseNotesCommand}">
+                            What's new?
+                        </Hyperlink>
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding UpdateBanner.HasReleaseNotes}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
                 <!-- Download and install button -->
                 <Button Grid.Row="0" Grid.Column="2" Margin="10,0,6,0" Padding="8,3" FontSize="11"
                         Content="{Binding UpdateBanner.UpdateButtonText}"

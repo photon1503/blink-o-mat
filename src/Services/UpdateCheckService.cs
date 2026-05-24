@@ -44,13 +44,26 @@ public sealed class UpdateCheckService
     /// </summary>
     public async Task<string?> GetLatestVersionAsync(CancellationToken cancellationToken = default)
     {
+        var info = await GetLatestUpdateAsync(cancellationToken);
+        return info?.Version;
+    }
+
+    /// <summary>
+    /// Returns information about the latest release when a newer version with a
+    /// ready-to-download installer is available. Returns null when:
+    /// - the current version is up to date,
+    /// - the release does not (yet) contain an .exe asset (build still in progress),
+    /// - or the request fails.
+    /// </summary>
+    public async Task<UpdateInfo?> GetLatestUpdateAsync(CancellationToken cancellationToken = default)
+    {
         try
         {
             using var http = new HttpClient();
             http.DefaultRequestHeaders.UserAgent.ParseAdd("Rejector-UpdateCheck/1.0");
             http.Timeout = TimeSpan.FromSeconds(10);
 
-            var release = await http.GetFromJsonAsync<GithubRelease>(
+            var release = await http.GetFromJsonAsync<GithubReleaseWithAssets>(
                 ReleasesApiUrl, cancellationToken);
 
             if (release is null || string.IsNullOrWhiteSpace(release.TagName))
@@ -66,7 +79,17 @@ public sealed class UpdateCheckService
             if (currentVersion is null || latestVersion <= currentVersion)
                 return null;
 
-            return tagVersion;
+            // Don't surface the update until the installer asset is actually published.
+            // GitHub creates the release as soon as the tag is pushed; the .exe is uploaded
+            // after the CI build completes, which can take a few minutes.
+            var installerUrl = release.Assets?.FirstOrDefault(a =>
+                a.Name?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true)
+                ?.BrowserDownloadUrl;
+
+            if (string.IsNullOrEmpty(installerUrl))
+                return null;
+
+            return new UpdateInfo(tagVersion, release.Body ?? string.Empty, installerUrl);
         }
         catch
         {
@@ -84,16 +107,13 @@ public sealed class UpdateCheckService
         return v;
     }
 
-    private sealed class GithubRelease
-    {
-        [JsonPropertyName("tag_name")]
-        public string? TagName { get; init; }
-    }
-
     private sealed class GithubReleaseWithAssets
     {
         [JsonPropertyName("tag_name")]
         public string? TagName { get; init; }
+
+        [JsonPropertyName("body")]
+        public string? Body { get; init; }
 
         [JsonPropertyName("assets")]
         public List<GithubAsset>? Assets { get; init; }
@@ -108,3 +128,5 @@ public sealed class UpdateCheckService
         public string? BrowserDownloadUrl { get; init; }
     }
 }
+
+public sealed record UpdateInfo(string Version, string ReleaseNotesMarkdown, string InstallerUrl);
