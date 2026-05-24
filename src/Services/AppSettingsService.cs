@@ -61,4 +61,6 @@ public sealed class AppSettings
     public bool IncludeSubfolders { get; set; }
 
     public bool IsAlignmentEnabled { get; set; }
+
+    public bool IsStackEnabled { get; set; }
 }

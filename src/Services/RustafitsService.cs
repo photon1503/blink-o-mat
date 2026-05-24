@@ -329,12 +329,22 @@ public sealed class RustafitsService
         var shiftY = (int)Math.Round(sampleDy * scaleY);
 
         // Refine the shift in image-pixel space to remove the sample-grid quantization (which is
-        // ~scaleX × scaleY pixels per step). This is a cheap, small search using a center-cropped
-        // luminance patch — about one quick correlation pass over an area smaller than the coarse
-        // sample, so it has negligible additional cost.
+        // ~scaleX × scaleY pixels per step). Stride-2 keeps star cores in the sample grid (stars
+        // are typically 3-5 px FWHM at full resolution) while still being cheap enough for a
+        // broad ±(scale+1) px search around the coarse estimate.
         (shiftX, shiftY) = RefineShiftInImagePixels(reference, frame, rotate180, shiftX, shiftY,
             refineRadiusX: (int)Math.Ceiling(scaleX) + 1,
-            refineRadiusY: (int)Math.Ceiling(scaleY) + 1);
+            refineRadiusY: (int)Math.Ceiling(scaleY) + 1,
+            patchSize: 192, patchStride: 2);
+
+        // Final dense pass at full resolution. We allow ±4 px so we can still recover if the
+        // coarse refine landed a few pixels off because of sparse stars in the central patch.
+        // Star-emphasis high-pass on both patches makes the correlation peak sharp (driven by
+        // bright star cores rather than smooth background) so single-pixel shifts are resolved.
+        // Cost: 9*9*128*128 ~= 1.3M ops -- still negligible vs. FITS load and preview render.
+        (shiftX, shiftY) = RefineShiftInImagePixels(reference, frame, rotate180, shiftX, shiftY,
+            refineRadiusX: 4, refineRadiusY: 4,
+            patchSize: 128, patchStride: 1, emphasizeStars: true);
 
         // Clamp shifts to a sensible fraction of the image so a noisy correlation cannot push
         // the canvas completely off-screen.
@@ -351,13 +361,23 @@ public sealed class RustafitsService
     /// (±refineRadius) around the coarse estimate using a downsampled center patch of both frames.
     /// Returns the best matching (dx, dy) in image pixels.
     /// </summary>
-    private static (int Dx, int Dy) RefineShiftInImagePixels(LoadedFrame reference, LoadedFrame frame, bool rotate180, int seedDx, int seedDy, int refineRadiusX, int refineRadiusY)
+    private static (int Dx, int Dy) RefineShiftInImagePixels(LoadedFrame reference, LoadedFrame frame, bool rotate180, int seedDx, int seedDy, int refineRadiusX, int refineRadiusY, int patchSize, int patchStride)
+    {
+        return RefineShiftInImagePixels(reference, frame, rotate180, seedDx, seedDy, refineRadiusX, refineRadiusY, patchSize, patchStride, emphasizeStars: false);
+    }
+
+    /// <summary>
+    /// Refines an integer pixel shift in original-image coordinates by searching a small window
+    /// (±refineRadius) around the coarse estimate using a downsampled center patch of both frames.
+    /// When <paramref name="emphasizeStars"/> is true, both patches are passed through a cheap
+    /// high-pass (subtract mean + k·sigma, clip negatives) so the correlation is driven by bright
+    /// star cores instead of smooth background gradients or nebulosity.
+    /// </summary>
+    private static (int Dx, int Dy) RefineShiftInImagePixels(LoadedFrame reference, LoadedFrame frame, bool rotate180, int seedDx, int seedDy, int refineRadiusX, int refineRadiusY, int patchSize, int patchStride, bool emphasizeStars)
     {
         // Use a center-aligned square patch that is large enough to contain plenty of stars but
         // small enough to keep the inner loop cheap. The patch is taken at a fixed stride from the
         // full-resolution image so its sampling is independent of the coarse pass.
-        const int patchSize = 192;            // patchSize × patchSize comparisons per offset
-        const int patchStride = 4;            // sample every 4th pixel inside the patch region
         var sampleSpan = patchSize * patchStride; // image-pixel span the patch covers
 
         var minDim = Math.Min(frame.Width, frame.Height);
@@ -379,6 +399,10 @@ public sealed class RustafitsService
         // reference, so the source read coordinate is offset by -shiftX.
         var refPatch = ExtractStridedPatch(reference.Pixels, reference.Width, reference.Height,
             refStartX, refStartY, patchSize, patchStride, rotate180: false);
+        if (emphasizeStars)
+        {
+            EmphasizeStarsInPlace(refPatch);
+        }
 
         var best = double.MinValue;
         var bestDx = seedDx;
@@ -401,6 +425,10 @@ public sealed class RustafitsService
 
                 var candPatch = ExtractStridedPatch(frame.Pixels, frame.Width, frame.Height,
                     candStartX, candStartY, patchSize, patchStride, rotate180);
+                if (emphasizeStars)
+                {
+                    EmphasizeStarsInPlace(candPatch);
+                }
                 var score = ComputeCorrelation(refPatch, candPatch);
                 if (score > best)
                 {
@@ -412,6 +440,41 @@ public sealed class RustafitsService
         }
 
         return (bestDx, bestDy);
+    }
+
+    /// <summary>
+    /// Replaces patch pixels with max(0, v - (mean + 2·sigma)). Star cores survive; smooth
+    /// background gradients and nebulosity collapse to zero. Makes Pearson correlation
+    /// dramatically more sensitive to single-pixel star shifts.
+    /// </summary>
+    private static void EmphasizeStarsInPlace(float[] patch)
+    {
+        if (patch.Length == 0)
+        {
+            return;
+        }
+
+        double sum = 0;
+        for (var i = 0; i < patch.Length; i++)
+        {
+            sum += patch[i];
+        }
+        var mean = sum / patch.Length;
+
+        double sqSum = 0;
+        for (var i = 0; i < patch.Length; i++)
+        {
+            var d = patch[i] - mean;
+            sqSum += d * d;
+        }
+        var sigma = Math.Sqrt(sqSum / patch.Length);
+        var threshold = (float)(mean + (2.0 * sigma));
+
+        for (var i = 0; i < patch.Length; i++)
+        {
+            var v = patch[i] - threshold;
+            patch[i] = v > 0f ? v : 0f;
+        }
     }
 
     private static float[] ExtractStridedPatch(float[] pixels, int width, int height, int startX, int startY, int patchSize, int stride, bool rotate180)

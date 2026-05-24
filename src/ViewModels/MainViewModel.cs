@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Data;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using blink_o_mat.Infrastructure;
 using blink_o_mat.Models;
 using blink_o_mat.Services;
@@ -224,6 +225,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _thumbnailRefreshPendingWhilePreviewOpen;
     private bool _isInteractiveStretchActive;
     private bool _isAlignmentEnabled;
+    private bool _isStackEnabled;
+    private BitmapSource? _stackImage;
+    private bool _isStackBusy;
+    private CancellationTokenSource? _stackCts;
+    private DispatcherTimer? _stackDebounceTimer;
+    private const int StackDebounceMs = 350;
     // Cache of the materialized (decoded + oriented) raw pixel data for the currently
     // previewed frame. Held in memory so STF slider scrubbing can re-stretch without
     // touching disk or repeating the FITS decode. Cleared when the preview item changes.
@@ -824,6 +831,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         RejectedFolder = settings.RejectedFolder;
         _includeSubfolders = settings.IncludeSubfolders;
         _isAlignmentEnabled = settings.IsAlignmentEnabled;
+        _isStackEnabled = settings.IsStackEnabled;
 
         // Fire-and-forget update check — non-blocking, never throws to the caller.
         _ = CheckForUpdateAsync();
@@ -1305,7 +1313,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             InputFolder = InputFolder,
             RejectedFolder = RejectedFolder,
             IncludeSubfolders = IncludeSubfolders,
-            IsAlignmentEnabled = _isAlignmentEnabled
+            IsAlignmentEnabled = _isAlignmentEnabled,
+            IsStackEnabled = _isStackEnabled
         });
     }
 
@@ -2261,12 +2270,313 @@ public sealed class MainViewModel : INotifyPropertyChanged
         // background so the rest of the UI also reflects the new alignment state.
         _ = RefreshActivePreviewFullResolutionAsync(CancellationToken.None);
         _ = RebuildThumbnailsDeferredAsync(TimeSpan.Zero, CancellationToken.None);
+        OnPropertyChanged(nameof(IsStackVisible));
+        if (_isStackEnabled)
+        {
+            if (_isAlignmentEnabled)
+            {
+                RequestStackRecompute();
+            }
+            else
+            {
+                _stackCts?.Cancel();
+                StackImage = null;
+            }
+        }
     }
 
     public bool IsAlignmentEnabled
     {
         get => _isAlignmentEnabled;
         set => SetAlignmentEnabled(value);
+    }
+
+    public bool IsStackEnabled
+    {
+        get => _isStackEnabled;
+        set
+        {
+            if (_isStackEnabled == value) return;
+            _isStackEnabled = value;
+            SaveFolderSettings();
+            OnPropertyChanged(nameof(IsStackEnabled));
+            OnPropertyChanged(nameof(IsStackVisible));
+            if (_isStackEnabled)
+            {
+                RequestStackRecompute();
+            }
+            else
+            {
+                _stackCts?.Cancel();
+                StackImage = null;
+            }
+        }
+    }
+
+    public bool IsStackVisible => _isStackEnabled && _isAlignmentEnabled;
+
+    public BitmapSource? StackImage
+    {
+        get => _stackImage;
+        private set
+        {
+            if (ReferenceEquals(_stackImage, value)) return;
+            _stackImage = value;
+            OnPropertyChanged(nameof(StackImage));
+            OnPropertyChanged(nameof(HasStackImage));
+        }
+    }
+
+    public bool HasStackImage => _stackImage is not null;
+
+    private string _stackFwhmText = string.Empty;
+    public string StackFwhmText
+    {
+        get => _stackFwhmText;
+        private set
+        {
+            if (_stackFwhmText == value) return;
+            _stackFwhmText = value;
+            OnPropertyChanged(nameof(StackFwhmText));
+        }
+    }
+
+    private string _stackSnrText = string.Empty;
+    public string StackSnrText
+    {
+        get => _stackSnrText;
+        private set
+        {
+            if (_stackSnrText == value) return;
+            _stackSnrText = value;
+            OnPropertyChanged(nameof(StackSnrText));
+        }
+    }
+
+    private string _stackCountText = string.Empty;
+    public string StackCountText
+    {
+        get => _stackCountText;
+        private set
+        {
+            if (_stackCountText == value) return;
+            _stackCountText = value;
+            OnPropertyChanged(nameof(StackCountText));
+        }
+    }
+
+    public bool IsStackBusy
+    {
+        get => _isStackBusy;
+        private set
+        {
+            if (_isStackBusy == value) return;
+            _isStackBusy = value;
+            OnPropertyChanged(nameof(IsStackBusy));
+        }
+    }
+
+    private void RequestStackRecompute()
+    {
+        if (!_isStackEnabled || !_isAlignmentEnabled)
+        {
+            return;
+        }
+
+        if (_stackDebounceTimer is null)
+        {
+            _stackDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(StackDebounceMs) };
+            _stackDebounceTimer.Tick += (_, _) =>
+            {
+                _stackDebounceTimer!.Stop();
+                _ = RecomputeStackAsync();
+            };
+        }
+
+        _stackDebounceTimer.Stop();
+        _stackDebounceTimer.Start();
+    }
+
+    private async Task RecomputeStackAsync()
+    {
+        if (!_isStackEnabled || !_isAlignmentEnabled)
+        {
+            return;
+        }
+
+        _stackCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _stackCts = cts;
+        var token = cts.Token;
+
+        // Snapshot the approved frames and pull their cached ROI bitmaps. The ROI thumbnails
+        // are already aligned (rendered after ApplyShift) and stretched, so averaging them
+        // gives a quick, allocation-light preview without re-decoding any FITS data.
+        List<(BitmapSource Roi, double Fwhm)> samples;
+        lock (_loadedFrames)
+        {
+            samples = _loadedFrames
+                .Select(c => c.Item)
+                .Where(item => item is not null && !item.IsRejected && item.RoiImage is not null)
+                .Select(item => (Roi: item!.RoiImage!, Fwhm: item.Metrics?.Fwhm ?? 0))
+                .ToList();
+        }
+
+        StackCountText = samples.Count > 0 ? $"{samples.Count} frame{(samples.Count == 1 ? string.Empty : "s")}" : string.Empty;
+
+        if (samples.Count == 0)
+        {
+            StackImage = null;
+            StackFwhmText = string.Empty;
+            StackSnrText = string.Empty;
+            return;
+        }
+
+        try
+        {
+            IsStackBusy = true;
+
+            var (stacked, snr) = await Task.Run(() => AverageRoiBitmaps(samples.Select(s => s.Roi).ToList(), token), token);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            StackImage = stacked;
+
+            var fwhmValues = samples.Select(s => s.Fwhm).Where(v => v > 0).ToList();
+            if (fwhmValues.Count > 0)
+            {
+                var meanFwhm = fwhmValues.Average();
+                StackFwhmText = $"FWHM {meanFwhm:F2} px";
+            }
+            else
+            {
+                StackFwhmText = "FWHM n/a";
+            }
+
+            StackSnrText = double.IsFinite(snr) && snr > 0 ? $"SNR {snr:F1}" : "SNR n/a";
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Stack render failed: {ex.Message}");
+        }
+        finally
+        {
+            if (ReferenceEquals(_stackCts, cts))
+            {
+                IsStackBusy = false;
+            }
+        }
+    }
+
+    private static (BitmapSource? Bitmap, double Snr) AverageRoiBitmaps(IReadOnlyList<BitmapSource> rois, CancellationToken token)
+    {
+        if (rois.Count == 0)
+        {
+            return (null, 0);
+        }
+
+        var first = rois[0];
+        var width = first.PixelWidth;
+        var height = first.PixelHeight;
+        if (width <= 0 || height <= 0)
+        {
+            return (null, 0);
+        }
+
+        var pixelCount = width * height;
+        var sumR = new double[pixelCount];
+        var sumG = new double[pixelCount];
+        var sumB = new double[pixelCount];
+        var count = 0;
+
+        var stride = width * 4;
+        var buffer = new byte[stride * height];
+
+        foreach (var src in rois)
+        {
+            token.ThrowIfCancellationRequested();
+            if (src.PixelWidth != width || src.PixelHeight != height)
+            {
+                continue;
+            }
+
+            var converted = new System.Windows.Media.Imaging.FormatConvertedBitmap(src, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+            converted.CopyPixels(buffer, stride, 0);
+            for (int y = 0, idx = 0; y < height; y++)
+            {
+                var row = y * stride;
+                for (var x = 0; x < width; x++, idx++)
+                {
+                    sumB[idx] += buffer[row + (x * 4) + 0];
+                    sumG[idx] += buffer[row + (x * 4) + 1];
+                    sumR[idx] += buffer[row + (x * 4) + 2];
+                }
+            }
+            count++;
+        }
+
+        if (count == 0)
+        {
+            return (null, 0);
+        }
+
+        var result = new byte[stride * height];
+        var lum = new double[pixelCount];
+        var inv = 1.0 / count;
+        for (int y = 0, idx = 0; y < height; y++)
+        {
+            var row = y * stride;
+            for (var x = 0; x < width; x++, idx++)
+            {
+                var r = sumR[idx] * inv;
+                var g = sumG[idx] * inv;
+                var b = sumB[idx] * inv;
+                result[row + (x * 4) + 0] = (byte)Math.Clamp(b, 0, 255);
+                result[row + (x * 4) + 1] = (byte)Math.Clamp(g, 0, 255);
+                result[row + (x * 4) + 2] = (byte)Math.Clamp(r, 0, 255);
+                result[row + (x * 4) + 3] = 255;
+                lum[idx] = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            }
+        }
+
+        var snr = EstimateRoiSnr(lum);
+
+        var bitmap = BitmapSource.Create(width, height, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, result, stride);
+        bitmap.Freeze();
+        return (bitmap, snr);
+    }
+
+    private static double EstimateRoiSnr(double[] lum)
+    {
+        if (lum.Length == 0) return 0;
+        // Background = median; noise = MAD-based stddev estimate; signal = mean of brightest 5%.
+        var sorted = (double[])lum.Clone();
+        Array.Sort(sorted);
+        var median = sorted[sorted.Length / 2];
+
+        var dev = new double[sorted.Length];
+        for (var i = 0; i < sorted.Length; i++) dev[i] = Math.Abs(sorted[i] - median);
+        Array.Sort(dev);
+        var mad = dev[dev.Length / 2];
+        var sigma = mad * 1.4826;
+        if (sigma <= 0) sigma = 1;
+
+        var topStart = (int)(sorted.Length * 0.95);
+        double signalSum = 0;
+        var signalCount = 0;
+        for (var i = topStart; i < sorted.Length; i++)
+        {
+            signalSum += sorted[i] - median;
+            signalCount++;
+        }
+        if (signalCount == 0) return 0;
+        var signal = signalSum / signalCount;
+        return signal / sigma;
     }
 
     private async Task ApplyAutoStretchAsync()
@@ -3422,7 +3732,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TotalFrameCount));
         RejectedFrameCount = visibleFrames.Count(frame => frame.IsRejected);
         ApprovedFrameCount = Math.Max(0, TotalFrameCount - RejectedFrameCount);
-
         // overall ratio and integration time
         OverallAcceptedRatio = TotalFrameCount > 0 ? (double)ApprovedFrameCount / TotalFrameCount : 0;
         var totalSec = visibleFrames.Sum(f => f.ExposureSeconds ?? 0);
@@ -3490,6 +3799,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SatelliteTrailRejectedFrameCount = RejectSatelliteTrail
             ? visibleFrames.Count(frame => frame.Metrics.SatelliteTrailConfidence >= MinSatelliteConfidence)
             : 0;
+
+        RequestStackRecompute();
     }
 
     private void SyncPreviewSelection(FrameItem? activeItem)

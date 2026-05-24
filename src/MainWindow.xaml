@@ -541,7 +541,7 @@
                     </Border>
 
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
-                        
+
                             <StackPanel Margin="0,8,0,0">
                                 <CheckBox Content="Auto-stretch each frame individually" IsChecked="{Binding AutoStretchPerFrame}" Margin="0,0,0,8" ToolTip="When enabled, STF parameters are computed independently for each frame instead of using a single global stretch" />
                                 <controls:MetricSliderControl
@@ -550,7 +550,69 @@
                                     Minimum="0.01" Maximum="0.5" TickFrequency="0.01" LargeChange="0.05"
                                     Decimals="2" />
                             </StackPanel>
-                       
+
+                    </Border>
+
+                    <!-- Stack preview card: live average of approved aligned frames -->
+                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsStackVisible}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center" Text="Stack" Foreground="{StaticResource TextBrush}" />
+                                <TextBlock Grid.Column="1" Text="Working..." FontSize="10" Foreground="#888"
+                                           VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsStackBusy}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                            <Image Source="{Binding StackImage}" Stretch="Uniform" MaxHeight="320"
+                                   RenderOptions.BitmapScalingMode="HighQuality" />
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding StackFwhmText}" FontSize="11" Foreground="{StaticResource TextBrush}" />
+                                <TextBlock Grid.Column="1" Text="{Binding StackSnrText}" FontSize="11" Foreground="{StaticResource TextBrush}" />
+                                <TextBlock Grid.Column="2" Text="{Binding StackCountText}" FontSize="11" Foreground="#888" />
+                            </Grid>
+                            <TextBlock Text="No approved frames to stack."
+                                       FontSize="11" Foreground="#888"
+                                       Margin="0,6,0,0" HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasStackImage}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
@@ -715,14 +777,14 @@
                     <!-- GROUP 3: Alignment -->
                     <Border Grid.Column="3" Margin="0,0,8,0" Padding="8,4,8,6"
                             Background="#1A1A1A" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
-                        <StackPanel>
+                        <StackPanel >
                             <TextBlock Text="ALIGNMENT" FontSize="9" FontWeight="Bold"
                                        Foreground="#666" Margin="0,0,0,4" />
+                            <StackPanel Orientation="Horizontal">
                             <ToggleButton IsChecked="{Binding IsAlignmentEnabled, Mode=TwoWay}"
                                           Height="26" Padding="8,0" BorderThickness="1"
                                           HorizontalAlignment="Left" VerticalAlignment="Center"
-                                          ToolTip="Align all frames using detected per-frame pixel shifts. When off, frames are shown in their raw (un-shifted) position.">
-                                <ToggleButton.Style>
+                                          ToolTip="Align all frames using detected per-frame pixel shifts. When off, frames are shown in their raw (un-shifted) position.">                                <ToggleButton.Style>
                                     <Style TargetType="ToggleButton">
                                         <Setter Property="Background" Value="#161616" />
                                         <Setter Property="Foreground" Value="#CCBDBDBD" />
@@ -742,14 +804,51 @@
                                         </Setter>
                                         <Style.Triggers>
                                             <Trigger Property="IsChecked" Value="True">
-                                                <Setter Property="Background" Value="#22426B9F" />
-                                                <Setter Property="BorderBrush" Value="#6D88C4" />
-                                                <Setter Property="Foreground" Value="#FFE8F0FF" />
+                                                <Setter Property="Background" Value="#224E9A4E" />
+                                                <Setter Property="BorderBrush" Value="#6FC36F" />
+                                                <Setter Property="Foreground" Value="#FFE8FFE8" />
                                             </Trigger>
                                         </Style.Triggers>
                                     </Style>
                                 </ToggleButton.Style>
                             </ToggleButton>
+                            <ToggleButton IsChecked="{Binding IsStackEnabled, Mode=TwoWay}"
+                                          Height="26" Padding="8,0" BorderThickness="1" Margin="6,0,0,0"
+                                          HorizontalAlignment="Left" VerticalAlignment="Center"
+                                          ToolTip="Show a live average of the approved aligned ROI thumbnails. Only available when alignment is enabled.">
+                                <ToggleButton.Style>
+                                    <Style TargetType="ToggleButton">
+                                        <Setter Property="Background" Value="#161616" />
+                                        <Setter Property="Foreground" Value="#CCBDBDBD" />
+                                        <Setter Property="BorderBrush" Value="#444" />
+                                        <Setter Property="Cursor" Value="Hand" />
+                                        <Setter Property="IsEnabled" Value="False" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ToggleButton">
+                                                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="&#x25A6;" FontFamily="Segoe UI Symbol" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" Foreground="{TemplateBinding Foreground}" />
+                                                            <TextBlock Text="Stack" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{TemplateBinding Foreground}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsAlignmentEnabled}" Value="True">
+                                                <Setter Property="IsEnabled" Value="True" />
+                                            </DataTrigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter Property="Background" Value="#224E9A4E" />
+                                                <Setter Property="BorderBrush" Value="#6FC36F" />
+                                                <Setter Property="Foreground" Value="#FFE8FFE8" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ToggleButton.Style>
+                            </ToggleButton>
+                        </StackPanel>
                         </StackPanel>
                     </Border>
 
