@@ -1,6 +1,12 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (for example 1.0.20 or v1.0.20)
+        required: true
+        type: string
   push:
     tags:
       - 'v*'
@@ -28,11 +34,22 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Extract version from tag
+      - name: Extract version
         id: version
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
+          $inputVersion = "${{ github.event.inputs.version }}"
+          if ($inputVersion) {
+            $tag = $inputVersion
+          }
+          else {
+            $tag = "${{ github.ref_name }}"
+          }
+
+          if (-not $tag.StartsWith('v')) {
+            $tag = "v$tag"
+          }
+
           $version = $tag -replace '^v', ''
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "version=$version" >> $env:GITHUB_OUTPUT
