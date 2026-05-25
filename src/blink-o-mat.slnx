@@ -1,7 +1,9 @@
 <Solution>
   <Folder Name="/Solution Items/">
+    <File Path="../.github/workflows/release.yml" />
     <File Path="../CHANGELOG.md" />
     <File Path="../README.md" />
+    <File Path="../Rejector.iss" />
   </Folder>
   <Project Path="BenchmarkSuite1/BenchmarkSuite1.csproj" />
   <Project Path="blink-o-mat.csproj" />
