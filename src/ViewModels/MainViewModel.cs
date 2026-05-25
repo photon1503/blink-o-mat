@@ -1268,22 +1268,33 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string? ComputeRelativePath(string filePath)
     {
         var dir = Path.GetDirectoryName(filePath);
-        var root = InputFolder?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (string.IsNullOrWhiteSpace(dir) || string.IsNullOrWhiteSpace(root) || !dir.StartsWith(root, StringComparison.OrdinalIgnoreCase) || dir.Length <= root.Length)
+        if (string.IsNullOrWhiteSpace(dir)) return null;
+
+        var roots = (InputFolder ?? string.Empty)
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(r => r.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .OrderByDescending(r => r.Length);
+
+        foreach (var root in roots)
         {
-            return null;
+            if (dir.StartsWith(root, StringComparison.OrdinalIgnoreCase) && dir.Length > root.Length)
+                return dir[(root.Length + 1)..];
         }
 
-        return dir[(root.Length + 1)..];
+        return null;
     }
 
     private void BrowseInput()
     {
-        using var dialog = new System.Windows.Forms.FolderBrowserDialog();
-        dialog.Description = "Select folder with FITS/XISF frames";
-        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        var dialog = new Microsoft.Win32.OpenFolderDialog
         {
-            InputFolder = dialog.SelectedPath;
+            Title = "Select folder(s) with FITS/XISF frames",
+            Multiselect = true
+        };
+        if (dialog.ShowDialog() == true && dialog.FolderNames.Length > 0)
+        {
+            InputFolder = string.Join(";", dialog.FolderNames);
         }
     }
 
