@@ -1380,6 +1380,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 try
                 {
                     var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
+                    if (!raw.IsLightFrame)
+                    {
+                        skippedCount++;
+                        reporter.NotifyFirstFrameSkipped(Path.GetFileName(file));
+                        continue;
+                    }
                     var metrics = _rustafits.AnalyzeFrame(raw);
                     var autoStf = _rustafits.ComputeAutoStretch(raw, _stfTargetBackground);
                     _stfShadows = autoStf.Shadows;
@@ -1444,6 +1450,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     try
                     {
                         var raw = await _rustafits.LoadRawFrameAsync(entry.File, CancellationToken.None).ConfigureAwait(false);
+                        if (!raw.IsLightFrame)
+                        {
+                            return (Item: (FrameItem?)null, Frame: (RustafitsService.LoadedFrame?)null, Rotate180: false, ShiftX: 0, ShiftY: 0, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: Path.GetFileName(entry.File));
+                        }
                         var orientation = _rustafits.DetectOrientation(raw, orientationReference);
                         var oriented = _rustafits.ApplyOrientation(raw, orientation.Rotate180);
                         var metrics = _rustafits.AnalyzeFrame(oriented);

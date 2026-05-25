@@ -33,10 +33,14 @@ public sealed class RustafitsService
         string? FilterName = null,
         double? Sqm = null,
         double? SkyTemp = null,
-        float[][]? ColorChannels = null)
+        float[][]? ColorChannels = null,
+        string? ImageType = null)
     {
         /// <summary>True when this frame was debayered from a single-channel OSC sensor.</summary>
         public bool IsOsc => ColorChannels is { Length: 3 };
+
+        /// <summary>True when the frame type is a light frame (or unspecified).</summary>
+        public bool IsLightFrame => string.IsNullOrWhiteSpace(ImageType) || ImageType.Contains("light", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<FrameItem> ProcessFrameAsync(string filePath, string thumbnailDirectory, CancellationToken cancellationToken)
@@ -45,7 +49,7 @@ public sealed class RustafitsService
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
 
-            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp, frame.ColorChannels);
+            var loadedFrame = new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp, frame.ColorChannels, frame.ImageType);
             var metrics = ComputeMetrics(loadedFrame);
             var previews = await RenderPreviewBitmapsAsync(loadedFrame, StfParameters.Default, null, metrics, cancellationToken);
 
@@ -68,7 +72,7 @@ public sealed class RustafitsService
         return Task.Run(async () =>
         {
             var frame = await LoadFrameAsync(filePath, cancellationToken);
-            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp, frame.ColorChannels);
+            return new LoadedFrame(frame.Pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, ParseSqmFromFileName(filePath), frame.SkyTemp, frame.ColorChannels, frame.ImageType);
         }, cancellationToken);
     }
 
@@ -466,7 +470,7 @@ public sealed class RustafitsService
             ];
         }
 
-        return new LoadedFrame(shiftedPixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, frame.Sqm, frame.SkyTemp, shiftedChannels);
+        return new LoadedFrame(shiftedPixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, frame.Sqm, frame.SkyTemp, shiftedChannels, frame.ImageType);
     }
 
     private static float[] ShiftPixels(float[] source, int width, int height, int shiftX, int shiftY)
@@ -497,7 +501,7 @@ public sealed class RustafitsService
         return result;
     }
 
-    private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, float[][]? ColorChannels)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
+    private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, float[][]? ColorChannels, string? ImageType)> LoadFrameAsync(string filePath, CancellationToken cancellationToken)
     {
         var ext = Path.GetExtension(filePath);
         if (ext.Equals(".fits", StringComparison.OrdinalIgnoreCase) || ext.Equals(".fit", StringComparison.OrdinalIgnoreCase))
@@ -508,13 +512,13 @@ public sealed class RustafitsService
         if (ext.Equals(".xisf", StringComparison.OrdinalIgnoreCase))
         {
             var r = await LoadXisfAsync(filePath, cancellationToken);
-            return (r.Pixels, r.Width, r.Height, r.NormalizationMax, r.FocalLengthMm, r.PixelSizeUm, r.ExposureDateTime, r.ExposureSeconds, r.FilterName, r.SkyTemp, null);
+            return (r.Pixels, r.Width, r.Height, r.NormalizationMax, r.FocalLengthMm, r.PixelSizeUm, r.ExposureDateTime, r.ExposureSeconds, r.FilterName, r.SkyTemp, null, r.ImageType);
         }
 
         throw new NotSupportedException($"Unsupported file type: {ext}");
     }
 
-    private static (float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, float[][]? ColorChannels) LoadFits(string filePath)
+    private static (float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, float[][]? ColorChannels, string? ImageType) LoadFits(string filePath)
     {
         // Use a large sequential-scan buffer: FITS files are read strictly start-to-end in one
         // small header pass followed by one bulk pixel-array read, so we hint the OS to
@@ -541,7 +545,7 @@ public sealed class RustafitsService
         throw new InvalidOperationException("FITS image data not found.");
     }
 
-    private static (float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, float[][]? ColorChannels)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
+    private static (float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, float[][]? ColorChannels, string? ImageType)? TryDecodeFitsImage(Stream stream, FitsHeaderInfo header)
     {
         if (header.Axes.Length < 2)
         {
@@ -643,7 +647,7 @@ public sealed class RustafitsService
             colorChannels = DebayerBilinear(result, width, height, header.BayerPattern, header.BayerOffsetX, header.BayerOffsetY);
         }
 
-        return (result, width, height, ComputeFitsNormalizationMax(header), header.FocalLengthMm, header.PixelSizeUm, header.ExposureDateTime, header.ExposureSeconds, header.FilterName, header.SkyTemp, colorChannels);
+        return (result, width, height, ComputeFitsNormalizationMax(header), header.FocalLengthMm, header.PixelSizeUm, header.ExposureDateTime, header.ExposureSeconds, header.FilterName, header.SkyTemp, colorChannels, header.ImageType);
     }
 
     private static double ReadFitsSampleFromBuffer(byte[] buffer, long sampleIndex, int bitPix, int bytesPerSample)
@@ -693,7 +697,8 @@ public sealed class RustafitsService
                     var bayerPattern = FirstAvailableString(cards, "BAYERPAT", "COLORTYP", "BAYEROFF");
                     var bayerOffsetX = ParseInt(cards, "XBAYROFF", 0);
                     var bayerOffsetY = ParseInt(cards, "YBAYROFF", 0);
-                    return new FitsHeaderInfo(bitPix, axisCount, axes, bScale, bZero, focalLengthMm, pixelSizeUm, exposureDateTime, exposureSeconds, filterName, skyTemp, bayerPattern, bayerOffsetX, bayerOffsetY);
+                    var imageType = FirstAvailableString(cards, "IMAGETYP", "FRAME");
+                    return new FitsHeaderInfo(bitPix, axisCount, axes, bScale, bZero, focalLengthMm, pixelSizeUm, exposureDateTime, exposureSeconds, filterName, skyTemp, bayerPattern, bayerOffsetX, bayerOffsetY, imageType);
                 }
 
                 if (!card.Contains('='))
@@ -957,9 +962,10 @@ public sealed class RustafitsService
         double? SkyTemp,
         string? BayerPattern = null,
         int BayerOffsetX = 0,
-        int BayerOffsetY = 0);
+        int BayerOffsetY = 0,
+        string? ImageType = null);
 
-    private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
+    private static async Task<(float[] Pixels, int Width, int Height, double NormalizationMax, double? FocalLengthMm, double? PixelSizeUm, DateTimeOffset? ExposureDateTime, double? ExposureSeconds, string? FilterName, double? SkyTemp, string? ImageType)> LoadXisfAsync(string filePath, CancellationToken cancellationToken)
     {
         var image = await XisfImage.LoadAsync(filePath, cancellationToken);
         var memory = image.Data; // ReadOnlyMemory<byte> — no full-buffer copy
@@ -1037,7 +1043,8 @@ public sealed class RustafitsService
         var exposureSeconds = ResolveXisfExposureSeconds(image);
         var filterName = ResolveXisfFilterName(image);
         var skyTemp = ResolveXisfSkyTemp(image);
-        return (luminance, width, height, GetNormalizationMax(image.SampleFormat), focalLengthMm, pixelSizeUm, exposureDateTime, exposureSeconds, filterName, skyTemp);
+        var imageType = ResolveXisfImageType(image);
+        return (luminance, width, height, GetNormalizationMax(image.SampleFormat), focalLengthMm, pixelSizeUm, exposureDateTime, exposureSeconds, filterName, skyTemp, imageType);
     }
 
     private const int XisfDecodeChunkSize = 65536;
@@ -1246,6 +1253,21 @@ public sealed class RustafitsService
     private static string? ResolveXisfFilterName(XisfImage image)
     {
         if (TryReadXisfStringMetadata(image, "FILTER", out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        return null;
+    }
+
+    private static string? ResolveXisfImageType(XisfImage image)
+    {
+        if (TryReadXisfStringMetadata(image, "IMAGETYP", out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        if (TryReadXisfStringMetadata(image, "FRAME", out value) && !string.IsNullOrWhiteSpace(value))
         {
             return value;
         }
@@ -1507,7 +1529,7 @@ public sealed class RustafitsService
             pixels[i] = source[source.Length - 1 - i];
         }
 
-        return new LoadedFrame(pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, frame.Sqm, frame.SkyTemp);
+        return new LoadedFrame(pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, frame.Sqm, frame.SkyTemp, ImageType: frame.ImageType);
     }
 
     private static float[] CreateOrientationSample(float[] pixels, int width, int height, int sampleSize, bool rotate180)
