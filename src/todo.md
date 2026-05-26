@@ -25,5 +25,5 @@ Patrick:
 
 Michael:
 * square icons on vertical sliders turn yellow when selected (active)
-* only import LIGHT images (not BIAS, DARK, FLAT)
-* add option to import multiple (sub) folders at once
+v22 * only import LIGHT images (not BIAS, DARK, FLAT)
+v22 * add option to import multiple (sub) folders at once

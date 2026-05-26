@@ -33,6 +33,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private const int MaximumPreviewCacheAhead = 32;
     private const int MaximumPreviewCacheBehind = 12;
     private const long PreviewCacheReservedBytes = 1024L * 1024 * 1024;
+    private const long FrameLoadReservedBytes = 1024L * 1024 * 1024;
     private static readonly IReadOnlyList<SortFieldOption> DefaultSortFieldOptions =
     [
         new(FrameSortField.Score, "Score"),
@@ -1438,7 +1439,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
 
                 var totalBackgroundFrames = filesToProcess.Count;
-                var maxParallelism = Math.Max(2, Environment.ProcessorCount);
+                var maxParallelism = CalculateFrameLoadParallelism(orientationReference, totalBackgroundFrames);
                 using var gate = new SemaphoreSlim(maxParallelism);
 
                 var pending = filesToProcess.Select(entry => Task.Run(async () =>
@@ -3200,6 +3201,49 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         return (ahead, behind);
+    }
+
+    private static int CalculateFrameLoadParallelism(RustafitsService.LoadedFrame firstLoadedFrame, int totalBackgroundFrames)
+    {
+        if (totalBackgroundFrames <= 0)
+        {
+            return 1;
+        }
+
+        var cpuLimit = Math.Max(1, Environment.ProcessorCount);
+        var frameLoadBytes = EstimateFrameLoadWorkingSetBytes(firstLoadedFrame);
+
+        var memoryStatus = MEMORYSTATUSEX.Create();
+        if (!GlobalMemoryStatusEx(ref memoryStatus) || memoryStatus.ullAvailPhys <= 0)
+        {
+            return Math.Min(cpuLimit, totalBackgroundFrames);
+        }
+
+        var freeBytes = Math.Max(0L, (long)memoryStatus.ullAvailPhys - FrameLoadReservedBytes);
+        var memoryLimitedParallelism = (int)Math.Max(1L, freeBytes / frameLoadBytes);
+
+        return Math.Max(1, Math.Min(totalBackgroundFrames, Math.Min(cpuLimit, memoryLimitedParallelism)));
+    }
+
+    private static long EstimateFrameLoadWorkingSetBytes(RustafitsService.LoadedFrame frame)
+    {
+        var monoBytes = frame.Pixels is null ? 0L : (long)frame.Pixels.Length * sizeof(float);
+        var colorBytes = 0L;
+        if (frame.ColorChannels is { Length: > 0 } channels)
+        {
+            for (var i = 0; i < channels.Length; i++)
+            {
+                if (channels[i] is { Length: > 0 } channel)
+                {
+                    colorBytes += (long)channel.Length * sizeof(float);
+                }
+            }
+        }
+
+        var trueFrameBytes = Math.Max((long)frame.Width * frame.Height * sizeof(float), monoBytes + colorBytes);
+
+        // Frame loading and preview generation create additional temporary buffers.
+        return Math.Max(64L * 1024 * 1024, trueFrameBytes * 4L);
     }
 
     private static long EstimatePreviewFrameBytes(LoadedFrameContext frame)
