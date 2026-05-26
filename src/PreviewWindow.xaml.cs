@@ -63,6 +63,14 @@ public partial class PreviewWindow : Window
     private double _playIntervalSeconds = 1.0;
     private static readonly double[] PlayIntervalSteps = [0.1, 0.2, 0.5, 1.0, 2.0, 3.0, 5.0, 10.0];
 
+    // Curvature view state (used by the live mouse-position tooltip).
+    private double[]? _curvatureGrid;
+    private int _curvatureGridW;
+    private int _curvatureGridH;
+    private int _curvatureImgW;
+    private int _curvatureImgH;
+    private double _curvatureArcsecPerPixel;
+
     public PreviewWindow(FramePreviewViewModel vm)
     {
         InitializeComponent();
@@ -82,6 +90,7 @@ public partial class PreviewWindow : Window
             ImageScrollViewer.ScrollChanged += (_, _) => UpdateStarDebugOverlay();
             UpdateRoiOverlay();
             UpdateStarDebugOverlay();
+            UpdateCurvatureView();
             _hasInitializedView = true;
         };
 
@@ -920,6 +929,376 @@ public partial class PreviewWindow : Window
         StarDebugOverlayCanvas.Children.Add(summaryBorder);
     }
 
+    private void UpdateCurvatureView()
+    {
+        if (CurvatureImage is null || CurvatureStatsText is null || ImageScrollViewer is null)
+        {
+            return;
+        }
+
+        if (!_vm.IsCurvatureViewVisible)
+        {
+            CurvatureImage.Visibility = Visibility.Collapsed;
+            CurvatureImage.Source = null;
+            CurvatureStatsText.Visibility = Visibility.Collapsed;
+            if (CurvatureTargetCanvas is not null)
+            {
+                CurvatureTargetCanvas.Visibility = Visibility.Collapsed;
+                CurvatureTargetCanvas.Children.Clear();
+            }
+            ImageScrollViewer.Visibility = Visibility.Visible;
+            _curvatureGrid = null;
+            if (CurvatureTooltip is not null) CurvatureTooltip.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        ImageScrollViewer.Visibility = Visibility.Collapsed;
+
+        var metrics = _vm.Item?.Metrics;
+        var stars = metrics?.Stars;
+        if (metrics is null || stars is null || stars.Count == 0 || PreviewImage.Source is not BitmapSource src)
+        {
+            CurvatureImage.Visibility = Visibility.Collapsed;
+            CurvatureImage.Source = null;
+            CurvatureStatsText.Text = "No FWHM data";
+            CurvatureStatsText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        var imgW = src.PixelWidth;
+        var imgH = src.PixelHeight;
+        if (imgW <= 0 || imgH <= 0)
+        {
+            return;
+        }
+
+        // Coarse grid heatmap, scaled to image aspect.
+        const int gridShort = 96;
+        int gridW, gridH;
+        if (imgW >= imgH)
+        {
+            gridW = gridShort;
+            gridH = Math.Max(8, (int)Math.Round(gridShort * (double)imgH / imgW));
+        }
+        else
+        {
+            gridH = gridShort;
+            gridW = Math.Max(8, (int)Math.Round(gridShort * (double)imgW / imgH));
+        }
+
+        var values = new double[gridW * gridH];
+        var arcsecPerPixel = metrics.Fwhm > 0 && metrics.FwhmArcsec is > 0
+            ? metrics.FwhmArcsec.Value / metrics.Fwhm
+            : 0.0;
+
+        double minF = double.PositiveInfinity, maxF = double.NegativeInfinity;
+        var fwhms = new System.Collections.Generic.List<double>(stars.Count);
+        foreach (var s in stars)
+        {
+            if (s.Fwhm <= 0 || double.IsNaN(s.Fwhm)) continue;
+            fwhms.Add(s.Fwhm);
+            if (s.Fwhm < minF) minF = s.Fwhm;
+            if (s.Fwhm > maxF) maxF = s.Fwhm;
+        }
+        if (fwhms.Count == 0 || double.IsInfinity(minF) || double.IsInfinity(maxF))
+        {
+            CurvatureImage.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // Robust ramp bounds (2nd / 98th percentile) so one outlier doesn't compress the
+        // color scale, while true min/max are still reported in the stats panel.
+        fwhms.Sort();
+        double Percentile(double p)
+        {
+            var idx = (int)Math.Round((fwhms.Count - 1) * p);
+            if (idx < 0) idx = 0; else if (idx >= fwhms.Count) idx = fwhms.Count - 1;
+            return fwhms[idx];
+        }
+        var rampMin = Percentile(0.02);
+        var rampMax = Percentile(0.98);
+        if (rampMax - rampMin < 1e-6) { rampMin = minF; rampMax = maxF; }
+
+        // Gaussian-kernel interpolation on coarse grid for smooth CCDInspector-style maps.
+        var cellW = imgW / (double)gridW;
+        var cellH = imgH / (double)gridH;
+        var diag = Math.Sqrt((double)imgW * imgW + (double)imgH * imgH);
+        var bandwidth = diag / 6.0; // sigma in image pixels
+        var twoSigma2 = 2.0 * bandwidth * bandwidth;
+        for (int gy = 0; gy < gridH; gy++)
+        {
+            var py = (gy + 0.5) * cellH;
+            for (int gx = 0; gx < gridW; gx++)
+            {
+                var px = (gx + 0.5) * cellW;
+                double wsum = 0, vsum = 0;
+                foreach (var s in stars)
+                {
+                    if (s.Fwhm <= 0) continue;
+                    var dx = s.X - px;
+                    var dy = s.Y - py;
+                    var d2 = dx * dx + dy * dy;
+                    var w = Math.Exp(-d2 / twoSigma2);
+                    wsum += w;
+                    vsum += w * s.Fwhm;
+                }
+                values[gy * gridW + gx] = wsum > 0 ? vsum / wsum : minF;
+            }
+        }
+
+        var range = Math.Max(1e-9, rampMax - rampMin);
+        var pixels = new byte[gridW * gridH * 4];
+        for (int i = 0; i < values.Length; i++)
+        {
+            var t = (values[i] - rampMin) / range;
+            if (t < 0) t = 0; else if (t > 1) t = 1;
+            ColorRamp(t, out var r, out var g, out var b);
+            var pi = i * 4;
+            pixels[pi + 0] = b;
+            pixels[pi + 1] = g;
+            pixels[pi + 2] = r;
+            pixels[pi + 3] = 255;
+        }
+
+        var bmp = BitmapSource.Create(gridW, gridH, 96, 96, PixelFormats.Bgra32, null, pixels, gridW * 4);
+        bmp.Freeze();
+        CurvatureImage.Source = bmp;
+        CurvatureImage.Visibility = Visibility.Visible;
+
+        // Cache grid for the live tooltip.
+        _curvatureGrid = values;
+        _curvatureGridW = gridW;
+        _curvatureGridH = gridH;
+        _curvatureImgW = imgW;
+        _curvatureImgH = imgH;
+        _curvatureArcsecPerPixel = arcsecPerPixel;
+
+        // Curvature stats.
+        var meanF = 0.0;
+        var n = 0;
+        foreach (var s in stars)
+        {
+            if (s.Fwhm <= 0) continue;
+            meanF += s.Fwhm;
+            n++;
+        }
+        if (n > 0) meanF /= n;
+
+        // CCDInspector-style spatial curvature: average FWHM in the four image corners
+        // versus the central region, expressed as a percentage of the center.
+        double cornerSum = 0, cornerW = 0, centerSum = 0, centerW = 0;
+        for (int gy = 0; gy < gridH; gy++)
+        {
+            var ny = (gy + 0.5) / gridH;             // 0..1
+            var ry = Math.Abs(ny - 0.5) * 2.0;       // 0 center .. 1 edge
+            for (int gx = 0; gx < gridW; gx++)
+            {
+                var nx = (gx + 0.5) / gridW;
+                var rx = Math.Abs(nx - 0.5) * 2.0;
+                var v = values[gy * gridW + gx];
+                if (v <= 0) continue;
+                // Corner weight: high near (rx,ry)~1, falls to 0 inside.
+                var cornerWeight = Math.Max(0, Math.Min(rx, ry) - 0.6) / 0.4; // ramp 0.6..1.0
+                cornerSum += cornerWeight * v;
+                cornerW   += cornerWeight;
+                // Center weight: high near (rx,ry)~0.
+                var d = Math.Sqrt(rx * rx + ry * ry);
+                var centerWeight = Math.Max(0, 1 - d / 0.3); // within ~30% of center
+                centerSum += centerWeight * v;
+                centerW   += centerWeight;
+            }
+        }
+        var cornerAvg = cornerW > 0 ? cornerSum / cornerW : maxF;
+        var centerAvg = centerW > 0 ? centerSum / centerW : minF;
+        var curvature = centerAvg > 0 ? (cornerAvg - centerAvg) / centerAvg * 100.0 : 0.0;
+
+        string Fmt(double pxVal) => arcsecPerPixel > 0
+            ? string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:F2} px / {1:F2}\"", pxVal, pxVal * arcsecPerPixel)
+            : string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:F2} px", pxVal);
+
+        CurvatureStatsText.Text =
+            $"Min FWHM:   {Fmt(minF)}\n" +
+            $"Max FWHM:   {Fmt(maxF)}\n" +
+            $"Mean FWHM:  {Fmt(meanF)}\n" +
+            $"Curvature:  {curvature:F1}%\n" +
+            $"Stars Used: {n}";
+        CurvatureStatsText.Visibility = Visibility.Visible;
+
+        DrawCurvatureTarget();
+    }
+
+    private void CurvatureTargetCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_vm.IsCurvatureViewVisible) DrawCurvatureTarget();
+    }
+
+    private void CurvatureImage_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (_curvatureGrid is null || _curvatureGridW <= 0 || _curvatureGridH <= 0)
+        {
+            CurvatureTooltip.Visibility = Visibility.Collapsed;
+            return;
+        }
+        if (CurvatureImage.ActualWidth <= 0 || CurvatureImage.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        // The Uniform-stretched image rectangle inside the Image control.
+        var ctrlW = CurvatureImage.ActualWidth;
+        var ctrlH = CurvatureImage.ActualHeight;
+        var imgAspect = _curvatureImgW / (double)_curvatureImgH;
+        var ctrlAspect = ctrlW / ctrlH;
+        double areaW, areaH, areaX, areaY;
+        if (imgAspect > ctrlAspect) { areaW = ctrlW; areaH = ctrlW / imgAspect; areaX = 0; areaY = (ctrlH - areaH) / 2; }
+        else                        { areaH = ctrlH; areaW = ctrlH * imgAspect; areaY = 0; areaX = (ctrlW - areaW) / 2; }
+
+        var pos = e.GetPosition(CurvatureImage);
+        var u = (pos.X - areaX) / areaW;
+        var v = (pos.Y - areaY) / areaH;
+        if (u < 0 || u > 1 || v < 0 || v > 1)
+        {
+            CurvatureTooltip.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var gx = Math.Min(_curvatureGridW - 1, Math.Max(0, (int)(u * _curvatureGridW)));
+        var gy = Math.Min(_curvatureGridH - 1, Math.Max(0, (int)(v * _curvatureGridH)));
+        var fwhmPx = _curvatureGrid[gy * _curvatureGridW + gx];
+
+        CurvatureTooltipText.Text = _curvatureArcsecPerPixel > 0
+            ? string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:F2} px / {1:F2}\"", fwhmPx, fwhmPx * _curvatureArcsecPerPixel)
+            : string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:F2} px", fwhmPx);
+
+        var hostPos = e.GetPosition((IInputElement)CurvatureTooltip.Parent);
+        CurvatureTooltip.Margin = new Thickness(hostPos.X + 14, hostPos.Y + 14, 0, 0);
+        CurvatureTooltip.Visibility = Visibility.Visible;
+    }
+
+    private void CurvatureImage_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        CurvatureTooltip.Visibility = Visibility.Collapsed;
+    }
+
+    private void DrawCurvatureTarget()
+    {
+        if (CurvatureTargetCanvas is null || CurvatureImage is null) return;
+        CurvatureTargetCanvas.Children.Clear();
+
+        var canvasW = CurvatureTargetCanvas.ActualWidth;
+        var canvasH = CurvatureTargetCanvas.ActualHeight;
+        if (canvasW <= 0 || canvasH <= 0)
+        {
+            // First pass before layout; retry once layout completes.
+            CurvatureTargetCanvas.Visibility = Visibility.Visible;
+            Dispatcher.BeginInvoke(DrawCurvatureTarget, DispatcherPriority.Loaded);
+            return;
+        }
+
+        // Determine the on-screen rectangle of the Uniform-stretched heatmap image.
+        var src = CurvatureImage.Source as BitmapSource;
+        double areaW = canvasW, areaH = canvasH, areaX = 0, areaY = 0;
+        if (src is not null && src.PixelWidth > 0 && src.PixelHeight > 0)
+        {
+            // CurvatureImage is sized by the grid bitmap aspect, which matches image aspect.
+            var imgAspect = (double)src.PixelWidth / src.PixelHeight;
+            var canvasAspect = canvasW / canvasH;
+            if (imgAspect > canvasAspect)
+            {
+                areaW = canvasW;
+                areaH = canvasW / imgAspect;
+                areaX = 0;
+                areaY = (canvasH - areaH) / 2;
+            }
+            else
+            {
+                areaH = canvasH;
+                areaW = canvasH * imgAspect;
+                areaY = 0;
+                areaX = (canvasW - areaW) / 2;
+            }
+        }
+
+        var cx = areaX + areaW / 2.0;
+        var cy = areaY + areaH / 2.0;
+        var white = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF));
+        white.Freeze();
+
+        // Outer dashed ring.
+        var ringR = Math.Min(areaW, areaH) * 0.04;
+        var ring = new Ellipse
+        {
+            Width = ringR * 2,
+            Height = ringR * 2,
+            Stroke = white,
+            StrokeThickness = 1.0,
+            StrokeDashArray = new DoubleCollection { 3, 3 }
+        };
+        Canvas.SetLeft(ring, cx - ringR);
+        Canvas.SetTop(ring, cy - ringR);
+        CurvatureTargetCanvas.Children.Add(ring);
+
+        // Crosshair.
+        var armLen = ringR * 1.6;
+        var hLine = new Line { X1 = cx - armLen, Y1 = cy, X2 = cx + armLen, Y2 = cy, Stroke = white, StrokeThickness = 1.0 };
+        var vLine = new Line { X1 = cx, Y1 = cy - armLen, X2 = cx, Y2 = cy + armLen, Stroke = white, StrokeThickness = 1.0 };
+        CurvatureTargetCanvas.Children.Add(hLine);
+        CurvatureTargetCanvas.Children.Add(vLine);
+
+        // Center bullet.
+        const double bulletR = 2.5;
+        var bullet = new Ellipse
+        {
+            Width = bulletR * 2,
+            Height = bulletR * 2,
+            Fill = white
+        };
+        Canvas.SetLeft(bullet, cx - bulletR);
+        Canvas.SetTop(bullet, cy - bulletR);
+        CurvatureTargetCanvas.Children.Add(bullet);
+
+        CurvatureTargetCanvas.Visibility = Visibility.Visible;
+    }
+
+    private static void ColorRamp(double t, out byte r, out byte g, out byte b)
+    {
+        // CCDInspector-style palette: dark blue -> blue -> cyan -> green -> yellow -> orange -> red -> pink.
+        // Anchor stops (t, R, G, B).
+        ReadOnlySpan<(double t, double r, double g, double b)> stops = stackalloc (double, double, double, double)[]
+        {
+            (0.00, 0.125, 0.125, 0.149), // #202026 background
+            (0.10, 0.05, 0.05, 0.55),    // dark blue
+            (0.20, 0.00, 0.20, 1.00),    // blue
+            (0.35, 0.00, 0.85, 1.00),    // cyan
+            (0.50, 0.00, 0.85, 0.10),    // green
+            (0.68, 1.00, 1.00, 0.00),    // yellow
+            (0.82, 1.00, 0.55, 0.00),    // orange
+            (0.93, 1.00, 0.10, 0.10),    // red
+            (1.00, 1.00, 0.55, 0.85),    // pink
+        };
+
+        if (t <= stops[0].t) { r = (byte)Math.Round(stops[0].r * 255); g = (byte)Math.Round(stops[0].g * 255); b = (byte)Math.Round(stops[0].b * 255); return; }
+        if (t >= stops[^1].t) { r = (byte)Math.Round(stops[^1].r * 255); g = (byte)Math.Round(stops[^1].g * 255); b = (byte)Math.Round(stops[^1].b * 255); return; }
+
+        for (int i = 1; i < stops.Length; i++)
+        {
+            if (t <= stops[i].t)
+            {
+                var a = stops[i - 1];
+                var c = stops[i];
+                var u = (t - a.t) / (c.t - a.t);
+                var rf = a.r + (c.r - a.r) * u;
+                var gf = a.g + (c.g - a.g) * u;
+                var bf = a.b + (c.b - a.b) * u;
+                r = (byte)Math.Round(rf * 255);
+                g = (byte)Math.Round(gf * 255);
+                b = (byte)Math.Round(bf * 255);
+                return;
+            }
+        }
+        r = g = b = 0;
+    }
+
     private void RoiBody_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (PreviewImage.Source is null) return;
@@ -1211,6 +1590,12 @@ public partial class PreviewWindow : Window
             or nameof(FramePreviewViewModel.Image))
         {
             UpdateStarDebugOverlay();
+        }
+
+        if (e.PropertyName is nameof(FramePreviewViewModel.IsCurvatureViewVisible)
+            or nameof(FramePreviewViewModel.Image))
+        {
+            UpdateCurvatureView();
         }
     }
 

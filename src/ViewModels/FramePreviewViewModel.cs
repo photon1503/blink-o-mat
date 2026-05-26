@@ -46,6 +46,18 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private int _selectedVisibleFrameIndex;
     private bool _isRoiOverlayVisible;
     private bool _isStarDebugOverlayVisible;
+    private bool _isCurvatureViewVisible;
+
+    public bool IsCurvatureViewVisible
+    {
+        get => _isCurvatureViewVisible;
+        set
+        {
+            if (_isCurvatureViewVisible == value) return;
+            _isCurvatureViewVisible = value;
+            OnPropertyChanged();
+        }
+    }
 
     public bool IsStarDebugOverlayVisible
     {

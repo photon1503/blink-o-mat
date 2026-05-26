@@ -136,6 +136,21 @@ Click **Open preview** in the toolbar (or double-click a frame) to open the prev
 - A transient status line appears whenever a full-resolution image is loaded from disk (vs. served from cache).
 - The preview window also has its own **Accepted / Rejected** filter chips and a **Skip rejected** toggle so playback can skip over the bad ones.
 
+### FWHM debug overlay (Ctrl+F)
+
+Press **Ctrl+F** in the preview window to toggle a debug overlay that shows exactly which stars were used to compute the per-frame FWHM/HFR statistics. Each star is drawn with a ring sized to its measurement, labelled with its FWHM in pixels and arcseconds, and a summary readout in the top-left of the image shows the star count and median FWHM. This makes it easy to spot saturated stars, faint detections, trailed sources or non-stellar bright patches that might influence the metric.
+
+### Curvature heatmap
+
+Click the **Curvature** toggle in the preview header (next to the zoom level) to replace the raw image with a CCDInspector-style FWHM heatmap built from the per-star measurements. The view shows:
+
+- A smooth color map (background → blue → cyan → green → yellow → orange → red → pink) of FWHM across the entire field, interpolated from the measured stars with a Gaussian kernel.
+- A small white **target with crosshair** marking the optical axis at the frame center, so it is obvious where field curvature pulls away from the ideal.
+- An overlay panel reporting **Min FWHM**, **Max FWHM**, **Mean FWHM**, **Curvature %** and **Stars Used**. Curvature is computed spatially as `(avg corner FWHM − avg center FWHM) / avg center FWHM × 100`, matching the CCDInspector definition.
+- A **live tooltip** at the mouse position showing the interpolated FWHM at that point in pixels and arcseconds, so you can probe edge-vs-center degradation interactively.
+
+Toggling Curvature off restores the normal preview image.
+
 ---
 
 ## Quality metrics
@@ -347,6 +362,7 @@ Sessions from older versions of Rejector are loaded with a sensible fallback for
 | `Space` | Preview window | Toggle play / pause |
 | `←` / `→` | Preview window | Previous / next frame |
 | `R` | Preview window | Toggle reject on the current frame |
+| `Ctrl+F` | Preview window | Toggle FWHM debug overlay (per-star rings + labels) |
 | `Esc` | Preview window | Cancel an in-progress ROI drag |
 | `Ctrl` + left drag | Preview window | Draw a new manual ROI |
 | Right mouse (hold) | Preview window | Loupe — local pixel stats |

@@ -145,6 +145,11 @@
                 </StackPanel>
 
                 <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Text="{Binding Zoom, StringFormat=Zoom: {0:F2}x}" />
+                <ToggleButton Grid.Column="1" Margin="120,0,0,0" Padding="10,2,10,2"
+                              HorizontalAlignment="Left" VerticalAlignment="Center"
+                              IsChecked="{Binding IsCurvatureViewVisible, Mode=TwoWay}"
+                              ToolTip="Show FWHM curvature heatmap"
+                              Content="Curvature" />
 
                 <Border Grid.Column="2"
                         Margin="12,0,8,0"
@@ -317,13 +322,32 @@
 
             <Grid Grid.Row="2">
                 <Border BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Background="#FF181818">
-                    <ScrollViewer x:Name="ImageScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" PreviewMouseWheel="ImageScrollViewer_PreviewMouseWheel" PreviewMouseLeftButtonDown="ImageScrollViewer_PreviewMouseLeftButtonDown">
-                        <Image x:Name="PreviewImage" Source="{Binding Image}" Stretch="None" RenderOptions.BitmapScalingMode="NearestNeighbor" MouseLeftButtonDown="PreviewImage_MouseLeftButtonDown" MouseLeftButtonUp="PreviewImage_MouseLeftButtonUp" MouseRightButtonDown="PreviewImage_MouseRightButtonDown" MouseRightButtonUp="PreviewImage_MouseRightButtonUp" MouseMove="PreviewImage_MouseMove">
-                            <Image.LayoutTransform>
-                                <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
-                            </Image.LayoutTransform>
-                        </Image>
-                    </ScrollViewer>
+                    <Grid>
+                        <ScrollViewer x:Name="ImageScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" PreviewMouseWheel="ImageScrollViewer_PreviewMouseWheel" PreviewMouseLeftButtonDown="ImageScrollViewer_PreviewMouseLeftButtonDown">
+                            <Image x:Name="PreviewImage" Source="{Binding Image}" Stretch="None" RenderOptions.BitmapScalingMode="NearestNeighbor" MouseLeftButtonDown="PreviewImage_MouseLeftButtonDown" MouseLeftButtonUp="PreviewImage_MouseLeftButtonUp" MouseRightButtonDown="PreviewImage_MouseRightButtonDown" MouseRightButtonUp="PreviewImage_MouseRightButtonUp" MouseMove="PreviewImage_MouseMove">
+                                <Image.LayoutTransform>
+                                    <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
+                                </Image.LayoutTransform>
+                            </Image>
+                        </ScrollViewer>
+                        <Image x:Name="CurvatureImage" Stretch="Uniform" Visibility="Collapsed" RenderOptions.BitmapScalingMode="HighQuality"
+                               MouseMove="CurvatureImage_MouseMove" MouseLeave="CurvatureImage_MouseLeave" />
+                        <Canvas x:Name="CurvatureTargetCanvas" Visibility="Collapsed" IsHitTestVisible="False" SizeChanged="CurvatureTargetCanvas_SizeChanged" />
+                        <Border x:Name="CurvatureTooltip" Visibility="Collapsed" IsHitTestVisible="False"
+                                HorizontalAlignment="Left" VerticalAlignment="Top"
+                                Background="#CC101014" BorderBrush="#80FFFFFF" BorderThickness="1"
+                                CornerRadius="3" Padding="6,3,6,3">
+                            <TextBlock x:Name="CurvatureTooltipText" Foreground="#FFFFFFFF"
+                                       FontFamily="Consolas" FontSize="11" />
+                        </Border>
+                        <TextBlock x:Name="CurvatureStatsText"
+                                   Visibility="Collapsed"
+                                   Margin="12,10,0,0"
+                                   HorizontalAlignment="Left" VerticalAlignment="Top"
+                                   FontFamily="Consolas" FontSize="12"
+                                   Foreground="#EEFFFFFF"
+                                   IsHitTestVisible="False" />
+                    </Grid>
                 </Border>
 
                 <Canvas x:Name="LoupeCanvas" IsHitTestVisible="False">

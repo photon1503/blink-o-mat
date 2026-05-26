@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - **FWHM debug overlay (Ctrl+F).** The frame preview now has a toggleable debug overlay that draws a ring around every star that contributed to the FWHM/HFR statistics, labels each ring with its measured FWHM in pixels and arcseconds (e.g. `4.05 (1.21")`), and shows a summary readout (star count and median FWHM in px and arcsec) in the upper-left of the image. Useful for spotting why a particular frame's FWHM looks high — saturated stars, faint detections or trailed sources are now immediately visible. Toggle with Ctrl+F.
+- **Curvature heatmap view.** A new **Curvature** toggle in the frame preview header (next to the zoom level) replaces the raw image with a  FWHM heatmap, so you can see at a glance how sharpness varies across the field. The center is marked with a small white target, and the overlay shows Min/Max/Mean FWHM, the curvature percentage (corners vs. center) and how many stars contributed. Hover anywhere on the heatmap to see the FWHM at that spot in pixels and arcseconds.
 
 ## 1.0.22
 
