@@ -2751,11 +2751,29 @@ public sealed class RustafitsService
         var (stars, totalStarCount) = DetectStars(pixels, width, height, background, sigma);
         var orderedStars = stars.OrderByDescending(s => s.Peak).ToList();
 
-        var fwhm = Median(orderedStars.Select(s => s.Fwhm));
-        var hfr = Median(orderedStars.Select(s => s.Hfr));
-        var eccentricity = Median(orderedStars.Select(s => s.Eccentricity));
+        // Reject saturated stars (their FWHM is artificially wide because the core
+        // is clipped) and excessively eccentric ones (trailed/blended detections).
+        // We also drop the bottom ~20% of detections to avoid noise-driven outliers.
+        // Using a relative saturation threshold against the per-frame max keeps the
+        // filter robust to scaling differences between FITS/XISF sources.
+        var saturationLevel = maxValue > 0 ? maxValue * 0.85 : double.PositiveInfinity;
+        var filtered = orderedStars
+            .Where(s => s.Peak < saturationLevel && s.Eccentricity < 0.7 && s.Fwhm > 0 && s.Fwhm < 12.0)
+            .ToList();
+
+        var fwhmSource = filtered.Count >= 10 ? filtered : orderedStars;
+        var fwhm = Median(fwhmSource.Select(s => s.Fwhm));
+        var hfr = Median(fwhmSource.Select(s => s.Hfr));
+        var eccentricity = Median(fwhmSource.Select(s => s.Eccentricity));
         var trail = DetectTrail(trailPixels, trailWidth, trailHeight);
         var starCount = totalStarCount;
+
+        var measuredStars = new MeasuredStar[fwhmSource.Count];
+        for (var i = 0; i < fwhmSource.Count; i++)
+        {
+            var s = fwhmSource[i];
+            measuredStars[i] = new MeasuredStar(s.X, s.Y, s.Fwhm, s.Hfr, s.Peak);
+        }
 
         double? fwhmArcsec = null;
         if (frame.FocalLengthMm is > 0 && frame.PixelSizeUm is > 0 && fwhm > 0)
@@ -2786,8 +2804,21 @@ public sealed class RustafitsService
             TrailX1 = trail.Confidence > 0 ? trail.X1 : null,
             TrailY1 = trail.Confidence > 0 ? trail.Y1 : null,
             TrailX2 = trail.Confidence > 0 ? trail.X2 : null,
-            TrailY2 = trail.Confidence > 0 ? trail.Y2 : null
+            TrailY2 = trail.Confidence > 0 ? trail.Y2 : null,
+            Stars = measuredStars
         };
+    }
+
+    private static double TrimmedMedian(IEnumerable<double> values)
+    {
+        var arr = values.Where(v => !double.IsNaN(v) && !double.IsInfinity(v)).ToArray();
+        if (arr.Length == 0) return 0;
+        if (arr.Length < 10) return Median(arr);
+        Array.Sort(arr);
+        var trim = arr.Length / 10; // drop 10% from each end
+        var span = arr.AsSpan(trim, arr.Length - (2 * trim));
+        var mid = span.Length / 2;
+        return (span.Length & 1) == 1 ? span[mid] : (span[mid - 1] + span[mid]) * 0.5;
     }
 
     private static (double Min, int MinCount, double Max, int MaxCount) ComputeExtremaWithCounts(float[] values)
@@ -2840,7 +2871,7 @@ public sealed class RustafitsService
         return initialized ? (min, minCount, max, maxCount) : (0, 0, 0, 0);
     }
 
-    private static (List<(double Peak, double Fwhm, double Hfr, double Eccentricity)> Measurements, int TotalCount) DetectStars(float[] pixels, int width, int height, double background, double sigma)
+    private static (List<(double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y)> Measurements, int TotalCount) DetectStars(float[] pixels, int width, int height, double background, double sigma)
     {
         // Detect on full-resolution image. Use a permissive 3-sigma threshold
         // similar to PixInsight / Hocus Focus defaults, then suppress duplicates
@@ -2855,7 +2886,7 @@ public sealed class RustafitsService
 
         if (width < 5 || height < 5)
         {
-            return (new List<(double, double, double, double)>(), 0);
+            return (new List<(double, double, double, double, double, double)>(), 0);
         }
 
         // Parallel local-max scan over horizontal stripes.
@@ -2925,7 +2956,7 @@ public sealed class RustafitsService
             totalCandidates += stripeLists[i]?.Count ?? 0;
         }
 
-        var result = new List<(double Peak, double Fwhm, double Hfr, double Eccentricity)>(Math.Min(maxMeasuredStars, totalCandidates));
+        var result = new List<(double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y)>(Math.Min(maxMeasuredStars, totalCandidates));
         if (totalCandidates == 0)
         {
             return (result, 0);
@@ -2994,13 +3025,13 @@ public sealed class RustafitsService
 
         // Measure the brightest subset only (perf); the total kept count is the star count.
         var measureCount = Math.Min(keptCount, maxMeasuredStars);
-        var measurements = new (double Peak, double Fwhm, double Hfr, double Eccentricity)[measureCount];
+        var measurements = new (double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y)[measureCount];
         Parallel.For(0, measureCount, i =>
         {
             var cx = Math.Clamp(keptX[i], 3, width - 4);
             var cy = Math.Clamp(keptY[i], 3, height - 4);
             var m = MeasureStar(pixels, width, height, cx, cy, background);
-            measurements[i] = (keptPeak[i], m.Fwhm, m.Hfr, m.Eccentricity);
+            measurements[i] = (keptPeak[i], m.Fwhm, m.Hfr, m.Eccentricity, m.X, m.Y);
         });
 
         for (var i = 0; i < measureCount; i++)
@@ -3048,11 +3079,11 @@ public sealed class RustafitsService
         return filtered;
     }
 
-    private static (double Fwhm, double Hfr, double Eccentricity) MeasureStar(float[] pixels, int width, int height, int cx, int cy, double background)
+    private static (double Fwhm, double Hfr, double Eccentricity, double X, double Y) MeasureStar(float[] pixels, int width, int height, int cx, int cy, double background)
     {
-        const int radius = 7;
-        const int annulusInner = 8;
-        const int annulusOuter = 12;
+        const int radius = 5;
+        const int annulusInner = 7;
+        const int annulusOuter = 11;
         var points = new List<(double X, double Y, double R, double Flux)>((radius * 2 + 1) * (radius * 2 + 1));
         Span<float> annulus = stackalloc float[(annulusOuter * 2 + 1) * (annulusOuter * 2 + 1)];
         var annulusCount = 0;
@@ -3126,11 +3157,24 @@ public sealed class RustafitsService
 
         if (fluxSum <= 0 || points.Count < 6)
         {
-            return (0, 0, 0);
+            return (0, 0, 0, cx, cy);
         }
 
         var mx = xSum / fluxSum;
         var my = ySum / fluxSum;
+
+        // Re-center radial distances on the intensity-weighted centroid. For
+        // undersampled stars the integer local-max pixel can be offset by up
+        // to 0.5 px from the true centroid, which significantly broadens the
+        // measured FWHM. Recomputing radii here keeps the radial profile sharp.
+        for (var i = 0; i < points.Count; i++)
+        {
+            var p = points[i];
+            var px = p.X - mx;
+            var py = p.Y - my;
+            var r = Math.Sqrt((px * px) + (py * py));
+            points[i] = (p.X, p.Y, r, p.Flux);
+        }
 
         double mxx = 0;
         double myy = 0;
@@ -3154,7 +3198,11 @@ public sealed class RustafitsService
         var lambda1 = Math.Max(1e-6, (trace + Math.Sqrt(disc)) / 2.0);
         var lambda2 = Math.Max(1e-6, (trace - Math.Sqrt(disc)) / 2.0);
 
-        var fwhm = EstimateFwhmHalfMaximum(points);
+        var fwhm = EstimateFwhmGaussianFit(points);
+        if (fwhm <= 0)
+        {
+            fwhm = EstimateFwhmHalfMaximum(points);
+        }
         if (fwhm <= 0)
         {
             var sigma = Math.Sqrt((lambda1 + lambda2) / 2.0);
@@ -3163,7 +3211,7 @@ public sealed class RustafitsService
         var hfr = ComputeHfr(points, fluxSum);
         var eccentricity = Math.Sqrt(Math.Max(0, 1.0 - (lambda2 / lambda1)));
 
-        return (fwhm, hfr, eccentricity);
+        return (fwhm, hfr, eccentricity, mx, my);
     }
 
     private static double ComputeHfr(List<(double X, double Y, double R, double Flux)> points, double totalFlux)
@@ -3183,6 +3231,98 @@ public sealed class RustafitsService
         return points.Count == 0 ? 0 : points[^1].R;
     }
 
+    /// <summary>
+    /// Estimates FWHM by fitting a 2D Gaussian to the inner core of the star.
+    /// For a Gaussian profile, ln(F(r)) is linear in r^2 with slope -1/(2 sigma^2),
+    /// so a flux-weighted linear regression of ln(F) vs r^2 over the brightest
+    /// inner samples recovers sigma directly. This matches the way PSF fitters
+    /// such as PixInsight derive FWHM and is much more accurate than binned
+    /// half-maximum interpolation on noisy, square-pixel-sampled data.
+    /// </summary>
+    private static double EstimateFwhmGaussianFit(List<(double X, double Y, double R, double Flux)> points)
+    {
+        if (points.Count < 6)
+        {
+            return 0;
+        }
+
+        // Robust peak: median of the 3 innermost samples.
+        points.Sort(static (a, b) => a.R.CompareTo(b.R));
+        var innerCount = Math.Min(points.Count, 3);
+        Span<double> inner = stackalloc double[innerCount];
+        for (var i = 0; i < innerCount; i++)
+        {
+            inner[i] = points[i].Flux;
+        }
+        inner.Sort();
+        var peak = inner[innerCount / 2];
+        if (peak <= 0)
+        {
+            return 0;
+        }
+
+        // Fit only the FWHM core (samples above ~half-peak). Real PSFs are
+        // Moffat-like with heavier wings than a Gaussian, so including the
+        // wings biases sigma upward. Restricting to the core also makes the
+        // fit insensitive to small residuals in the local-background estimate,
+        // which would otherwise lift ln(F) at large radii and flatten the slope.
+        var lowThreshold = peak * 0.4;
+        var highThreshold = peak * 1.05;
+
+        double sw = 0;     // sum of weights
+        double swx = 0;    // sum w * x   (x = r^2)
+        double swy = 0;    // sum w * y   (y = ln F)
+        double swxx = 0;
+        double swxy = 0;
+        var samples = 0;
+
+        foreach (var p in points)
+        {
+            if (p.Flux <= lowThreshold || p.Flux >= highThreshold)
+            {
+                continue;
+            }
+
+            var x = p.R * p.R;
+            var y = Math.Log(p.Flux);
+            // Weight by flux: bright core pixels have higher SNR and should
+            // dominate the fit (Poisson-weighted regression of ln(F)).
+            var w = p.Flux;
+            sw += w;
+            swx += w * x;
+            swy += w * y;
+            swxx += w * x * x;
+            swxy += w * x * y;
+            samples++;
+        }
+
+        if (samples < 5 || sw <= 0)
+        {
+            return 0;
+        }
+
+        var denom = (sw * swxx) - (swx * swx);
+        if (Math.Abs(denom) < 1e-12)
+        {
+            return 0;
+        }
+
+        var slope = ((sw * swxy) - (swx * swy)) / denom;
+        if (slope >= 0)
+        {
+            return 0; // not a peaked profile -> fall back
+        }
+
+        var sigmaSquared = -1.0 / (2.0 * slope);
+        if (sigmaSquared <= 0 || double.IsNaN(sigmaSquared) || double.IsInfinity(sigmaSquared))
+        {
+            return 0;
+        }
+
+        var sigma = Math.Sqrt(sigmaSquared);
+        return 2.3548200450309493 * sigma;
+    }
+
     private static double EstimateFwhmHalfMaximum(List<(double X, double Y, double R, double Flux)> points)
     {
         if (points.Count < 6)
@@ -3190,15 +3330,27 @@ public sealed class RustafitsService
             return 0;
         }
 
-        var peak = points.Max(p => p.Flux);
+        // Robust peak: average the inner core (smallest radii) rather than taking
+        // the single brightest pixel. The single-pixel max is biased upward by
+        // shot noise, which pulls the half-maximum threshold up and yields a
+        // *narrower* (and saturated stars yield a *wider*) profile than truth.
+        points.Sort(static (a, b) => a.R.CompareTo(b.R));
+        var coreCount = Math.Min(points.Count, 4);
+        double coreSum = 0;
+        for (var i = 0; i < coreCount; i++)
+        {
+            coreSum += points[i].Flux;
+        }
+        var peak = coreSum / coreCount;
         if (peak <= 0)
         {
             return 0;
         }
 
         var half = peak * 0.5;
-        const double binSize = 0.5;
-        var maxRadius = points.Max(p => p.R);
+        // Finer radial bins so sub-arcsecond, well-sampled stars resolve correctly.
+        const double binSize = 0.3;
+        var maxRadius = points[^1].R;
         var binCount = Math.Max(3, (int)Math.Ceiling(maxRadius / binSize) + 1);
         var sum = new double[binCount];
         var count = new int[binCount];

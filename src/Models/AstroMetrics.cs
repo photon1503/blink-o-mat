@@ -1,5 +1,7 @@
 namespace blink_o_mat.Models;
 
+public sealed record MeasuredStar(double X, double Y, double Fwhm, double Hfr, double Peak);
+
 public sealed record AstroMetrics
 {
     public double Fwhm { get; init; }
@@ -23,4 +25,11 @@ public sealed record AstroMetrics
     public double? TrailY1 { get; init; }
     public double? TrailX2 { get; init; }
     public double? TrailY2 { get; init; }
+
+    /// <summary>
+    /// Stars that contributed to the FWHM/HFR/eccentricity statistics, in native image
+    /// pixel coordinates. Populated by <c>RustafitsService.ComputeMetrics</c> and used
+    /// by the preview window's Ctrl+F debug overlay. Not persisted to the session file.
+    /// </summary>
+    public System.Collections.Generic.IReadOnlyList<MeasuredStar> Stars { get; init; } = System.Array.Empty<MeasuredStar>();
 }

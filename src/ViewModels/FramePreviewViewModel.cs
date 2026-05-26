@@ -45,6 +45,18 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private string? _previewStatusMessage;
     private int _selectedVisibleFrameIndex;
     private bool _isRoiOverlayVisible;
+    private bool _isStarDebugOverlayVisible;
+
+    public bool IsStarDebugOverlayVisible
+    {
+        get => _isStarDebugOverlayVisible;
+        set
+        {
+            if (_isStarDebugOverlayVisible == value) return;
+            _isStarDebugOverlayVisible = value;
+            OnPropertyChanged();
+        }
+    }
 
     public bool IsRoiOverlayVisible
     {

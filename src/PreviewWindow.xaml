@@ -357,6 +357,7 @@
                 </Canvas>
 
                 <Canvas x:Name="RoiOverlayCanvas" IsHitTestVisible="True" Visibility="Collapsed" />
+                <Canvas x:Name="StarDebugOverlayCanvas" IsHitTestVisible="False" Visibility="Collapsed" />
             </Grid>
         </Grid>
 

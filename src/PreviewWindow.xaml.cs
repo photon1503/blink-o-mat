@@ -79,7 +79,9 @@ public partial class PreviewWindow : Window
             FitToView();
             RedrawCacheIndicators();
             ImageScrollViewer.ScrollChanged += (_, _) => UpdateRoiOverlay();
+            ImageScrollViewer.ScrollChanged += (_, _) => UpdateStarDebugOverlay();
             UpdateRoiOverlay();
+            UpdateStarDebugOverlay();
             _hasInitializedView = true;
         };
 
@@ -162,6 +164,7 @@ public partial class PreviewWindow : Window
         _vm.Image = image;
         HideLoupe();
         Dispatcher.BeginInvoke(UpdateRoiOverlay, DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(UpdateStarDebugOverlay, DispatcherPriority.Loaded);
 
         if (!_hasInitializedView)
         {
@@ -795,6 +798,128 @@ public partial class PreviewWindow : Window
         Canvas.SetTop(handle, cy - handle.Height / 2.0);
     }
 
+    private void UpdateStarDebugOverlay()
+    {
+        if (StarDebugOverlayCanvas is null)
+        {
+            return;
+        }
+
+        if (!_vm.IsStarDebugOverlayVisible
+            || PreviewImage.Source is not BitmapSource source
+            || PreviewImage.ActualWidth <= 0 || PreviewImage.ActualHeight <= 0)
+        {
+            StarDebugOverlayCanvas.Visibility = Visibility.Collapsed;
+            StarDebugOverlayCanvas.Children.Clear();
+            return;
+        }
+
+        var stars = _vm.Item?.Metrics.Stars;
+        if (stars is null || stars.Count == 0)
+        {
+            StarDebugOverlayCanvas.Visibility = Visibility.Collapsed;
+            StarDebugOverlayCanvas.Children.Clear();
+            return;
+        }
+
+        StarDebugOverlayCanvas.Visibility = Visibility.Visible;
+        StarDebugOverlayCanvas.Children.Clear();
+
+        var pixelWidth = source.PixelWidth;
+        var pixelHeight = source.PixelHeight;
+        if (pixelWidth <= 0 || pixelHeight <= 0)
+        {
+            return;
+        }
+
+        var scaleX = PreviewImage.ActualWidth / pixelWidth;
+        var scaleY = PreviewImage.ActualHeight / pixelHeight;
+        var brush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xCC, 0x33, 0xFF, 0x66));
+        brush.Freeze();
+
+        // Per-pixel arcsec scale, derived from the frame's focal length / pixel size
+        // via the already-computed FwhmArcsec / Fwhm ratio so labels match the metrics panel.
+        var frameMetrics = _vm.Item?.Metrics;
+        double arcsecPerPixel = 0;
+        if (frameMetrics is not null && frameMetrics.Fwhm > 0 && frameMetrics.FwhmArcsec is > 0)
+        {
+            arcsecPerPixel = frameMetrics.FwhmArcsec.Value / frameMetrics.Fwhm;
+        }
+
+        foreach (var star in stars)
+        {
+            // Star FWHM is in image pixels; draw a ring at ~2*FWHM diameter for visibility.
+            var radiusPx = Math.Max(2.0, star.Fwhm) * 1.5;
+            var topLeftImg = new WpfPoint(
+                (star.X - radiusPx) * scaleX,
+                (star.Y - radiusPx) * scaleY);
+            var bottomRightImg = new WpfPoint(
+                (star.X + radiusPx) * scaleX,
+                (star.Y + radiusPx) * scaleY);
+
+            var topLeft = PreviewImage.TranslatePoint(topLeftImg, StarDebugOverlayCanvas);
+            var bottomRight = PreviewImage.TranslatePoint(bottomRightImg, StarDebugOverlayCanvas);
+            var w = bottomRight.X - topLeft.X;
+            var h = bottomRight.Y - topLeft.Y;
+            if (w < 3 || h < 3)
+            {
+                continue;
+            }
+
+            var ellipse = new Ellipse
+            {
+                Width = w,
+                Height = h,
+                Stroke = brush,
+                StrokeThickness = 1.0,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(ellipse, topLeft.X);
+            Canvas.SetTop(ellipse, topLeft.Y);
+            StarDebugOverlayCanvas.Children.Add(ellipse);
+
+            var label = new TextBlock
+            {
+                Text = arcsecPerPixel > 0
+                    ? string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:F2} ({1:F2}\")", star.Fwhm, star.Fwhm * arcsecPerPixel)
+                    : star.Fwhm.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+                Foreground = brush,
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize = 10,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(label, bottomRight.X + 2);
+            Canvas.SetTop(label, topLeft.Y - 2);
+            StarDebugOverlayCanvas.Children.Add(label);
+        }
+
+        // Summary readout: count and median FWHM (px / arcsec when available).
+        var summary = frameMetrics is null
+            ? $"Stars: {stars.Count}"
+            : frameMetrics.FwhmArcsec is > 0
+                ? $"Stars: {stars.Count}   FWHM: {frameMetrics.Fwhm:F2} px / {frameMetrics.FwhmArcsec:F2}\""
+                : $"Stars: {stars.Count}   FWHM: {frameMetrics.Fwhm:F2} px";
+
+        var summaryBackground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xB0, 0, 0, 0));
+        summaryBackground.Freeze();
+        var summaryBorder = new Border
+        {
+            Background = summaryBackground,
+            Padding = new Thickness(6, 3, 6, 3),
+            Child = new TextBlock
+            {
+                Text = summary,
+                Foreground = brush,
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize = 12
+            },
+            IsHitTestVisible = false
+        };
+        Canvas.SetLeft(summaryBorder, 8);
+        Canvas.SetTop(summaryBorder, 8);
+        StarDebugOverlayCanvas.Children.Add(summaryBorder);
+    }
+
     private void RoiBody_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (PreviewImage.Source is null) return;
@@ -1080,6 +1205,13 @@ public partial class PreviewWindow : Window
         {
             UpdateRoiOverlay();
         }
+
+        if (e.PropertyName is nameof(FramePreviewViewModel.IsStarDebugOverlayVisible)
+            or nameof(FramePreviewViewModel.Zoom)
+            or nameof(FramePreviewViewModel.Image))
+        {
+            UpdateStarDebugOverlay();
+        }
     }
 
     private void RedrawCacheIndicators()
@@ -1255,6 +1387,13 @@ public partial class PreviewWindow : Window
         {
             e.Handled = true;
             _vm.ToggleReject();
+        }
+
+        if (e.Key == Key.F && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            _vm.IsStarDebugOverlayVisible = !_vm.IsStarDebugOverlayVisible;
+            return;
         }
 
         if (e.Key == Key.Space)

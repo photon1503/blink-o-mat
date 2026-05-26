@@ -18,12 +18,29 @@ ok * On the scroll bar to the right of the image, with the little squares, worth
 ok * And are the squares selectable?  Can you click on one and jump to that image?
 
 Mark:
+
 * expressions like in sfs?  For example exclude stars where star count / sqm < 2@std dev (star count/sqm) and skytemp > -18?
 
 Patrick:
+
 * dass man die selektionparameter an/abhaken kann (ich brauche zb fast ausschließlich FWHM arcsec (der wäre super) und die Eccentricity) und diese als Profil speichern kann
+•	Einstellungszeile – BW und Pix size einstellbar (falls auch keine fits header)
+* Monitor folder for new files and automatically load them into the software. This would be especially useful for users who are capturing images in real-time and want to see the results immediately without having to manually refresh or reload the folder.
+•	Optional – bereich für werteberechnung definierbar
+•	Parameter zum An/Abhaken
+•	FWHM arcsec
+•	Eccentricity Werte - Testergebnisse
+•	FWHM Werte Berechnung? Testergebnisse
+•	Ordner Tracking – Auto file load
+•	Optische Elemente – Lesbarkeit/Größe der Bewertungsparameter
+•	Ampelsystem: Gewichtung einstellbar?
+•	Systemvergleich CCD Inspector vs. Rejector (Werteberechnungen)
+
+
 
 Michael:
+
 * square icons on vertical sliders turn yellow when selected (active)
 v22 * only import LIGHT images (not BIAS, DARK, FLAT)
 v22 * add option to import multiple (sub) folders at once
+* filter on rejected per slider
