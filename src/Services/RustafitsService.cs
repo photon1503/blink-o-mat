@@ -3168,9 +3168,9 @@ public sealed class RustafitsService
 
     private static (double Fwhm, double Hfr, double Eccentricity, double X, double Y) MeasureStar(float[] pixels, int width, int height, int cx, int cy, double background)
     {
-        const int radius = 5;
-        const int annulusInner = 7;
-        const int annulusOuter = 11;
+        const int radius = 7;
+        const int annulusInner = 9;
+        const int annulusOuter = 13;
         var points = new List<(double X, double Y, double R, double Flux)>((radius * 2 + 1) * (radius * 2 + 1));
         Span<float> annulus = stackalloc float[(annulusOuter * 2 + 1) * (annulusOuter * 2 + 1)];
         var annulusCount = 0;
@@ -3285,15 +3285,16 @@ public sealed class RustafitsService
         var lambda1 = Math.Max(1e-6, (trace + Math.Sqrt(disc)) / 2.0);
         var lambda2 = Math.Max(1e-6, (trace - Math.Sqrt(disc)) / 2.0);
 
+        // Use the Gaussian-core fit as the sole FWHM estimator. If it rejects
+        // the candidate (low R², unreasonable sigma, non-peaked profile) we
+        // return zero so the caller drops this detection entirely. The previous
+        // half-max / second-moment fallbacks happily measured non-stellar
+        // sources such as galaxy knots or nebulosity, which polluted the
+        // per-frame FWHM median.
         var fwhm = EstimateFwhmGaussianFit(points);
         if (fwhm <= 0)
         {
-            fwhm = EstimateFwhmHalfMaximum(points);
-        }
-        if (fwhm <= 0)
-        {
-            var sigma = Math.Sqrt((lambda1 + lambda2) / 2.0);
-            fwhm = 2.3548 * sigma;
+            return (0, 0, 0, mx, my);
         }
         var hfr = ComputeHfr(points, fluxSum);
         var eccentricity = Math.Sqrt(Math.Max(0, 1.0 - (lambda2 / lambda1)));
@@ -3361,6 +3362,7 @@ public sealed class RustafitsService
         double swy = 0;    // sum w * y   (y = ln F)
         double swxx = 0;
         double swxy = 0;
+        double swyy = 0;   // sum w * y^2  (needed for goodness-of-fit / R^2)
         var samples = 0;
 
         foreach (var p in points)
@@ -3380,6 +3382,7 @@ public sealed class RustafitsService
             swy += w * y;
             swxx += w * x * x;
             swxy += w * x * y;
+            swyy += w * y * y;
             samples++;
         }
 
@@ -3400,6 +3403,25 @@ public sealed class RustafitsService
             return 0; // not a peaked profile -> fall back
         }
 
+        // Goodness-of-fit (weighted R^2). For a real star, ln(F) is essentially
+        // linear in r^2, so R^2 is very close to 1. Extended objects (galaxy
+        // cores, nebulosity knots, hot-pixel clusters) produce a much weaker
+        // linear relationship and a noticeably lower R^2. Rejecting low-R^2
+        // detections here keeps non-stellar sources out of the FWHM median.
+        var meanY = swy / sw;
+        var sse = swyy - (slope * swxy) - ((meanY - (slope * (swx / sw))) * swy);
+        var sst = swyy - (meanY * swy);
+        if (sst <= 0)
+        {
+            return 0;
+        }
+
+        var rSquared = 1.0 - (sse / sst);
+        if (rSquared < 0.75)
+        {
+            return 0;
+        }
+
         var sigmaSquared = -1.0 / (2.0 * slope);
         if (sigmaSquared <= 0 || double.IsNaN(sigmaSquared) || double.IsInfinity(sigmaSquared))
         {
@@ -3407,6 +3429,13 @@ public sealed class RustafitsService
         }
 
         var sigma = Math.Sqrt(sigmaSquared);
+        // Reasonable sigma range for a stellar PSF: 0.4–6 px (FWHM ~1–14 px).
+        // Beyond that we're almost certainly fitting an extended source.
+        if (sigma < 0.4 || sigma > 6.0)
+        {
+            return 0;
+        }
+
         return 2.3548200450309493 * sigma;
     }
 
