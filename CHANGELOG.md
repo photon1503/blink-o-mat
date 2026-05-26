@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.22
+
+### Performance
+- **Memory-aware frame loading parallelism.** Background frame loading no longer blindly uses all CPU cores after the first successful frame. The app now measures that first frame's true in-memory size, checks currently free physical RAM, reserves safety headroom, and derives a bounded worker count from the remaining memory budget. This keeps loading fast while significantly reducing memory pressure and GC churn on large sessions.
+
+
+### Changed
+- Frame loading now skips non-LIGHT images (BIAS, Dark, Flat)
+
+### Added
+ - Added option to select multiple input folders
+	
 ## 1.0.19
 
 ### Added
