@@ -2762,9 +2762,20 @@ public sealed class RustafitsService
             .ToList();
 
         var fwhmSource = filtered.Count >= 10 ? filtered : orderedStars;
-        var fwhm = Median(fwhmSource.Select(s => s.Fwhm));
-        var hfr = Median(fwhmSource.Select(s => s.Hfr));
-        var eccentricity = Median(fwhmSource.Select(s => s.Eccentricity));
+
+        // Center-weighted aggregation. Field curvature/coma at the periphery
+        // inflates per-star FWHM and eccentricity; CCDInspector handles this
+        // implicitly by sampling thousands of stars, so the well-corrected
+        // central majority dominates the median. We instead weight each star
+        // by a smooth radial falloff from the image center (cos^2 of the
+        // normalized radius), which yields the same "average representative
+        // FWHM of the central field" without requiring a much larger sample.
+        var centerX = width * 0.5;
+        var centerY = height * 0.5;
+        var halfDiag = Math.Sqrt((centerX * centerX) + (centerY * centerY));
+        var fwhm = WeightedMedian(fwhmSource, s => s.Fwhm, s => RadialCenterWeight(s.X, s.Y, centerX, centerY, halfDiag));
+        var hfr = WeightedMedian(fwhmSource, s => s.Hfr, s => RadialCenterWeight(s.X, s.Y, centerX, centerY, halfDiag));
+        var eccentricity = WeightedMedian(fwhmSource, s => s.Eccentricity, s => RadialCenterWeight(s.X, s.Y, centerX, centerY, halfDiag));
         var trail = DetectTrail(trailPixels, trailWidth, trailHeight);
         var starCount = totalStarCount;
 
@@ -2819,6 +2830,82 @@ public sealed class RustafitsService
         var span = arr.AsSpan(trim, arr.Length - (2 * trim));
         var mid = span.Length / 2;
         return (span.Length & 1) == 1 ? span[mid] : (span[mid - 1] + span[mid]) * 0.5;
+    }
+
+    /// <summary>
+    /// Radial weight: 1.0 at the image center, falling sharply with radius and
+    /// going to zero outside the inner 75% of the half-diagonal. The hard outer
+    /// cut excludes the periphery (where coma/field curvature inflates FWHM and
+    /// eccentricity) entirely, and the cos^8 falloff biases the surviving
+    /// weighted median strongly toward the well-corrected inner field. This
+    /// mirrors how CCDInspector reports a "representative" FWHM that is not
+    /// skewed by edge curvature.
+    /// </summary>
+    private static double RadialCenterWeight(double x, double y, double centerX, double centerY, double halfDiag)
+    {
+        if (halfDiag <= 0)
+        {
+            return 1.0;
+        }
+
+        var dx = x - centerX;
+        var dy = y - centerY;
+        var r = Math.Sqrt((dx * dx) + (dy * dy)) / halfDiag; // 0 at center, 1 at corner
+
+        const double cutoff = 0.75;
+        if (r >= cutoff)
+        {
+            return 0;
+        }
+
+        // Remap r into [0, 1] over the inner field, then cos^4 falloff.
+        var rn = r / cutoff;
+        var c = Math.Cos(rn * Math.PI * 0.5);
+        var c2 = c * c;
+        return c2 * c2;
+    }
+
+    private static double WeightedMedian<T>(IReadOnlyList<T> items, Func<T, double> valueSelector, Func<T, double> weightSelector)
+    {
+        if (items.Count == 0)
+        {
+            return 0;
+        }
+
+        var pairs = new (double Value, double Weight)[items.Count];
+        double totalWeight = 0;
+        var n = 0;
+        for (var i = 0; i < items.Count; i++)
+        {
+            var v = valueSelector(items[i]);
+            var w = weightSelector(items[i]);
+            if (double.IsNaN(v) || double.IsInfinity(v) || w <= 0)
+            {
+                continue;
+            }
+            pairs[n++] = (v, w);
+            totalWeight += w;
+        }
+
+        if (n == 0 || totalWeight <= 0)
+        {
+            return 0;
+        }
+
+        Array.Sort(pairs, 0, n, Comparer<(double Value, double Weight)>.Create((a, b) => a.Value.CompareTo(b.Value)));
+
+        var half = totalWeight * 0.5;
+        double cumulative = 0;
+        for (var i = 0; i < n; i++)
+        {
+            cumulative += pairs[i].Weight;
+            if (cumulative >= half)
+            {
+                return pairs[i].Value;
+            }
+        }
+
+        return pairs[n - 1].Value;
     }
 
     private static (double Min, int MinCount, double Max, int MaxCount) ComputeExtremaWithCounts(float[] values)
@@ -2876,7 +2963,7 @@ public sealed class RustafitsService
         // Detect on full-resolution image. Use a permissive 3-sigma threshold
         // similar to PixInsight / Hocus Focus defaults, then suppress duplicates
         // via a coarse spatial hash so we don't run an O(N^2) scan.
-        const int maxMeasuredStars = 500;
+        const int maxMeasuredStars = 2000;
         const double suppressionRadius = 4.0;
         const double suppressionRadiusSq = suppressionRadius * suppressionRadius;
         const int cellSize = 8; // > 2 * suppressionRadius

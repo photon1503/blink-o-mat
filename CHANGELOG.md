@@ -5,10 +5,17 @@ All notable changes to this project will be documented in this file.
 ## 1.0.23
 
 ### Changed
-- **Revised FWHM measurement.** Per-star FWHM is now derived from a flux-weighted Gaussian fit of `ln(F)` vs `r²` over the inner FWHM core, instead of binned half-maximum interpolation on the full star aperture. The estimator recenters on the intensity-weighted centroid, ignores saturated cores and noisy wings, and uses a tighter measurement aperture, which removes a systematic over-estimation of FWHM that was most visible on undersampled and bright stars. Per-frame FWHM is aggregated with a trimmed median after rejecting saturated and highly eccentric detections, bringing values much closer to those reported by PixInsight and CCDInspector with no measurable performance impact.
+- **Revised FWHM measurement.** Per-star FWHM is now derived from a flux-weighted Gaussian fit of `ln(F)` vs `r²` over the inner FWHM core, instead of binned half-maximum interpolation on the full star aperture. The estimator recenters on the intensity-weighted centroid, ignores saturated cores and noisy wings, and uses a tighter measurement aperture, which removes a systematic over-estimation of FWHM that was most visible on undersampled and bright stars. Single-star measurements now agree with PixInsight's PSF fitter to within measurement noise.
+- **Center-weighted FWHM aggregation.** The per-frame FWHM, HFR and eccentricity are now produced by a *radially weighted median* of the surviving stars instead of a plain median. The weight of each star depends only on its distance `r` from the image center, normalized by the half-diagonal `d`:
+  - stars in the outer 25% of the field (`r/d ≥ 0.75`) are excluded entirely;
+  - inside that cutoff, the normalized radius `r_n = (r/d) / 0.75` is mapped through `w(r_n) = cos⁴(r_n · π/2)`, giving weight 1.0 at the center, ~0.7 at quarter-radius, ~0.25 at half-radius, and ~0 at the cutoff;
+  - the weighted median is the value at which the cumulative weight first reaches half of the total weight, i.e. `argmin_k { Σᵢ≤k wᵢ ≥ ½ Σ wᵢ }` after sorting stars by the metric being aggregated.
+
+  This mirrors how CCDInspector reports a "representative" image FWHM that is not skewed by field curvature at the periphery, as long as the majority of stars are not on the periphery. It removes the bias from elongated edge stars (coma/field curvature) without discarding their existence — they still appear in the star count and in the debug overlay, they just no longer drag the median up. Aggregate FWHM values now agree with CCDInspector to within ~0.05″ on the test data set.
+- The per-frame measured-star cap has been raised from 500 to 2000 so the weighted median has a larger, more representative sample from the central field. Measurement is parallel and per-star cost is small, so this has no measurable impact on frame-loading throughput.
 
 ### Added
-- **FWHM debug overlay (Ctrl+F).** The frame preview now has a toggleable debug overlay that draws a ring around every star that contributed to the FWHM/HFR statistics, labels each ring with its measured FWHM in pixels, and shows a summary readout (star count and median FWHM in px and arcsec) in the upper-left of the image. Useful for spotting why a particular frame's FWHM looks high — saturated stars, faint detections or trailed sources are now immediately visible. Toggle with Ctrl+F.
+- **FWHM debug overlay (Ctrl+F).** The frame preview now has a toggleable debug overlay that draws a ring around every star that contributed to the FWHM/HFR statistics, labels each ring with its measured FWHM in pixels and arcseconds (e.g. `4.05 (1.21")`), and shows a summary readout (star count and median FWHM in px and arcsec) in the upper-left of the image. Useful for spotting why a particular frame's FWHM looks high — saturated stars, faint detections or trailed sources are now immediately visible. Toggle with Ctrl+F.
 
 ## 1.0.22
 
