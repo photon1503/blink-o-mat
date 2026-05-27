@@ -827,8 +827,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         RejectedFolder = settings.RejectedFolder;
         _includeSubfolders = settings.IncludeSubfolders;
 
-        // Fire-and-forget update check — non-blocking, never throws to the caller.
-        _ = CheckForUpdateAsync();
+        // Fire-and-forget update check — deferred to let UI show first.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            await CheckForUpdateAsync();
+        });
     }
 
     private async Task CheckForUpdateAsync()

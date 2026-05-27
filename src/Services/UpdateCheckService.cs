@@ -23,7 +23,7 @@ public sealed class UpdateCheckService
         {
             using var http = new HttpClient();
             http.DefaultRequestHeaders.UserAgent.ParseAdd("Rejector-UpdateCheck/1.0");
-            http.Timeout = TimeSpan.FromSeconds(10);
+            http.Timeout = TimeSpan.FromSeconds(3);
 
             var release = await http.GetFromJsonAsync<GithubReleaseWithAssets>(
                 ReleasesApiUrl, cancellationToken);
@@ -61,7 +61,7 @@ public sealed class UpdateCheckService
         {
             using var http = new HttpClient();
             http.DefaultRequestHeaders.UserAgent.ParseAdd("Rejector-UpdateCheck/1.0");
-            http.Timeout = TimeSpan.FromSeconds(10);
+            http.Timeout = TimeSpan.FromSeconds(3);
 
             var release = await http.GetFromJsonAsync<GithubReleaseWithAssets>(
                 ReleasesApiUrl, cancellationToken);
@@ -107,7 +107,7 @@ public sealed class UpdateCheckService
         {
             using var http = new HttpClient();
             http.DefaultRequestHeaders.UserAgent.ParseAdd("Rejector-UpdateCheck/1.0");
-            http.Timeout = TimeSpan.FromSeconds(10);
+            http.Timeout = TimeSpan.FromSeconds(3);
 
             var release = await http.GetFromJsonAsync<GithubReleaseWithAssets>(
                 ReleasesApiUrl, cancellationToken);

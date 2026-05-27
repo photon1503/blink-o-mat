@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## 1.0.24
 
+### Performance
+- **Faster application startup.** Reduced the update check HTTP timeout from 10 seconds to 3 seconds and deferred the check by 100ms to allow the main window to appear immediately. The app now starts near-instantly instead of waiting up to 10 seconds for the GitHub API response.
+
 ### Fixed
 - **Curvature preview no longer turns black when navigating frames.** In the frame preview, when **Curvature** view is enabled, moving to the next/previous image could occasionally leave the canvas black due to an image-refresh timing gap. Curvature rendering now stays synchronized with the active preview image during navigation.
 - **Preview no longer jumps to the first frame after reject with visibility filters.** In frame preview, when a reject/keep toggle makes the current frame leave the visible set (for example: reject while only accepted frames are shown), the selection now stays at the same relative slider position and continues to the expected next visible frame instead of jumping to frame 1.
