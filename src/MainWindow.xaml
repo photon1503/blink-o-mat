@@ -88,6 +88,7 @@
                                                      Padding="6,4" />
                                             <Button Grid.Column="1" Content="..." Width="34" Height="30"
                                                     Command="{Binding BrowseInputCommand}"
+                                                    Click="SessionPopupBrowseButton_Click"
                                                     ToolTip="Browse for input folder"
                                                     Padding="0" FontSize="12" />
                                         </Grid>
@@ -114,6 +115,7 @@
                                                      Padding="6,4" />
                                             <Button Grid.Column="1" Content="..." Width="34" Height="30"
                                                     Command="{Binding BrowseRejectedCommand}"
+                                                    Click="SessionPopupBrowseButton_Click"
                                                     ToolTip="Browse for rejected folder"
                                                     Padding="0" FontSize="12" />
                                         </Grid>
@@ -121,6 +123,7 @@
                                         <!-- Load Frames button at bottom -->
                                         <Button x:Name="LoadFramesButtonPopup" Padding="10,8"
                                                 Command="{Binding LoadFramesCommand}"
+                                                Click="LoadFramesButtonPopup_Click"
                                                 ToolTip="Scan the input folder and load all FITS/XISF frames for analysis"
                                                 HorizontalAlignment="Stretch"
                                                 FontWeight="SemiBold"

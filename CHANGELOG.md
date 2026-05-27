@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.26
+
+### Fixed
+- The Open Folder panel now stays open when selecting/changing input folder.
+  It will only auto-close after the user explicitly clicks Load Frames and that load operation completes.
+
+
 ## 1.0.25
 
 ### Changed

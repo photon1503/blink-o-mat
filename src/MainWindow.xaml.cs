@@ -13,6 +13,10 @@ namespace blink_o_mat
     /// </summary>
     public partial class MainWindow : Window
     {
+        private bool _closeSessionPanelAfterLoadRequested;
+        private bool _sessionLoadInProgress;
+        private bool _reopenSessionPanelOnActivate;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -22,6 +26,7 @@ namespace blink_o_mat
                 vm.PropertyChanged += Vm_PropertyChanged;
             }
             SourceInitialized += (_, _) => WindowTitleBarStyler.Apply(this);
+            Activated += MainWindow_Activated;
             WindowPlacementService.RestoreMainWindow(this);
             Closing += MainWindow_Closing;
             Title = BuildTitle();
@@ -83,6 +88,7 @@ namespace blink_o_mat
 
         private void MainWindow_Closing(object? sender, CancelEventArgs e)
         {
+            Activated -= MainWindow_Activated;
             WindowPlacementService.SaveMainWindow(this);
             if (DataContext is MainViewModel vm)
             {
@@ -114,13 +120,59 @@ namespace blink_o_mat
                 return;
             }
 
-            if (e.PropertyName == nameof(MainViewModel.IsBusy)
-                && !vm.IsBusy
+            if (e.PropertyName != nameof(MainViewModel.IsBusy))
+            {
+                return;
+            }
+
+            if (vm.IsBusy)
+            {
+                if (_closeSessionPanelAfterLoadRequested)
+                {
+                    _sessionLoadInProgress = true;
+                }
+                return;
+            }
+
+            if (_closeSessionPanelAfterLoadRequested
+                && _sessionLoadInProgress
                 && vm.TotalFrameCount > 0
                 && SessionContextMenu?.IsOpen == true)
             {
                 Dispatcher.BeginInvoke(() => SessionContextMenu.IsOpen = false);
             }
+
+            _closeSessionPanelAfterLoadRequested = false;
+            _sessionLoadInProgress = false;
+        }
+
+        private void LoadFramesButtonPopup_Click(object sender, RoutedEventArgs e)
+        {
+            _closeSessionPanelAfterLoadRequested = true;
+            _sessionLoadInProgress = false;
+        }
+
+        private void SessionPopupBrowseButton_Click(object sender, RoutedEventArgs e)
+        {
+            _reopenSessionPanelOnActivate = true;
+        }
+
+        private void MainWindow_Activated(object? sender, EventArgs e)
+        {
+            if (!_reopenSessionPanelOnActivate)
+            {
+                return;
+            }
+
+            _reopenSessionPanelOnActivate = false;
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (SessionSettingsButtonTopBar?.ContextMenu is System.Windows.Controls.ContextMenu menu)
+                {
+                    menu.PlacementTarget = SessionSettingsButtonTopBar;
+                    menu.IsOpen = true;
+                }
+            });
         }
     }
 }
