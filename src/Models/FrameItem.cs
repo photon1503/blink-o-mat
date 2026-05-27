@@ -23,6 +23,7 @@ public sealed class FrameItem : INotifyPropertyChanged
     private WpfBrush _trailIndicatorBrush = WpfBrushes.Goldenrod;
     private double _overallScore;
     private List<string> _rejectionReasons = [];
+    private static readonly WpfBrush KeepStateBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x5D, 0x9A, 0x65));
 
     public required string FilePath { get; init; }
     public required string FileName { get; init; }
@@ -238,7 +239,7 @@ public sealed class FrameItem : INotifyPropertyChanged
         }
     }
 
-    public WpfBrush RejectionStateBrush => IsRejected ? WpfBrushes.IndianRed : WpfBrushes.MediumSeaGreen;
+    public WpfBrush RejectionStateBrush => IsRejected ? WpfBrushes.IndianRed : KeepStateBrush;
 
     public IReadOnlyList<string> RejectionReasons => _rejectionReasons;
 

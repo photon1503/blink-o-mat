@@ -42,7 +42,7 @@
             <Setter Property="Margin" Value="6" />
         </Style>
     </UserControl.Resources>
-    <Border BorderBrush="{StaticResource PanelBorderBrush}" Background="{StaticResource PanelBackgroundAltBrush}" BorderThickness="1" Padding="6" Margin="0,0,0,8" CornerRadius="4">
+    <Border Background="{DynamicResource ListItem}" BorderThickness="1" Padding="6" Margin="0,0,0,8" CornerRadius="4" BorderBrush="{DynamicResource ListItem}">
         <Border.Style>
             <Style TargetType="Border">
                 <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}" />
@@ -56,18 +56,20 @@
                 </Style.Triggers>
             </Style>
         </Border.Style>
-        <Grid>
+        <Grid Background="{DynamicResource ListItem}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="310" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="163*" />
+                <ColumnDefinition Width="521*" />
+                <ColumnDefinition Width="82*" />
                 <ColumnDefinition Width="150" />
             </Grid.ColumnDefinitions>
 
-            <DockPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" LastChildFill="True" Margin="0,0,10,6">
+            <DockPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4" LastChildFill="True" Margin="0,0,10,6">
                 <Border DockPanel.Dock="Right" Background="{Binding QualityBackgroundBrush}" CornerRadius="5" Padding="10,3" VerticalAlignment="Center" Margin="12,0,0,0">
                     <TextBlock Text="{Binding QualityLabel}" Foreground="{Binding QualityBrush}" FontWeight="Bold" FontSize="12" />
                 </Border>
@@ -112,7 +114,7 @@
                 </Border>
             </Grid>
 
-            <Grid Grid.Row="1" Grid.Column="1" Margin="0,0,10,0">
+            <Grid Grid.Row="1" Grid.Column="1" Margin="0,0,10,0" Grid.ColumnSpan="3">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -266,7 +268,7 @@
                 </Grid>
             </Grid>
 
-            <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Background="#1B1D20" BorderBrush="#303338" BorderThickness="1" CornerRadius="4" Padding="12,10">
+            <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="4" Background="#1B1D20" BorderBrush="#303338" BorderThickness="1" CornerRadius="4" Padding="12,10">
                 <StackPanel>
                     <TextBlock Text="SCORE" FontSize="11" Foreground="#9A9A9A" />
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,2">

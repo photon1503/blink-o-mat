@@ -9,6 +9,7 @@ public sealed class FrameRejectionService
         var m = frame.Metrics;
 
         return m.Fwhm > thresholds.MaxFwhm
+               || (m.FwhmArcsec.HasValue && m.FwhmArcsec.Value > thresholds.MaxFwhmArcsec)
                || (m.Sqm.HasValue && m.Sqm.Value < thresholds.MinSqm)
                || (m.SkyTemp.HasValue && m.SkyTemp.Value > thresholds.MaxSkyTemp)
                || m.Hfr > thresholds.MaxHfr
@@ -26,6 +27,9 @@ public sealed class FrameRejectionService
 
         if (m.Fwhm > thresholds.MaxFwhm)
             reasons.Add($"FWHM {m.Fwhm:F2} px  >  limit {thresholds.MaxFwhm:F2} px");
+
+        if (m.FwhmArcsec.HasValue && m.FwhmArcsec.Value > thresholds.MaxFwhmArcsec)
+            reasons.Add($"FWHM {m.FwhmArcsec.Value:F2} as  >  limit {thresholds.MaxFwhmArcsec:F2} as");
 
         if (m.Sqm.HasValue && m.Sqm.Value < thresholds.MinSqm)
             reasons.Add($"SQM {m.Sqm.Value:F3}  <  limit {thresholds.MinSqm:F3}");

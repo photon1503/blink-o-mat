@@ -17,18 +17,16 @@ namespace blink_o_mat;
 
 public partial class PreviewWindow : Window
 {
-    private static readonly System.Windows.Media.Brush ActiveFrameBrush;
-    private static readonly System.Windows.Media.Color ScoreHighColor  = System.Windows.Media.Color.FromRgb(0x39, 0xD3, 0x53); // green
-    private static readonly System.Windows.Media.Color ScoreMidColor   = System.Windows.Media.Color.FromRgb(0xFF, 0xD7, 0x00); // yellow
-    private static readonly System.Windows.Media.Color ScoreLowColor   = System.Windows.Media.Color.FromRgb(0xE5, 0x3E, 0x3E); // red
-    private static readonly System.Windows.Media.Brush CacheBorderBrush;
+    private static readonly System.Windows.Media.Brush CacheDotBrush;
+
+    private static readonly System.Windows.Media.Color ScoreHighColor = System.Windows.Media.Color.FromRgb(0x39, 0xD3, 0x53); // green
+    private static readonly System.Windows.Media.Color ScoreMidColor = System.Windows.Media.Color.FromRgb(0xFF, 0xD7, 0x00); // yellow
+    private static readonly System.Windows.Media.Color ScoreLowColor = System.Windows.Media.Color.FromRgb(0xE5, 0x3E, 0x3E); // red
 
     static PreviewWindow()
     {
-        ActiveFrameBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xD7, 0x00));
-        ActiveFrameBrush.Freeze();
-        CacheBorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x40, 0x9E, 0xFF));
-        CacheBorderBrush.Freeze();
+        CacheDotBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x4E, 0x77, 0x96));
+        CacheDotBrush.Freeze();
     }
 
     private readonly FramePreviewViewModel _vm;
@@ -46,6 +44,7 @@ public partial class PreviewWindow : Window
 
     // Persistent ROI overlay (toggled from the side panel)
     private System.Windows.Shapes.Rectangle? _roiPersistentRect;
+
     private readonly System.Windows.Shapes.Rectangle?[] _roiHandles = new System.Windows.Shapes.Rectangle?[4];
     private bool _isRoiOverlayEditing;
     private RoiEditMode _roiEditMode;
@@ -56,15 +55,18 @@ public partial class PreviewWindow : Window
     private const int LoupeSampleSize = 31;
     private const int LoupeZoomScale = 4;
 
-    private enum RoiEditMode { None, Move, Resize }
+    private enum RoiEditMode
+    { None, Move, Resize }
 
     // Playback
     private readonly DispatcherTimer _playTimer;
+
     private double _playIntervalSeconds = 1.0;
     private static readonly double[] PlayIntervalSteps = [0.1, 0.2, 0.5, 1.0, 2.0, 3.0, 5.0, 10.0];
 
     // Curvature view state (used by the live mouse-position tooltip).
     private double[]? _curvatureGrid;
+
     private int _curvatureGridW;
     private int _curvatureGridH;
     private int _curvatureImgW;
@@ -191,7 +193,7 @@ public partial class PreviewWindow : Window
 
     private void Smaller_Click(object sender, RoutedEventArgs e)
     {
-        _vm.Zoom = Math.Max(0.1, _vm.Zoom / 1.25);
+        ZoomAroundViewportCenter(1.0 / 1.25);
     }
 
     private void Fit_Click(object sender, RoutedEventArgs e)
@@ -295,12 +297,12 @@ public partial class PreviewWindow : Window
 
     private void ZoomIn_Click(object sender, RoutedEventArgs e)
     {
-        _vm.Zoom = Math.Min(8.0, _vm.Zoom * 1.25);
+        ZoomAroundViewportCenter(1.25);
     }
 
     private void OneToOne_Click(object sender, RoutedEventArgs e)
     {
-        _vm.Zoom = 1.0;
+        SetZoomAroundViewerPoint(new WpfPoint(ImageScrollViewer.ViewportWidth / 2.0, ImageScrollViewer.ViewportHeight / 2.0), 1.0);
     }
 
     private void ToggleReject_Click(object sender, RoutedEventArgs e)
@@ -346,16 +348,36 @@ public partial class PreviewWindow : Window
 
     private void ZoomAroundViewerPoint(WpfPoint viewerPoint, double zoomFactor)
     {
+        if (zoomFactor <= 0)
+        {
+            return;
+        }
+
+        var targetZoom = Math.Clamp(_vm.Zoom * zoomFactor, 0.1, 8.0);
+        SetZoomAroundViewerPoint(viewerPoint, targetZoom);
+    }
+
+    private void ZoomAroundViewportCenter(double zoomFactor)
+    {
+        if (ImageScrollViewer.ViewportWidth <= 0 || ImageScrollViewer.ViewportHeight <= 0)
+        {
+            return;
+        }
+
+        ZoomAroundViewerPoint(new WpfPoint(ImageScrollViewer.ViewportWidth / 2.0, ImageScrollViewer.ViewportHeight / 2.0), zoomFactor);
+    }
+
+    private void SetZoomAroundViewerPoint(WpfPoint viewerPoint, double targetZoom)
+    {
         if (PreviewImage.Source is null
             || ImageScrollViewer.ViewportWidth <= 0
-            || ImageScrollViewer.ViewportHeight <= 0
-            || zoomFactor <= 0)
+            || ImageScrollViewer.ViewportHeight <= 0)
         {
             return;
         }
 
         var oldZoom = _vm.Zoom;
-        var newZoom = Math.Clamp(oldZoom * zoomFactor, 0.1, 8.0);
+        var newZoom = Math.Clamp(targetZoom, 0.1, 8.0);
         if (Math.Abs(newZoom - oldZoom) < 0.0001)
         {
             return;
@@ -1101,12 +1123,12 @@ public partial class PreviewWindow : Window
                 // Corner weight: high near (rx,ry)~1, falls to 0 inside.
                 var cornerWeight = Math.Max(0, Math.Min(rx, ry) - 0.6) / 0.4; // ramp 0.6..1.0
                 cornerSum += cornerWeight * v;
-                cornerW   += cornerWeight;
+                cornerW += cornerWeight;
                 // Center weight: high near (rx,ry)~0.
                 var d = Math.Sqrt(rx * rx + ry * ry);
                 var centerWeight = Math.Max(0, 1 - d / 0.3); // within ~30% of center
                 centerSum += centerWeight * v;
-                centerW   += centerWeight;
+                centerW += centerWeight;
             }
         }
         var cornerAvg = cornerW > 0 ? cornerSum / cornerW : maxF;
@@ -1152,7 +1174,7 @@ public partial class PreviewWindow : Window
         var ctrlAspect = ctrlW / ctrlH;
         double areaW, areaH, areaX, areaY;
         if (imgAspect > ctrlAspect) { areaW = ctrlW; areaH = ctrlW / imgAspect; areaX = 0; areaY = (ctrlH - areaH) / 2; }
-        else                        { areaH = ctrlH; areaW = ctrlH * imgAspect; areaY = 0; areaX = (ctrlW - areaW) / 2; }
+        else { areaH = ctrlH; areaW = ctrlH * imgAspect; areaY = 0; areaX = (ctrlW - areaW) / 2; }
 
         var pos = e.GetPosition(CurvatureImage);
         var u = (pos.X - areaX) / areaW;
@@ -1607,6 +1629,7 @@ public partial class PreviewWindow : Window
             return;
         }
 
+        ScoreIndicatorCanvas.Children.Clear();
         CacheIndicatorCanvas.Children.Clear();
 
         var frameCount = _vm.FrameCount;
@@ -1616,7 +1639,9 @@ public partial class PreviewWindow : Window
             return;
         }
 
+        ScoreIndicatorCanvas.Height = height;
         CacheIndicatorCanvas.Height = height;
+
         var currentIndex = Math.Clamp((int)Math.Round(_vm.FrameSliderValue), 0, Math.Max(0, frameCount - 1));
         var span = Math.Max(1.0, height - 2.0);
         var markerHeight = Math.Clamp(height / Math.Max(1, frameCount), 2.0, 6.0);
@@ -1656,79 +1681,95 @@ public partial class PreviewWindow : Window
                     : LerpColor(ScoreLowColor, ScoreMidColor, t * 2.0);
             }
 
-            const double borderSize = 2.0;
-            var markerWidth = isCurrent ? 8.0 : 6.0;
-            var left = isCurrent ? 0.0 : 1.0;
-            var capturedIndex = sliderIndex; // capture for lambda
+            var markerWidth = 6.0;
+            var scoreLeft = 4.0;
+            var capturedIndex = sliderIndex;
 
-            // Transparent hit-test overlay covering the full marker area (including border)
-            // so clicks always register regardless of which child element is on top
-            var hitArea = new System.Windows.Shapes.Rectangle
-            {
-                Width = markerWidth + borderSize * 2,
-                Height = Math.Max(markerHeight + borderSize * 2, 8.0),
-                Fill = System.Windows.Media.Brushes.Transparent,
-                Cursor = System.Windows.Input.Cursors.Hand,
-                ToolTip = $"Frame {capturedIndex + 1}"
-            };
-            hitArea.MouseLeftButtonUp += (_, _) => _ = _vm.NavigateToIndexAsync(capturedIndex);
-            Canvas.SetTop(hitArea, top - borderSize);
-            Canvas.SetLeft(hitArea, left - borderSize);
-
-            // Blue border drawn as a background rect that peeks out behind the fill rect
-            if (isCached)
-            {
-                var border = new System.Windows.Shapes.Rectangle
-                {
-                    Width = markerWidth + borderSize * 2,
-                    Height = markerHeight + borderSize * 2,
-                    RadiusX = 2,
-                    RadiusY = 2,
-                    Fill = CacheBorderBrush,
-                    IsHitTestVisible = false
-                };
-                Canvas.SetTop(border, top - borderSize);
-                Canvas.SetLeft(border, left - borderSize);
-                CacheIndicatorCanvas.Children.Add(border);
-            }
-
-            var rect = new System.Windows.Shapes.Rectangle
+            var scoreRect = new System.Windows.Shapes.Rectangle
             {
                 Width = markerWidth,
                 Height = markerHeight,
                 RadiusX = 1,
                 RadiusY = 1,
-                Fill = isCurrent
-                    ? ActiveFrameBrush
-                    : new SolidColorBrush(fillColor),
+                Fill = new SolidColorBrush(fillColor),
                 IsHitTestVisible = false
             };
+            Canvas.SetTop(scoreRect, top);
+            Canvas.SetLeft(scoreRect, scoreLeft);
+            ScoreIndicatorCanvas.Children.Add(scoreRect);
 
-            Canvas.SetTop(rect, top);
-            Canvas.SetLeft(rect, left);
-            CacheIndicatorCanvas.Children.Add(rect);
-
-            // Strike-through for rejected frames
+            // Strike-through for rejected frames on score square
             bool isRejected = sliderIndex < frameData.Count && frameData[sliderIndex].IsRejected;
             if (isRejected && markerHeight >= 2.0)
             {
                 var midY = top + markerHeight / 2.0;
                 var strike = new System.Windows.Shapes.Line
                 {
-                    X1 = left - 1.0,
+                    X1 = scoreLeft - 1.0,
                     Y1 = midY,
-                    X2 = left + markerWidth + 1.0,
+                    X2 = scoreLeft + markerWidth + 1.0,
                     Y2 = midY,
                     Stroke = System.Windows.Media.Brushes.White,
                     StrokeThickness = 2.0,
                     Opacity = 1.0,
                     IsHitTestVisible = false
                 };
-                CacheIndicatorCanvas.Children.Add(strike);
+                ScoreIndicatorCanvas.Children.Add(strike);
             }
 
-            // Add hit area last so it sits on top of all visual layers
-            CacheIndicatorCanvas.Children.Add(hitArea);
+            // Current frame marker: yellow-ish triangle on the LEFT of score square
+            if (isCurrent)
+            {
+                var triangleWidth = 7.0;
+                var triangleTipX = 2.0;
+                var triangleBaseX = triangleTipX - triangleWidth;
+
+                var triangle = new Polygon
+                {
+                    Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xD8, 0x7A)),
+                    Stroke = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC9, 0xA7, 0x52)),
+                    StrokeThickness = 1,
+                    IsHitTestVisible = false,
+                    Points = new PointCollection
+                    {
+                        new System.Windows.Point(triangleTipX, top + markerHeight / 2.0),
+                        new System.Windows.Point(triangleBaseX, top - 0.5),
+                        new System.Windows.Point(triangleBaseX, top + markerHeight + 0.5)
+                    }
+                };
+                ScoreIndicatorCanvas.Children.Add(triangle);
+            }
+
+            // Cache marker as muted blue dot on RIGHT of slider
+            if (isCached)
+            {
+                var dotSize = Math.Min(4.0, markerHeight + 0.5);
+                var dot = new Ellipse
+                {
+                    Width = dotSize,
+                    Height = dotSize,
+                    Fill = CacheDotBrush,
+                    Opacity = 0.95,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(dot, 3.0);
+                Canvas.SetTop(dot, top + (markerHeight - dotSize) / 2.0);
+                CacheIndicatorCanvas.Children.Add(dot);
+            }
+
+            // Click target on left score column to keep direct jump behavior
+            var hitArea = new System.Windows.Shapes.Rectangle
+            {
+                Width = 14,
+                Height = Math.Max(markerHeight + 4.0, 8.0),
+                Fill = System.Windows.Media.Brushes.Transparent,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = $"Frame {capturedIndex + 1}"
+            };
+            hitArea.MouseLeftButtonUp += (_, _) => _ = _vm.NavigateToIndexAsync(capturedIndex);
+            Canvas.SetTop(hitArea, top - 2.0);
+            Canvas.SetLeft(hitArea, 0);
+            ScoreIndicatorCanvas.Children.Add(hitArea);
         }
     }
 

@@ -3,6 +3,7 @@ namespace blink_o_mat.Models;
 public sealed class Thresholds
 {
     public double MaxFwhm { get; set; } = 8.0;
+    public double MaxFwhmArcsec { get; set; } = 20.0;
     public double MinSqm { get; set; } = 0;
     public double MaxSkyTemp { get; set; } = 40.0;
     public double MaxHfr { get; set; } = 4.5;

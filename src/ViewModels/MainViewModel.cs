@@ -196,6 +196,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _approvedFrameCount;
     private int _eccentricityRejectedFrameCount;
     private int _fwhmRejectedFrameCount;
+    private int _fwhmArcsecRejectedFrameCount;
     private int _hfrRejectedFrameCount;
     private int _meanBackgroundRejectedFrameCount;
     private int _rejectedFrameCount;
@@ -256,10 +257,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (_inputFolder == value) return;
             _inputFolder = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(HasInputFolder));
             SaveFolderSettings();
             ((RelayCommand)LoadFramesCommand).RaiseCanExecuteChanged();
         }
     }
+
+    public bool HasInputFolder => !string.IsNullOrWhiteSpace(_inputFolder);
 
     public bool IncludeSubfolders
     {
@@ -378,6 +382,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (_fwhmRejectedFrameCount == value) return;
             _fwhmRejectedFrameCount = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int FwhmArcsecRejectedFrameCount
+    {
+        get => _fwhmArcsecRejectedFrameCount;
+        private set
+        {
+            if (_fwhmArcsecRejectedFrameCount == value) return;
+            _fwhmArcsecRejectedFrameCount = value;
             OnPropertyChanged();
         }
     }
@@ -654,6 +669,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (Math.Abs(GetScopedDouble(t => t.MaxFwhm) - value) < double.Epsilon) return;
             SetScopedDouble((t, v) => t.MaxFwhm = v, value);
+            OnPropertyChanged();
+            ApplyThresholds();
+        }
+    }
+
+    public double MaxFwhmArcsec
+    {
+        get => GetScopedDouble(t => t.MaxFwhmArcsec);
+        set
+        {
+            if (Math.Abs(GetScopedDouble(t => t.MaxFwhmArcsec) - value) < double.Epsilon) return;
+            SetScopedDouble((t, v) => t.MaxFwhmArcsec = v, value);
             OnPropertyChanged();
             ApplyThresholds();
         }
@@ -1068,6 +1095,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             t = new Thresholds
             {
                 MaxFwhm = 8.0,
+                MaxFwhmArcsec = 20.0,
                 MaxHfr = 4.5,
                 MaxEccentricity = 0.6,
                 MaxMeanBackground = 2000.0,
@@ -1187,6 +1215,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void RaiseAllThresholdPropertiesChanged()
     {
         OnPropertyChanged(nameof(MaxFwhm));
+        OnPropertyChanged(nameof(MaxFwhmArcsec));
         OnPropertyChanged(nameof(MaxHfr));
         OnPropertyChanged(nameof(MaxEccentricity));
         OnPropertyChanged(nameof(MaxMeanBackground));
@@ -1267,6 +1296,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var t = GetThresholdsForKey(key);
             t.MaxFwhm = framesInGroup.Max(f => f.Metrics.Fwhm);
+            var fwhmArcsecValues = framesInGroup.Where(f => f.Metrics.FwhmArcsec.HasValue).Select(f => f.Metrics.FwhmArcsec!.Value).ToList();
+            t.MaxFwhmArcsec = fwhmArcsecValues.Count > 0 ? fwhmArcsecValues.Max() : 20.0;
             t.MaxHfr = framesInGroup.Max(f => f.Metrics.Hfr);
             t.MaxEccentricity = framesInGroup.Max(f => f.Metrics.Eccentricity);
             t.MaxMeanBackground = framesInGroup.Max(f => f.Metrics.MeanBackground);
@@ -1593,6 +1624,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 RejectedFolder = RejectedFolder,
                 IncludeSubfolders = IncludeSubfolders,
                 MaxFwhm = MaxFwhm,
+                MaxFwhmArcsec = MaxFwhmArcsec,
                 MaxHfr = MaxHfr,
                 MaxEccentricity = MaxEccentricity,
                 MaxMeanBackground = MaxMeanBackground,
@@ -1623,6 +1655,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     {
                         Key = kvp.Key,
                         MaxFwhm = kvp.Value.MaxFwhm,
+                        MaxFwhmArcsec = kvp.Value.MaxFwhmArcsec,
                         MaxHfr = kvp.Value.MaxHfr,
                         MaxEccentricity = kvp.Value.MaxEccentricity,
                         MaxMeanBackground = kvp.Value.MaxMeanBackground,
@@ -1769,6 +1802,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     _filterThresholds[ft.Key ?? string.Empty] = new Thresholds
                     {
                         MaxFwhm = ft.MaxFwhm,
+                        MaxFwhmArcsec = ft.MaxFwhmArcsec > 0 ? ft.MaxFwhmArcsec : 20.0,
                         MaxHfr = ft.MaxHfr,
                         MaxEccentricity = ft.MaxEccentricity,
                         MaxMeanBackground = ft.MaxMeanBackground,
@@ -1786,6 +1820,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 _filterThresholds[string.Empty] = new Thresholds
                 {
                     MaxFwhm = session.MaxFwhm,
+                    MaxFwhmArcsec = session.MaxFwhmArcsec > 0 ? session.MaxFwhmArcsec : 20.0,
                     MaxHfr = session.MaxHfr,
                     MaxEccentricity = session.MaxEccentricity,
                     MaxMeanBackground = session.MaxMeanBackground,
@@ -2218,6 +2253,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var t = GetThresholdsForKey(group.Key);
             t.MaxFwhm = frames.Max(f => f.Metrics.Fwhm);
+            var fwhmArcsecValues = frames.Where(f => f.Metrics.FwhmArcsec.HasValue).Select(f => f.Metrics.FwhmArcsec!.Value).ToList();
+            t.MaxFwhmArcsec = fwhmArcsecValues.Count > 0 ? fwhmArcsecValues.Max() : 20.0;
             t.MaxHfr = frames.Max(f => f.Metrics.Hfr);
             t.MaxEccentricity = frames.Max(f => f.Metrics.Eccentricity);
             t.MaxMeanBackground = frames.Max(f => f.Metrics.MeanBackground);
@@ -3036,6 +3073,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var effective = new Thresholds
             {
                 MaxFwhm = t.MaxFwhm,
+                MaxFwhmArcsec = t.MaxFwhmArcsec,
                 MinSqm = t.MinSqm,
                 MaxSkyTemp = t.MaxSkyTemp,
                 MaxHfr = t.MaxHfr,
@@ -3381,6 +3419,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.BeginInvoke(new Action(() => PublishPreviewCacheState(vm)));
+            return;
+        }
+
         var visibleFrameIndices = GetVisiblePreviewFrameIndices();
         var cachedIndices = new List<int>();
         for (var i = 0; i < visibleFrameIndices.Count; i++)
@@ -3587,6 +3632,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
         }
         FwhmRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.Fwhm > MaxFwhm);
+        FwhmArcsecRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.FwhmArcsec.HasValue && frame.Metrics.FwhmArcsec.Value > MaxFwhmArcsec);
         SqmRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.Sqm.HasValue && frame.Metrics.Sqm.Value < MinSqm);
         SkyTempRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.SkyTemp.HasValue && frame.Metrics.SkyTemp.Value > MaxSkyTemp);
         HfrRejectedFrameCount = visibleFrames.Count(frame => frame.Metrics.Hfr > MaxHfr);

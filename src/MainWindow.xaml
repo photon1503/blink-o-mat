@@ -27,74 +27,260 @@
         <Grid Grid.Row="0" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- Session save/load icons -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
-                <Button Command="{Binding SaveSessionCommand}" ToolTip="Save current session — settings, filters, sort order, and per-frame accepted/rejected state — to a .boms file"
-                        Width="28" Height="28" Padding="4" Margin="0,0,4,0">
+            <!-- Open Folder Button (Prominent) -->
+            <Button x:Name="SessionSettingsButtonTopBar" Grid.Column="0" Padding="16,8" Margin="0,0,12,0"
+                    ToolTip="Configure input/output folders and subfolders option"
+                    Background="#5D9A65" BorderBrush="#74B27C" Foreground="#FFFFFF"
+                    FontWeight="SemiBold">
+                <StackPanel Orientation="Horizontal">
+                    <Path Data="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"
+                          Fill="#FFFFFF" Stretch="Uniform" Width="16" Height="16" Margin="0,0,8,0" />
+                    <TextBlock Text="Open Folder" />
+                    <Path Data="M7 10l5 5 5-5z" Fill="#FFFFFF" Stretch="Uniform" Width="10" Height="10" VerticalAlignment="Center" Margin="8,0,0,0" />
+                </StackPanel>
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <EventSetter Event="Click" Handler="SessionSettingsButtonTopBar_Click" />
+                        <Setter Property="Background" Value="#5D9A65" />
+                        <Setter Property="BorderBrush" Value="#74B27C" />
+                        <Setter Property="Foreground" Value="#FFFFFF" />
+                        <Setter Property="BorderThickness" Value="1" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#74B27C" />
+                                <Setter Property="BorderBrush" Value="#8CC793" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <Button.ContextMenu>
+                    <ContextMenu x:Name="SessionContextMenu" Placement="Bottom"
+                                 PlacementTarget="{Binding ElementName=SessionSettingsButtonTopBar}"
+                                 StaysOpen="True">
+                        <ContextMenu.Template>
+                            <ControlTemplate>
+                                <Border Background="{StaticResource PanelBackgroundBrush}"
+                                        BorderBrush="{StaticResource PanelBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="12"
+                                        MinWidth="420">
+                                    <StackPanel>
+                                        <!-- Input folder -->
+                                        <TextBlock Text="Input Folder" FontWeight="SemiBold" Margin="0,0,0,6" FontSize="11" />
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" Text="{Binding InputFolder, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Path to the folder containing your raw light frames"
+                                                     Margin="0,0,6,0"
+                                                     FontSize="11"
+                                                     MinHeight="30"
+                                                     Padding="6,4" />
+                                            <Button Grid.Column="1" Content="..." Width="34" Height="30"
+                                                    Command="{Binding BrowseInputCommand}"
+                                                    ToolTip="Browse for input folder"
+                                                    Padding="0" FontSize="12" />
+                                        </Grid>
+
+                                        <!-- Include subfolders checkbox -->
+                                        <CheckBox IsChecked="{Binding IncludeSubfolders}"
+                                                  Content="Include Subfolders"
+                                                  Margin="0,0,0,14"
+                                                  ToolTip="Include subfolders recursively"
+                                                  FontSize="11" />
+
+                                        <!-- Rejected folder -->
+                                        <TextBlock Text="Rejected Folder" FontWeight="SemiBold" Margin="0,0,0,6" FontSize="11" />
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" Text="{Binding RejectedFolder, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Destination folder for rejected frames — subfolder structure relative to the input folder is preserved"
+                                                     Margin="0,0,6,0"
+                                                     FontSize="11"
+                                                     MinHeight="30"
+                                                     Padding="6,4" />
+                                            <Button Grid.Column="1" Content="..." Width="34" Height="30"
+                                                    Command="{Binding BrowseRejectedCommand}"
+                                                    ToolTip="Browse for rejected folder"
+                                                    Padding="0" FontSize="12" />
+                                        </Grid>
+
+                                        <!-- Load Frames button at bottom -->
+                                        <Button x:Name="LoadFramesButtonPopup" Padding="10,8"
+                                                Command="{Binding LoadFramesCommand}"
+                                                ToolTip="Scan the input folder and load all FITS/XISF frames for analysis"
+                                                HorizontalAlignment="Stretch"
+                                                FontWeight="SemiBold"
+                                                Foreground="#FFFFFF">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                <Path Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+                                                      Fill="#FFFFFF" Stretch="Uniform" Width="14" Height="14" Margin="0,0,6,0" />
+                                                <TextBlock Text="Load Frames" />
+                                            </StackPanel>
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Setter Property="Background" Value="#B0BEC5" />
+                                                    <Setter Property="BorderBrush" Value="#90A4AE" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                    <Style.Triggers>
+                                                        <!-- When folder is selected and not busy, show green -->
+                                                        <DataTrigger Binding="{Binding HasInputFolder}" Value="True">
+                                                            <Setter Property="Background" Value="#5D9A65" />
+                                                            <Setter Property="BorderBrush" Value="#74B27C" />
+                                                            <Setter Property="Foreground" Value="#FFFFFF" />
+                                                        </DataTrigger>
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding HasInputFolder}" Value="True" />
+                                                                <Condition Binding="{Binding IsBusy}" Value="False" />
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Background" Value="#5D9A65" />
+                                                            <Setter Property="BorderBrush" Value="#74B27C" />
+                                                        </MultiDataTrigger>
+                                                        <!-- Hover when folder selected -->
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding HasInputFolder}" Value="True" />
+                                                                <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Background" Value="#74B27C" />
+                                                            <Setter Property="BorderBrush" Value="#8CC793" />
+                                                        </MultiDataTrigger>
+                                                        <!-- Disabled state (gray) -->
+                                                        <DataTrigger Binding="{Binding HasInputFolder}" Value="False">
+                                                            <Setter Property="Opacity" Value="0.6" />
+                                                        </DataTrigger>
+                                                        <!-- Busy state -->
+                                                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                                            <Setter Property="Background" Value="#90A4AE" />
+                                                            <Setter Property="BorderBrush" Value="#78909C" />
+                                                            <Setter Property="Opacity" Value="0.7" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+                            </ControlTemplate>
+                        </ContextMenu.Template>
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
+
+            <!-- Save Session Button (Modern) -->
+            <Button Grid.Column="1" Padding="10,8" Margin="0,0,8,0"
+                    Command="{Binding SaveSessionCommand}"
+                    ToolTip="Save current session — settings, filters, sort order, and per-frame accepted/rejected state — to a .boms file"
+                    Background="{DynamicResource ButtonBrush}" BorderBrush="{DynamicResource ButtonBorderBrush}" Foreground="#FFFFFF"
+                    FontWeight="SemiBold">
+                <StackPanel Orientation="Horizontal">
                     <Path Data="M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3M19,19H5V5H16.17L19,7.83V19M12,12C10.34,12 9,13.34 9,15S10.34,18 12,18 15,16.66 15,15 13.66,12 12,12M6,6H15V10H6V6Z"
-                          Fill="{StaticResource TextBrush}" Stretch="Uniform" Width="14" Height="14" />
-                </Button>
-                <Button Command="{Binding LoadSessionCommand}" ToolTip="Load a previously saved .boms session; new files in the folder are picked up and appended automatically"
-                        Width="28" Height="28" Padding="4">
+                          Fill="#FFFFFF" Stretch="Uniform" Width="14" Height="14" Margin="0,0,6,0" />
+                    <TextBlock Text="Save" />
+                </StackPanel>
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Setter Property="Background" Value="{StaticResource ButtonBrush}" />
+                        <Setter Property="BorderBrush" Value="{StaticResource ButtonBorderBrush}" />
+                        <Setter Property="Foreground" Value="#FFFFFF" />
+                        <Setter Property="BorderThickness" Value="1" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource ControlHoverBrush}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource ButtonBorderBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <!-- Load Session Button (Modern) -->
+            <Button Grid.Column="2" Padding="10,8" Margin="0,0,0,0"
+                    Command="{Binding LoadSessionCommand}"
+                    ToolTip="Load a previously saved .boms session; new files in the folder are picked up and appended automatically"
+                    Background="{DynamicResource ButtonBrush}" BorderBrush="{DynamicResource ButtonBorderBrush}" Foreground="#FFFFFF"
+                    FontWeight="SemiBold">
+                <StackPanel Orientation="Horizontal">
                     <Path Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M12,11L16,15H13.5V19H10.5V15H8L12,11Z"
-                          Fill="{StaticResource TextBrush}" Stretch="Uniform" Width="14" Height="14" />
-                </Button>
-            </StackPanel>
+                          Fill="#FFFFFF" Stretch="Uniform" Width="14" Height="14" Margin="0,0,6,0" />
+                    <TextBlock Text="Load" />
+                </StackPanel>
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Setter Property="Background" Value="{StaticResource ButtonBrush}" />
+                        <Setter Property="BorderBrush" Value="{StaticResource ButtonBorderBrush}" />
+                        <Setter Property="Foreground" Value="#FFFFFF" />
+                        <Setter Property="BorderThickness" Value="1" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource ControlHoverBrush}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource ButtonBorderBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
 
-            <Grid Grid.Column="1" Margin="0,0,10,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
-                    <Hyperlink Command="{Binding BrowseInputCommand}" Foreground="{StaticResource TextBrush}" ToolTip="Click to browse for the folder containing your FITS/XISF light frames">Input folder:</Hyperlink>
-                </TextBlock>
-                <TextBox Grid.Column="1" Text="{Binding InputFolder, UpdateSourceTrigger=PropertyChanged}" ToolTip="Path to the folder containing your raw light frames" VerticalAlignment="Center" />
-                <CheckBox Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0" IsChecked="{Binding IncludeSubfolders}" ToolTip="Include subfolders recursively">Subfolders</CheckBox>
-            </Grid>
+            <Border Grid.Column="3" Margin="8,0,8,0" Padding="10,8"
+                    Background="{StaticResource WindowBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="4"
+                    VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SessionFocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}"
+                               FontSize="11" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="  |  " FontSize="11" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding SessionPixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}"
+                               FontSize="11" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
 
-            <Grid Grid.Column="2" Margin="0,0,10,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
-                    <Hyperlink Command="{Binding BrowseRejectedCommand}" Foreground="{StaticResource TextBrush}" ToolTip="Click to browse for the destination folder where rejected frames will be moved">Rejected folder:</Hyperlink>
-                </TextBlock>
-                <TextBox Grid.Column="1" Text="{Binding RejectedFolder, UpdateSourceTrigger=PropertyChanged}" ToolTip="Destination folder for rejected frames — subfolder structure relative to the input folder is preserved" VerticalAlignment="Center" />
-            </Grid>
+            <!-- Spacer -->
+            <Border Grid.Column="4" />
 
-            <StackPanel Grid.Column="3" Orientation="Horizontal">
-                <Button Padding="12,3" Content="Load Frames" Command="{Binding LoadFramesCommand}" ToolTip="Scan the input folder and load all FITS/XISF frames for analysis" Margin="0,0,8,0" />
-                <Button x:Name="RejectButton" Padding="12,3" Content="Reject"
-                        Click="RejectButton_Click"
-                        IsEnabled="{Binding MoveRejectedEnabled}"
-                        ToolTip="Move all rejected frames to the rejected folder"
-                        Background="#99261414" BorderBrush="#C0392B" Foreground="#FFECACAC">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                            <Setter Property="Background" Value="#99261414" />
-                            <Setter Property="BorderBrush" Value="#C0392B" />
-                            <Setter Property="Foreground" Value="#FFECACAC" />
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#CC3D0C0C" />
-                                    <Setter Property="BorderBrush" Value="#E74C3C" />
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.4" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </StackPanel>
+            <!-- Reject Button (Red) -->
+            <Button Grid.Column="5" Padding="14,8" Content="Reject"
+                    Click="RejectButton_Click"
+                    IsEnabled="{Binding MoveRejectedEnabled}"
+                    ToolTip="Move all rejected frames to the rejected folder"
+                    Background="#C0392B" BorderBrush="#E74C3C" Foreground="#FFFFFF"
+                    FontWeight="SemiBold">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Setter Property="Background" Value="#C0392B" />
+                        <Setter Property="BorderBrush" Value="#E74C3C" />
+                        <Setter Property="Foreground" Value="#FFFFFF" />
+                        <Setter Property="BorderThickness" Value="1" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#E74C3C" />
+                                <Setter Property="BorderBrush" Value="#EC7063" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
         </Grid>
 
         <!-- Update banner — only visible when a newer version is available -->
@@ -231,24 +417,7 @@
 
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,8,0">
                 <StackPanel>
-                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Session" />
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding SessionFocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding SessionPixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{DynamicResource MyBorder}" BorderThickness="1">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Frame summary" />
 
@@ -368,7 +537,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{DynamicResource MyBorder}" BorderThickness="1">
                         <StackPanel>
                             <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
@@ -378,7 +547,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center" Text="Automatic rejection" Foreground="{StaticResource TextBrush}" />
                                 <Button Grid.Column="1" Margin="6,0,4,0" Padding="6,2" MinWidth="0"
-                                        Background="{StaticResource PanelBackgroundBrush}"
+                                        Background="{DynamicResource ButtonBrush}"
                                         Foreground="{StaticResource TextBrush}"
                                         BorderBrush="{StaticResource PanelBorderBrush}"
                                         ToolTip="Reset thresholds for the selected filter group(s) to their current maxima/minima"
@@ -486,12 +655,19 @@
                                 ShowRejectCount="True"
                                 RejectCount="{Binding SatelliteTrailRejectedFrameCount}" />
                             <controls:MetricSliderControl
-                                Label="Max FWHM"
+                                Label="Max FWHM (px)"
                                 Value="{Binding MaxFwhm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="0" Maximum="15" TickFrequency="0.25" LargeChange="1"
                                 Decimals="2"
                                 ShowRejectCount="True"
                                 RejectCount="{Binding FwhmRejectedFrameCount}" />
+                            <controls:MetricSliderControl
+                                Label="Max FWHM (as)"
+                                Value="{Binding MaxFwhmArcsec, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Minimum="0" Maximum="30" TickFrequency="0.1" LargeChange="1"
+                                Decimals="2"
+                                ShowRejectCount="True"
+                                RejectCount="{Binding FwhmArcsecRejectedFrameCount}" />
                             <controls:MetricSliderControl
                                 Label="Min SQM"
                                 Value="{Binding MinSqm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -544,17 +720,16 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
-                        
-                            <StackPanel Margin="0,8,0,0">
-                                <CheckBox Content="Auto-stretch each frame individually" IsChecked="{Binding AutoStretchPerFrame}" Margin="0,0,0,8" ToolTip="When enabled, STF parameters are computed independently for each frame instead of using a single global stretch" />
-                                <controls:MetricSliderControl
+                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{DynamicResource MyBorder}" BorderThickness="1">
+
+                        <StackPanel Margin="0,8,0,0">
+                            <CheckBox Content="Auto-stretch each frame individually" IsChecked="{Binding AutoStretchPerFrame}" Margin="0,0,0,8" ToolTip="When enabled, STF parameters are computed independently for each frame instead of using a single global stretch" />
+                            <controls:MetricSliderControl
                                     Label="STF Target Background"
                                     Value="{Binding StfTargetBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     Minimum="0.01" Maximum="0.5" TickFrequency="0.01" LargeChange="0.05"
                                     Decimals="2" />
-                            </StackPanel>
-                       
+                        </StackPanel>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
@@ -576,8 +751,7 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- GROUP 1: Visibility (Accepted / Rejected) -->
-                    <Border Grid.Column="0" Margin="0,0,8,0" Padding="8,4,8,6"
-                            Background="#1A1A1A" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                    <Border Grid.Column="0" Margin="0,0,8,0" Padding="8,4,8,6" BorderThickness="1" CornerRadius="6">
                         <StackPanel>
                             <TextBlock Text="VISIBILITY" FontSize="9" FontWeight="Bold"
                                        Foreground="#666" Margin="0,0,0,4" />
@@ -655,7 +829,7 @@
 
                     <!-- GROUP 2: Filters (R, G, B, �) � only shown when chips exist -->
                     <Border Grid.Column="1" Margin="0,0,8,0" Padding="8,4,8,6"
-                            Background="#1A1A1A" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                             BorderThickness="1" CornerRadius="6">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -717,15 +891,14 @@
                     <Border Grid.Column="2" />
 
                     <!-- GROUP 3: Alignment -->
-                    <Border Grid.Column="3" Margin="0,0,8,0" Padding="8,4,8,6"
-                            Background="#1A1A1A" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                    <Border Grid.Column="3" Margin="0,0,8,0" Padding="8,4,8,6" BorderThickness="1" CornerRadius="6">
                         <StackPanel>
                             <TextBlock Text="ALIGNMENT" FontSize="9" FontWeight="Bold"
                                        Foreground="#666" Margin="0,0,0,4" />
                             <ToggleButton IsChecked="{Binding IsAlignmentEnabled, Mode=TwoWay}"
                                           Height="26" Padding="8,0" BorderThickness="1"
                                           HorizontalAlignment="Left" VerticalAlignment="Center"
-                                          ToolTip="Align all frames using detected per-frame pixel shifts. When off, frames are shown in their raw (un-shifted) position.">
+                                          ToolTip="Align all frames using detected per-frame pixel shifts. When off, frames are shown in their raw (un-shifted) position." Background="{DynamicResource ButtonBrush}" BorderBrush="{DynamicResource ButtonBorderBrush}">
                                 <ToggleButton.Style>
                                     <Style TargetType="ToggleButton">
                                         <Setter Property="Background" Value="#161616" />
@@ -759,7 +932,7 @@
 
                     <!-- GROUP 4: Sort -->
                     <Border Grid.Column="4" Padding="8,4,8,6"
-                            Background="#1A1A1A" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                            Background="{DynamicResource PanelBackgroundBrush}" BorderThickness="1" CornerRadius="6">
                         <StackPanel>
                             <TextBlock Text="SORT" FontSize="9" FontWeight="Bold"
                                        Foreground="#666" Margin="0,0,0,4" />
@@ -770,6 +943,10 @@
                                             <WrapPanel Margin="0,0,0,4">
                                                 <!-- Field selector -->
                                                 <ComboBox Height="26" Width="160" Margin="0,0,6,0"
+
+                                                          Background="{DynamicResource ButtonBrush}"
+                                                          BorderBrush="{DynamicResource ButtonBorderBrush}"
+                                                          Foreground="{StaticResource TextBrush}"
                                                           ItemsSource="{Binding DataContext.SortFieldOptions, RelativeSource={RelativeSource AncestorType=Window}}"
                                                           SelectedItem="{Binding SelectedField, Mode=TwoWay}"
                                                           DisplayMemberPath="DisplayName" />
@@ -780,15 +957,15 @@
                                                              Padding="0" FontSize="14" ToolTip="Toggle between ascending (▲) and descending (▼) sort order">
                                                     <ToggleButton.Style>
                                                         <Style TargetType="ToggleButton">
-                                                            <Setter Property="Background" Value="#161616" />
-                                                            <Setter Property="Foreground" Value="#CCBDBDBD" />
-                                                            <Setter Property="BorderBrush" Value="#444" />
+                                                            <Setter Property="Background" Value="{DynamicResource ButtonBrush}" />
+                                                            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorderBrush}" />
                                                             <Setter Property="BorderThickness" Value="1" />
                                                             <Setter Property="Cursor" Value="Hand" />
                                                             <Setter Property="Template">
                                                                 <Setter.Value>
                                                                     <ControlTemplate TargetType="ToggleButton">
-                                                                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
                                                                             <TextBlock x:Name="Arrow" Text="&#x25B2;" FontFamily="Segoe UI Symbol" FontSize="10"
                                                                                        Foreground="{TemplateBinding Foreground}"
                                                                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -802,10 +979,9 @@
                                                                 </Setter.Value>
                                                             </Setter>
                                                             <Style.Triggers>
-                                                                <Trigger Property="IsChecked" Value="True">
-                                                                    <Setter Property="Background" Value="#22426B9F" />
-                                                                    <Setter Property="BorderBrush" Value="#6D88C4" />
-                                                                    <Setter Property="Foreground" Value="#FFE8F0FF" />
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource ControlHoverBrush}" />
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
                                                                 </Trigger>
                                                             </Style.Triggers>
                                                         </Style>
@@ -827,7 +1003,7 @@
                                 <!-- Add rule -->
                                 <Button DockPanel.Dock="Right" Height="26" Padding="10,0" Margin="8,0,0,0"
                                         Content="+ Field" Command="{Binding AddSortRuleCommand}"
-                                        VerticalAlignment="Top" ToolTip="Add another sort field" />
+                                        VerticalAlignment="Top" ToolTip="Add another sort field" Background="{DynamicResource ButtonBrush}" BorderBrush="{DynamicResource ButtonBorderBrush}" />
                             </DockPanel>
                         </StackPanel>
                     </Border>
@@ -845,7 +1021,7 @@
                       VirtualizingPanel.VirtualizationMode="Recycling"
                       VirtualizingPanel.ScrollUnit="Pixel"
                       VirtualizingPanel.CacheLengthUnit="Item"
-                      VirtualizingPanel.CacheLength="1">
+                      VirtualizingPanel.CacheLength="1" BorderBrush="{DynamicResource WindowBackgroundBrush}">
                     <ListView.ItemsPanel>
                         <ItemsPanelTemplate>
                             <VirtualizingStackPanel />
@@ -860,7 +1036,7 @@
             </Grid>
         </Grid>
 
-        <Border Grid.Row="3" Margin="0,10,0,0" Padding="8,6" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
+        <Border Grid.Row="3" Margin="0,10,0,0" Padding="8,6" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{DynamicResource MyBorder}" BorderThickness="0,1,0,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
