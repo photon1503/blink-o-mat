@@ -11,6 +11,7 @@ public sealed class SessionData
 
     // Thresholds
     public double MaxFwhm { get; set; }
+    public double MaxFwhmArcsec { get; set; }
     public double MaxHfr { get; set; }
     public double MaxEccentricity { get; set; }
     public double MaxMeanBackground { get; set; }
@@ -72,6 +73,7 @@ public sealed class SessionFilterThresholds
 {
     public string Key { get; set; } = string.Empty;
     public double MaxFwhm { get; set; }
+    public double MaxFwhmArcsec { get; set; }
     public double MaxHfr { get; set; }
     public double MaxEccentricity { get; set; }
     public double MaxMeanBackground { get; set; }

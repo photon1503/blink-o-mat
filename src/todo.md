@@ -28,7 +28,7 @@ Patrick:
 * Monitor folder for new files and automatically load them into the software. This would be especially useful for users who are capturing images in real-time and want to see the results immediately without having to manually refresh or reload the folder.
 •	Optional – bereich für werteberechnung definierbar
 •	Parameter zum An/Abhaken
-•	FWHM arcsec
+ok •	FWHM arcsec
 •	Eccentricity Werte - Testergebnisse
 •	FWHM Werte Berechnung? Testergebnisse
 •	Ordner Tracking – Auto file load
@@ -40,7 +40,7 @@ Patrick:
 
 Michael:
 
-* square icons on vertical sliders turn yellow when selected (active)
+ok * square icons on vertical sliders turn yellow when selected (active)
 v22 * only import LIGHT images (not BIAS, DARK, FLAT)
 v22 * add option to import multiple (sub) folders at once
 * filter on rejected per slider

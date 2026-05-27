@@ -17,6 +17,10 @@ namespace blink_o_mat
         {
             InitializeComponent();
             DataContext = new MainViewModel();
+            if (DataContext is MainViewModel vm)
+            {
+                vm.PropertyChanged += Vm_PropertyChanged;
+            }
             SourceInitialized += (_, _) => WindowTitleBarStyler.Apply(this);
             WindowPlacementService.RestoreMainWindow(this);
             Closing += MainWindow_Closing;
@@ -81,7 +85,10 @@ namespace blink_o_mat
         {
             WindowPlacementService.SaveMainWindow(this);
             if (DataContext is MainViewModel vm)
+            {
+                vm.PropertyChanged -= Vm_PropertyChanged;
                 vm.Performance.Dispose();
+            }
         }
 
         private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -97,6 +104,22 @@ namespace blink_o_mat
                     vm.DebugShowUpdateBannerCommand.Execute(null);
                     e.Handled = true;
                 }
+            }
+        }
+
+        private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (sender is not MainViewModel vm)
+            {
+                return;
+            }
+
+            if (e.PropertyName == nameof(MainViewModel.IsBusy)
+                && !vm.IsBusy
+                && vm.TotalFrameCount > 0
+                && SessionContextMenu?.IsOpen == true)
+            {
+                Dispatcher.BeginInvoke(() => SessionContextMenu.IsOpen = false);
             }
         }
     }

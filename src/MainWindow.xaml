@@ -83,11 +83,13 @@
                                             <TextBox Grid.Column="0" Text="{Binding InputFolder, UpdateSourceTrigger=PropertyChanged}"
                                                      ToolTip="Path to the folder containing your raw light frames"
                                                      Margin="0,0,6,0"
-                                                     FontSize="11" />
-                                            <Button Grid.Column="1" Content="..." Width="28"
+                                                     FontSize="11"
+                                                     MinHeight="30"
+                                                     Padding="6,4" />
+                                            <Button Grid.Column="1" Content="..." Width="34" Height="30"
                                                     Command="{Binding BrowseInputCommand}"
                                                     ToolTip="Browse for input folder"
-                                                    Padding="0" FontSize="11" />
+                                                    Padding="0" FontSize="12" />
                                         </Grid>
 
                                         <!-- Include subfolders checkbox -->
@@ -107,11 +109,13 @@
                                             <TextBox Grid.Column="0" Text="{Binding RejectedFolder, UpdateSourceTrigger=PropertyChanged}"
                                                      ToolTip="Destination folder for rejected frames — subfolder structure relative to the input folder is preserved"
                                                      Margin="0,0,6,0"
-                                                     FontSize="11" />
-                                            <Button Grid.Column="1" Content="..." Width="28"
+                                                     FontSize="11"
+                                                     MinHeight="30"
+                                                     Padding="6,4" />
+                                            <Button Grid.Column="1" Content="..." Width="34" Height="30"
                                                     Command="{Binding BrowseRejectedCommand}"
                                                     ToolTip="Browse for rejected folder"
-                                                    Padding="0" FontSize="11" />
+                                                    Padding="0" FontSize="12" />
                                         </Grid>
 
                                         <!-- Load Frames button at bottom -->
@@ -651,12 +655,19 @@
                                 ShowRejectCount="True"
                                 RejectCount="{Binding SatelliteTrailRejectedFrameCount}" />
                             <controls:MetricSliderControl
-                                Label="Max FWHM"
+                                Label="Max FWHM (px)"
                                 Value="{Binding MaxFwhm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="0" Maximum="15" TickFrequency="0.25" LargeChange="1"
                                 Decimals="2"
                                 ShowRejectCount="True"
                                 RejectCount="{Binding FwhmRejectedFrameCount}" />
+                            <controls:MetricSliderControl
+                                Label="Max FWHM (as)"
+                                Value="{Binding MaxFwhmArcsec, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Minimum="0" Maximum="30" TickFrequency="0.1" LargeChange="1"
+                                Decimals="2"
+                                ShowRejectCount="True"
+                                RejectCount="{Binding FwhmArcsecRejectedFrameCount}" />
                             <controls:MetricSliderControl
                                 Label="Min SQM"
                                 Value="{Binding MinSqm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
