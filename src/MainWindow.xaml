@@ -61,14 +61,14 @@
                     </Style>
                 </Button.Style>
                 <Button.ContextMenu>
-                    <ContextMenu x:Name="SessionContextMenu" Placement="Bottom" 
+                    <ContextMenu x:Name="SessionContextMenu" Placement="Bottom"
                                  PlacementTarget="{Binding ElementName=SessionSettingsButtonTopBar}"
                                  StaysOpen="True">
                         <ContextMenu.Template>
                             <ControlTemplate>
-                                <Border Background="{StaticResource PanelBackgroundBrush}" 
-                                        BorderBrush="{StaticResource PanelBorderBrush}" 
-                                        BorderThickness="1" 
+                                <Border Background="{StaticResource PanelBackgroundBrush}"
+                                        BorderBrush="{StaticResource PanelBorderBrush}"
+                                        BorderThickness="1"
                                         CornerRadius="4"
                                         Padding="12"
                                         MinWidth="420">
@@ -80,19 +80,19 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBox Grid.Column="0" Text="{Binding InputFolder, UpdateSourceTrigger=PropertyChanged}" 
-                                                     ToolTip="Path to the folder containing your raw light frames" 
-                                                     Margin="0,0,6,0" 
+                                            <TextBox Grid.Column="0" Text="{Binding InputFolder, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Path to the folder containing your raw light frames"
+                                                     Margin="0,0,6,0"
                                                      FontSize="11" />
-                                            <Button Grid.Column="1" Content="..." Width="28" 
+                                            <Button Grid.Column="1" Content="..." Width="28"
                                                     Command="{Binding BrowseInputCommand}"
                                                     ToolTip="Browse for input folder"
                                                     Padding="0" FontSize="11" />
                                         </Grid>
 
                                         <!-- Include subfolders checkbox -->
-                                        <CheckBox IsChecked="{Binding IncludeSubfolders}" 
-                                                  Content="Include Subfolders" 
+                                        <CheckBox IsChecked="{Binding IncludeSubfolders}"
+                                                  Content="Include Subfolders"
                                                   Margin="0,0,0,14"
                                                   ToolTip="Include subfolders recursively"
                                                   FontSize="11" />
@@ -104,8 +104,8 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBox Grid.Column="0" Text="{Binding RejectedFolder, UpdateSourceTrigger=PropertyChanged}" 
-                                                     ToolTip="Destination folder for rejected frames — subfolder structure relative to the input folder is preserved" 
+                                            <TextBox Grid.Column="0" Text="{Binding RejectedFolder, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Destination folder for rejected frames — subfolder structure relative to the input folder is preserved"
                                                      Margin="0,0,6,0"
                                                      FontSize="11" />
                                             <Button Grid.Column="1" Content="..." Width="28"
@@ -115,9 +115,9 @@
                                         </Grid>
 
                                         <!-- Load Frames button at bottom -->
-                                        <Button x:Name="LoadFramesButtonPopup" Padding="10,8" 
-                                                Command="{Binding LoadFramesCommand}" 
-                                                ToolTip="Scan the input folder and load all FITS/XISF frames for analysis" 
+                                        <Button x:Name="LoadFramesButtonPopup" Padding="10,8"
+                                                Command="{Binding LoadFramesCommand}"
+                                                ToolTip="Scan the input folder and load all FITS/XISF frames for analysis"
                                                 HorizontalAlignment="Stretch"
                                                 FontWeight="SemiBold"
                                                 Foreground="#FFFFFF">
@@ -181,7 +181,7 @@
             <Button Grid.Column="1" Padding="10,8" Margin="0,0,8,0"
                     Command="{Binding SaveSessionCommand}"
                     ToolTip="Save current session — settings, filters, sort order, and per-frame accepted/rejected state — to a .boms file"
-                    Background="#2C3E50" BorderBrush="#34495E" Foreground="#FFFFFF"
+                    Background="{DynamicResource ButtonBrush}" BorderBrush="{DynamicResource ButtonBorderBrush}" Foreground="#FFFFFF"
                     FontWeight="SemiBold">
                 <StackPanel Orientation="Horizontal">
                     <Path Data="M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3M19,19H5V5H16.17L19,7.83V19M12,12C10.34,12 9,13.34 9,15S10.34,18 12,18 15,16.66 15,15 13.66,12 12,12M6,6H15V10H6V6Z"
@@ -210,7 +210,7 @@
             <Button Grid.Column="2" Padding="10,8" Margin="0,0,0,0"
                     Command="{Binding LoadSessionCommand}"
                     ToolTip="Load a previously saved .boms session; new files in the folder are picked up and appended automatically"
-                    Background="#2C3E50" BorderBrush="#34495E" Foreground="#FFFFFF"
+                    Background="{DynamicResource ButtonBrush}" BorderBrush="{DynamicResource ButtonBorderBrush}" Foreground="#FFFFFF"
                     FontWeight="SemiBold">
                 <StackPanel Orientation="Horizontal">
                     <Path Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M12,11L16,15H13.5V19H10.5V15H8L12,11Z"
@@ -541,7 +541,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center" Text="Automatic rejection" Foreground="{StaticResource TextBrush}" />
                                 <Button Grid.Column="1" Margin="6,0,4,0" Padding="6,2" MinWidth="0"
-                                        Background="{StaticResource PanelBackgroundBrush}"
+                                        Background="{DynamicResource ButtonBrush}"
                                         Foreground="{StaticResource TextBrush}"
                                         BorderBrush="{StaticResource PanelBorderBrush}"
                                         ToolTip="Reset thresholds for the selected filter group(s) to their current maxima/minima"
@@ -708,7 +708,7 @@
                     </Border>
 
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
-                        
+
                             <StackPanel Margin="0,8,0,0">
                                 <CheckBox Content="Auto-stretch each frame individually" IsChecked="{Binding AutoStretchPerFrame}" Margin="0,0,0,8" ToolTip="When enabled, STF parameters are computed independently for each frame instead of using a single global stretch" />
                                 <controls:MetricSliderControl
@@ -717,7 +717,6 @@
                                     Minimum="0.01" Maximum="0.5" TickFrequency="0.01" LargeChange="0.05"
                                     Decimals="2" />
                             </StackPanel>
-                       
                     </Border>
                 </StackPanel>
             </ScrollViewer>
@@ -739,8 +738,7 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- GROUP 1: Visibility (Accepted / Rejected) -->
-                    <Border Grid.Column="0" Margin="0,0,8,0" Padding="8,4,8,6"
-                            Background="#1A1A1A" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                    <Border Grid.Column="0" Margin="0,0,8,0" Padding="8,4,8,6" BorderThickness="1" CornerRadius="6">
                         <StackPanel>
                             <TextBlock Text="VISIBILITY" FontSize="9" FontWeight="Bold"
                                        Foreground="#666" Margin="0,0,0,4" />
@@ -880,15 +878,14 @@
                     <Border Grid.Column="2" />
 
                     <!-- GROUP 3: Alignment -->
-                    <Border Grid.Column="3" Margin="0,0,8,0" Padding="8,4,8,6"
-                            Background="#1A1A1A" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                    <Border Grid.Column="3" Margin="0,0,8,0" Padding="8,4,8,6" BorderThickness="1" CornerRadius="6">
                         <StackPanel>
                             <TextBlock Text="ALIGNMENT" FontSize="9" FontWeight="Bold"
                                        Foreground="#666" Margin="0,0,0,4" />
                             <ToggleButton IsChecked="{Binding IsAlignmentEnabled, Mode=TwoWay}"
                                           Height="26" Padding="8,0" BorderThickness="1"
                                           HorizontalAlignment="Left" VerticalAlignment="Center"
-                                          ToolTip="Align all frames using detected per-frame pixel shifts. When off, frames are shown in their raw (un-shifted) position.">
+                                          ToolTip="Align all frames using detected per-frame pixel shifts. When off, frames are shown in their raw (un-shifted) position." Background="{DynamicResource ButtonBrush}" BorderBrush="{DynamicResource ButtonBorderBrush}">
                                 <ToggleButton.Style>
                                     <Style TargetType="ToggleButton">
                                         <Setter Property="Background" Value="#161616" />
@@ -922,7 +919,7 @@
 
                     <!-- GROUP 4: Sort -->
                     <Border Grid.Column="4" Padding="8,4,8,6"
-                            Background="#1A1A1A" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                            Background="{DynamicResource PanelBackgroundBrush}" BorderThickness="1" CornerRadius="6">
                         <StackPanel>
                             <TextBlock Text="SORT" FontSize="9" FontWeight="Bold"
                                        Foreground="#666" Margin="0,0,0,4" />
@@ -990,7 +987,7 @@
                                 <!-- Add rule -->
                                 <Button DockPanel.Dock="Right" Height="26" Padding="10,0" Margin="8,0,0,0"
                                         Content="+ Field" Command="{Binding AddSortRuleCommand}"
-                                        VerticalAlignment="Top" ToolTip="Add another sort field" />
+                                        VerticalAlignment="Top" ToolTip="Add another sort field" Background="{DynamicResource ButtonBrush}" BorderBrush="{DynamicResource ButtonBorderBrush}" />
                             </DockPanel>
                         </StackPanel>
                     </Border>

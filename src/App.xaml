@@ -4,8 +4,8 @@
              xmlns:local="clr-namespace:blink_o_mat"
              Startup="Application_Startup">
     <Application.Resources>
-        <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FF2B2B2B" />
-        <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#FF333333" />
+        <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FF1a1c1f" />
+        <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#FF1a1c1f" />
         <SolidColorBrush x:Key="PanelBackgroundAltBrush" Color="#FF3A3A3A" />
         <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#FF3C3C3C" />
         <SolidColorBrush x:Key="ControlHoverBrush" Color="#FF464646" />
@@ -16,6 +16,9 @@
         <SolidColorBrush x:Key="AccentBrush" Color="#FF569CD6" />
         <SolidColorBrush x:Key="SelectionBrush" Color="#FF264F78" />
         <SolidColorBrush x:Key="SelectionTextBrush" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="ButtonBrush" Color="#FF26282b" />
+        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FF323438" />
+        <SolidColorBrush x:Key="ListItem" Color="#FF26282d" />
 
         <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF3C3C3C" />
         <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFE6E6E6" />
