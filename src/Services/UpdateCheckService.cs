@@ -97,6 +97,38 @@ public sealed class UpdateCheckService
         }
     }
 
+    /// <summary>
+    /// Returns the latest GitHub release notes and version regardless of whether it is newer
+    /// than the current app version. Intended for debug preview paths.
+    /// </summary>
+    public async Task<UpdateInfo?> GetLatestReleaseInfoAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("Rejector-UpdateCheck/1.0");
+            http.Timeout = TimeSpan.FromSeconds(10);
+
+            var release = await http.GetFromJsonAsync<GithubReleaseWithAssets>(
+                ReleasesApiUrl, cancellationToken);
+
+            if (release is null || string.IsNullOrWhiteSpace(release.TagName))
+                return null;
+
+            var tagVersion = release.TagName.TrimStart('v');
+            var installerUrl = release.Assets?.FirstOrDefault(a =>
+                a.Name?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true)
+                ?.BrowserDownloadUrl
+                ?? ReleasesPageUrl;
+
+            return new UpdateInfo(tagVersion, release.Body ?? string.Empty, installerUrl);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static Version? GetCurrentVersion()
     {
         // Version is stamped by the CI pipeline via /p:Version=x.y.z

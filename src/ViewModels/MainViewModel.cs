@@ -800,6 +800,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand RemoveSortRuleCommand { get; }
     public ICommand SaveSessionCommand { get; }
     public ICommand LoadSessionCommand { get; }
+    public ICommand DebugShowUpdateBannerCommand { get; }
 
     public MainViewModel()
     {
@@ -817,6 +818,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         RemoveSortRuleCommand = new RelayCommand(rule => RemoveSortRule(rule as FrameSortRuleViewModel), rule => rule is FrameSortRuleViewModel && SortRules.Count > 1);
         SaveSessionCommand = new RelayCommand(_ => SaveSession(), _ => Frames.Count > 0 && !IsBusy);
         LoadSessionCommand = new RelayCommand(async _ => await LoadSessionAsync(), _ => !IsBusy);
+        DebugShowUpdateBannerCommand = new RelayCommand(async _ => await ShowDebugUpdateBannerAsync());
 
         AddSortRule(initialField: DefaultPrimarySortField, initialDirection: SortDirectionOptions[0]);
 
@@ -834,6 +836,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var info = await _updateCheck.GetLatestUpdateAsync();
         if (info is not null)
             UpdateBanner.ShowUpdate(info);
+    }
+
+    private async Task ShowDebugUpdateBannerAsync()
+    {
+        var liveInfo = await _updateCheck.GetLatestReleaseInfoAsync();
+        if (liveInfo is not null)
+        {
+            UpdateBanner.ShowUpdate(liveInfo);
+            return;
+        }
+
+        var stamped = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version;
+        var fallbackVersion = stamped is null || stamped == new Version(1, 0, 0, 0)
+            ? "debug"
+            : $"{stamped.Major}.{stamped.Minor}.{stamped.Build + 1}";
+
+        var info = new UpdateInfo(
+            fallbackVersion,
+            "### Debug update banner\n\nUnable to fetch the latest release notes from GitHub. This is a local fallback preview.",
+            UpdateCheckService.ReleasesPageUrl);
+
+        UpdateBanner.ShowUpdate(info);
     }
 
     private bool FilterFrame(object item)
@@ -3433,7 +3457,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (currentVisibleIndex < 0)
         {
-            var fallbackLoadedIndex = visibleFrameIndices[0];
+            // The current preview frame may have just become invisible (for example,
+            // toggled to rejected while "accepted" visibility is active). In that case,
+            // keep the user's relative position instead of jumping back to the first item.
+            var fallbackVisibleIndex = Math.Clamp(_previewVm.CurrentFrameIndex, 0, visibleFrameIndices.Count - 1);
+            var fallbackLoadedIndex = visibleFrameIndices[fallbackVisibleIndex];
             var fallbackItem = _loadedFrames[fallbackLoadedIndex].Item;
             _ = OpenPreviewAsync(fallbackItem);
             return;

@@ -2,6 +2,7 @@
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using blink_o_mat.Services;
 using blink_o_mat.ViewModels;
 
@@ -63,6 +64,22 @@ namespace blink_o_mat
             WindowPlacementService.SaveMainWindow(this);
             if (DataContext is MainViewModel vm)
                 vm.Performance.Dispose();
+        }
+
+        private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            var key = e.Key == Key.System ? e.SystemKey : e.Key;
+            var hasCtrlAlt = Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl);
+            hasCtrlAlt = hasCtrlAlt && (Keyboard.IsKeyDown(Key.LeftAlt) || Keyboard.IsKeyDown(Key.RightAlt));
+
+            if (key == Key.W && hasCtrlAlt)
+            {
+                if (DataContext is MainViewModel vm && vm.DebugShowUpdateBannerCommand.CanExecute(null))
+                {
+                    vm.DebugShowUpdateBannerCommand.Execute(null);
+                    e.Handled = true;
+                }
+            }
         }
     }
 }

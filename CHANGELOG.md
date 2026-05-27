@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - **Curvature preview no longer turns black when navigating frames.** In the frame preview, when **Curvature** view is enabled, moving to the next/previous image could occasionally leave the canvas black due to an image-refresh timing gap. Curvature rendering now stays synchronized with the active preview image during navigation.
+- **Preview no longer jumps to the first frame after reject with visibility filters.** In frame preview, when a reject/keep toggle makes the current frame leave the visible set (for example: reject while only accepted frames are shown), the selection now stays at the same relative slider position and continues to the expected next visible frame instead of jumping to frame 1.
+- **"What's new?" dialog no longer crashes when opening release notes.** Removed a broken external markdown style resource reference that could throw a XAML parse exception on startup of the release-notes window.
+
+
+### Changed
+- **Debug update banner now shows live GitHub release notes.** The debug shortcut (`Ctrl+Alt+W`) now fetches the latest release tag and markdown body from GitHub instead of showing a static placeholder message, with a local fallback when offline.
 
 ## 1.0.23
 

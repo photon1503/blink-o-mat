@@ -145,7 +145,11 @@ public sealed class UpdateBannerViewModel : INotifyPropertyChanged
 
     public void ShowUpdate(string latestVersion)
     {
+        _releaseNotesMarkdown = string.Empty;
+        _installerUrl = null;
         LatestVersion = latestVersion;
+        OnPropertyChanged(nameof(HasReleaseNotes));
+        ((RelayCommand)ShowReleaseNotesCommand).RaiseCanExecuteChanged();
         IsVisible = true;
     }
 
@@ -155,6 +159,7 @@ public sealed class UpdateBannerViewModel : INotifyPropertyChanged
         _installerUrl = info.InstallerUrl;
         LatestVersion = info.Version;
         OnPropertyChanged(nameof(HasReleaseNotes));
+        ((RelayCommand)ShowReleaseNotesCommand).RaiseCanExecuteChanged();
         IsVisible = true;
     }
 

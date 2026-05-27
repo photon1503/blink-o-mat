@@ -7,13 +7,6 @@
         Height="600" Width="700"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource WindowBackgroundBrush}">
-    <Window.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/Markdig.Wpf;component/Styles/Markdown.xaml" />
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </Window.Resources>
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -34,7 +27,10 @@
                 BorderThickness="1"
                 Padding="8">
             <markdig:MarkdownViewer x:Name="NotesViewer"
-                                    Background="{StaticResource PanelBackgroundBrush}" />
+                                    Background="{StaticResource PanelBackgroundBrush}"
+                                    Foreground="{StaticResource TextBrush}"
+                                    TextElement.Foreground="{StaticResource TextBrush}"
+                                    TextElement.FontSize="13" />
         </Border>
 
         <StackPanel Grid.Row="2"

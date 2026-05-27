@@ -8,10 +8,14 @@
         mc:Ignorable="d"
          Background="{StaticResource WindowBackgroundBrush}"
          Foreground="{StaticResource TextBrush}"
-        Title="Rejector" Height="1000" Width="1550" Icon="/6dd39f16-9f8b-454e-86c4-b44c409cb647.png">
+        Title="Rejector" Height="1000" Width="1550" Icon="/6dd39f16-9f8b-454e-86c4-b44c409cb647.png"
+        PreviewKeyDown="MainWindow_PreviewKeyDown">
     <Window.Resources>
         <converters:RatioToGridLengthConverter x:Key="RatioToGridLength" />
     </Window.Resources>
+    <Window.InputBindings>
+        <KeyBinding Key="W" Modifiers="Control+Alt" Command="{Binding DebugShowUpdateBannerCommand}" />
+    </Window.InputBindings>
     <Grid Margin="12" Background="{StaticResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
