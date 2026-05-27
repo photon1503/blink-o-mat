@@ -29,6 +29,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
@@ -234,11 +235,23 @@
                 </Button.Style>
             </Button>
 
+            <Border Grid.Column="3" Margin="8,0,8,0" Padding="10,8"
+                    Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="4"
+                    VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SessionFocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}"
+                               FontSize="11" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="  |  " FontSize="11" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding SessionPixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}"
+                               FontSize="11" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
             <!-- Spacer -->
-            <Border Grid.Column="3" />
+            <Border Grid.Column="4" />
 
             <!-- Reject Button (Red) -->
-            <Button Grid.Column="4" Padding="14,8" Content="Reject"
+            <Button Grid.Column="5" Padding="14,8" Content="Reject"
                     Click="RejectButton_Click"
                     IsEnabled="{Binding MoveRejectedEnabled}"
                     ToolTip="Move all rejected frames to the rejected folder"
@@ -398,32 +411,6 @@
 
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,8,0">
                 <StackPanel>
-                    <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
-                        <StackPanel>
-                            <!-- Header with Session title -->
-                            <Grid Margin="0,0,0,10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" FontWeight="SemiBold" Text="Session" />
-                            </Grid>
-
-                            <!-- Focal length and pixel size -->
-                            <Grid Margin="0,0,0,0">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding SessionFocalLengthMm, StringFormat=Focal: {0:F1} mm, TargetNullValue=Focal: n/a}" FontSize="11" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding SessionPixelSizeUm, StringFormat=Pixel: {0:F2} µm, TargetNullValue=Pixel: n/a}" FontSize="11" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
                     <Border Padding="10" Margin="0,0,0,10" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Frame summary" />
