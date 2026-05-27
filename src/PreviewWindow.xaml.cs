@@ -956,7 +956,8 @@ public partial class PreviewWindow : Window
 
         var metrics = _vm.Item?.Metrics;
         var stars = metrics?.Stars;
-        if (metrics is null || stars is null || stars.Count == 0 || PreviewImage.Source is not BitmapSource src)
+        var src = _vm.Image;
+        if (metrics is null || stars is null || stars.Count == 0 || src is null)
         {
             CurvatureImage.Visibility = Visibility.Collapsed;
             CurvatureImage.Source = null;

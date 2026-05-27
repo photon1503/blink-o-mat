@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.24
+
+### Fixed
+- **Curvature preview no longer turns black when navigating frames.** In the frame preview, when **Curvature** view is enabled, moving to the next/previous image could occasionally leave the canvas black due to an image-refresh timing gap. Curvature rendering now stays synchronized with the active preview image during navigation.
+
 ## 1.0.23
 
 ### Changed
