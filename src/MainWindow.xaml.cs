@@ -49,6 +49,24 @@ namespace blink_o_mat
             }
         }
 
+        private void SessionSettingsButtonTopBar_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.Button button && button.ContextMenu is System.Windows.Controls.ContextMenu menu)
+            {
+                menu.PlacementTarget = button;
+                menu.IsOpen = true;
+            }
+        }
+
+        private void SessionSettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.Button button && button.ContextMenu is System.Windows.Controls.ContextMenu menu)
+            {
+                menu.PlacementTarget = button;
+                menu.IsOpen = true;
+            }
+        }
+
         private void FramesListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (FramesListView.SelectedItem is null)

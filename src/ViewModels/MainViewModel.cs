@@ -256,10 +256,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (_inputFolder == value) return;
             _inputFolder = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(HasInputFolder));
             SaveFolderSettings();
             ((RelayCommand)LoadFramesCommand).RaiseCanExecuteChanged();
         }
     }
+
+    public bool HasInputFolder => !string.IsNullOrWhiteSpace(_inputFolder);
 
     public bool IncludeSubfolders
     {
