@@ -8,12 +8,16 @@ All notable changes to this project will be documented in this file.
 
 - **Smarter metric indicator colours in mixed-filter sessions.** FWHM, HFR and Eccentricity reflect seeing, optics and tracking — they are filter-independent, so their chip colours are now compared globally across the whole session. Stars and Mean Background vary by filter (L frames detect far more stars than RGB), so those two chips continue to be compared within each filter group only. In a typical LRGB session this means: a blurry R frame correctly shows a red FWHM chip relative to all frames, while its Stars chip is judged only against other R frames.
 
+- **Preview zoom toolbar now preserves center framing.** The `+`, `−`, and `1:1` buttons in frame preview now keep the current viewport center anchored (matching mouse-wheel zoom behavior) instead of re-centering unexpectedly.
+- **Frame slider indicators were redesigned for clearer navigation.** Score squares remain on the left, cache state is shown as muted blue dots on the right, and the current frame is highlighted by a yellow triangle marker.
+
 - **Redesigned top bar and Session card for better workflow discoverability.** The top bar now prominently features:
   - **"Open Folder" button** (green, far left) — opens a dropdown panel to configure input folder, rejected folder, subfolders option, and **Load Frames**. This is the primary entry point.
-  - **Save and Load session buttons** (dark blue icons+text, left side) — quick access to session save/load workflow.
+  - **Save and Load session buttons**  quick access to session save/load workflow.
   - **Reject button** (red, far right) — batch frame rejection with no overlap.
   - The Session card in the left panel is now simplified: the Save/Load icons and Folders button have been removed and consolidated into the "Open Folder" panel, keeping the Session card focused on session statistics and metrics.
 - **General UI design polish across main and preview windows.** Buttons, cards, spacing, and indicator styling were refreshed for a more consistent look and clearer visual hierarchy.
+
 
 ## 1.0.24
 

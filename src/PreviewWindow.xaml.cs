@@ -193,7 +193,7 @@ public partial class PreviewWindow : Window
 
     private void Smaller_Click(object sender, RoutedEventArgs e)
     {
-        _vm.Zoom = Math.Max(0.1, _vm.Zoom / 1.25);
+        ZoomAroundViewportCenter(1.0 / 1.25);
     }
 
     private void Fit_Click(object sender, RoutedEventArgs e)
@@ -297,12 +297,12 @@ public partial class PreviewWindow : Window
 
     private void ZoomIn_Click(object sender, RoutedEventArgs e)
     {
-        _vm.Zoom = Math.Min(8.0, _vm.Zoom * 1.25);
+        ZoomAroundViewportCenter(1.25);
     }
 
     private void OneToOne_Click(object sender, RoutedEventArgs e)
     {
-        _vm.Zoom = 1.0;
+        SetZoomAroundViewerPoint(new WpfPoint(ImageScrollViewer.ViewportWidth / 2.0, ImageScrollViewer.ViewportHeight / 2.0), 1.0);
     }
 
     private void ToggleReject_Click(object sender, RoutedEventArgs e)
@@ -348,16 +348,36 @@ public partial class PreviewWindow : Window
 
     private void ZoomAroundViewerPoint(WpfPoint viewerPoint, double zoomFactor)
     {
+        if (zoomFactor <= 0)
+        {
+            return;
+        }
+
+        var targetZoom = Math.Clamp(_vm.Zoom * zoomFactor, 0.1, 8.0);
+        SetZoomAroundViewerPoint(viewerPoint, targetZoom);
+    }
+
+    private void ZoomAroundViewportCenter(double zoomFactor)
+    {
+        if (ImageScrollViewer.ViewportWidth <= 0 || ImageScrollViewer.ViewportHeight <= 0)
+        {
+            return;
+        }
+
+        ZoomAroundViewerPoint(new WpfPoint(ImageScrollViewer.ViewportWidth / 2.0, ImageScrollViewer.ViewportHeight / 2.0), zoomFactor);
+    }
+
+    private void SetZoomAroundViewerPoint(WpfPoint viewerPoint, double targetZoom)
+    {
         if (PreviewImage.Source is null
             || ImageScrollViewer.ViewportWidth <= 0
-            || ImageScrollViewer.ViewportHeight <= 0
-            || zoomFactor <= 0)
+            || ImageScrollViewer.ViewportHeight <= 0)
         {
             return;
         }
 
         var oldZoom = _vm.Zoom;
-        var newZoom = Math.Clamp(oldZoom * zoomFactor, 0.1, 8.0);
+        var newZoom = Math.Clamp(targetZoom, 0.1, 8.0);
         if (Math.Abs(newZoom - oldZoom) < 0.0001)
         {
             return;
@@ -1701,6 +1721,8 @@ public partial class PreviewWindow : Window
             if (isCurrent)
             {
                 var triangleWidth = 7.0;
+                var triangleTipX = 2.0;
+                var triangleBaseX = triangleTipX - triangleWidth;
 
                 var triangle = new Polygon
                 {
@@ -1710,9 +1732,9 @@ public partial class PreviewWindow : Window
                     IsHitTestVisible = false,
                     Points = new PointCollection
                     {
-                        new System.Windows.Point(triangleWidth, top + markerHeight / 2.0),
-                        new System.Windows.Point(0, top - 0.5),
-                        new System.Windows.Point(0, top + markerHeight + 0.5)
+                        new System.Windows.Point(triangleTipX, top + markerHeight / 2.0),
+                        new System.Windows.Point(triangleBaseX, top - 0.5),
+                        new System.Windows.Point(triangleBaseX, top + markerHeight + 0.5)
                     }
                 };
                 ScoreIndicatorCanvas.Children.Add(triangle);
