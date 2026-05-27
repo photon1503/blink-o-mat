@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.25
+
+### Changed
+- **Smarter metric indicator colours in mixed-filter sessions.** FWHM, HFR and Eccentricity reflect seeing, optics and tracking — they are filter-independent, so their chip colours are now compared globally across the whole session. Stars and Mean Background vary by filter (L frames detect far more stars than RGB), so those two chips continue to be compared within each filter group only. In a typical LRGB session this means: a blurry R frame correctly shows a red FWHM chip relative to all frames, while its Stars chip is judged only against other R frames.
+
 ## 1.0.24
 
 ### Performance

@@ -2053,22 +2053,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var yellow = WpfBrushes.Goldenrod;
         var red = WpfBrushes.IndianRed;
 
+        // FWHM, HFR and Eccentricity reflect seeing / optics / tracking and are
+        // independent of filter — compare them globally across the whole session.
         var avgFwhm = Frames.Average(f => f.Metrics.Fwhm);
-        var avgHfr = Frames.Average(f => f.Metrics.Hfr);
-        var avgStars = Frames.Average(f => (double)f.Metrics.StarCount);
-        var avgEcc = Frames.Average(f => f.Metrics.Eccentricity);
-        var avgBg = Frames.Average(f => f.Metrics.MeanBackground);
+        var avgHfr  = Frames.Average(f => f.Metrics.Hfr);
+        var avgEcc  = Frames.Average(f => f.Metrics.Eccentricity);
 
-        foreach (var frame in Frames)
+        // Stars and Mean Background vary by filter (L detects far more stars than RGB),
+        // so compare each frame against its own filter peers only.
+        var groups = Frames
+            .GroupBy(f => NormalizeFilterValue(f.FilterName), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var group in groups)
         {
-            frame.FwhmIndicatorBrush = CompareLowerIsBetter(frame.Metrics.Fwhm, avgFwhm, green, yellow, red);
-            frame.HfrIndicatorBrush = CompareLowerIsBetter(frame.Metrics.Hfr, avgHfr, green, yellow, red);
-            frame.StarsIndicatorBrush = CompareHigherIsBetter(frame.Metrics.StarCount, avgStars, green, yellow, red);
-            frame.EccentricityIndicatorBrush = CompareLowerIsBetter(frame.Metrics.Eccentricity, avgEcc, green, yellow, red);
-            frame.MeanBackgroundIndicatorBrush = CompareLowerIsBetter(frame.Metrics.MeanBackground, avgBg, green, yellow, red);
-            frame.TrailIndicatorBrush = frame.Metrics.SatelliteTrailConfidence >= 60 ? red : green;
+            var members = group.ToList();
+            var avgStars = members.Average(f => (double)f.Metrics.StarCount);
+            var avgBg    = members.Average(f => f.Metrics.MeanBackground);
 
-            // Score is computed below using rank-percentile logic (see ComputePercentileScores)
+            foreach (var frame in members)
+            {
+                frame.FwhmIndicatorBrush            = CompareLowerIsBetter(frame.Metrics.Fwhm, avgFwhm, green, yellow, red);
+                frame.HfrIndicatorBrush             = CompareLowerIsBetter(frame.Metrics.Hfr, avgHfr, green, yellow, red);
+                frame.StarsIndicatorBrush           = CompareHigherIsBetter(frame.Metrics.StarCount, avgStars, green, yellow, red);
+                frame.EccentricityIndicatorBrush    = CompareLowerIsBetter(frame.Metrics.Eccentricity, avgEcc, green, yellow, red);
+                frame.MeanBackgroundIndicatorBrush  = CompareLowerIsBetter(frame.Metrics.MeanBackground, avgBg, green, yellow, red);
+                frame.TrailIndicatorBrush           = frame.Metrics.SatelliteTrailConfidence >= 60 ? red : green;
+
+                // Score is computed below using rank-percentile logic (see ComputePercentileScores)
+            }
         }
 
         ComputePercentileScores();
