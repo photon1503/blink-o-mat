@@ -292,9 +292,12 @@ public sealed class RustafitsService
     /// </summary>
     public (bool Rotate180, int ShiftX, int ShiftY) DetectOrientation(LoadedFrame frame, LoadedFrame reference)
     {
-        var analysis = AnalyzeOrientation(frame, reference);
-        return (analysis.Rotate180, analysis.ShiftX, analysis.ShiftY);
-    }
+        // Sample size controls the residual alignment quantization: on an image of side W the
+        // resulting integer shift is rounded to multiples of roughly W / (sampleSize - 1) pixels.
+        // 512 keeps that under ~8 px on a 4K sensor, which is below the visual jitter threshold
+        // for the small preview canvas without breaking the "quick, no big perf impact" budget.
+        const int sampleSize = 512;
+        const double minImprovement = 0.04;
 
     public OrientationDebugInfo CreateOrientationReferenceDebugInfo(LoadedFrame frame)
     {
@@ -349,63 +352,20 @@ public sealed class RustafitsService
         var originalMatchStars = originalStars.Take(10).ToList();
         var rotatedMatchStars = rotatedStars.Take(10).ToList();
 
-        double originalScore;
-        double rotatedScore;
-        int originalSampleDx;
-        int originalSampleDy;
-        int rotatedSampleDx;
-        int rotatedSampleDy;
-        IReadOnlyList<int> originalTriangle;
-        IReadOnlyList<int> rotatedTriangle;
-        IReadOnlyList<int> referenceTriangleOriginal;
-        IReadOnlyList<int> referenceTriangleRotated;
-
-        // Compare "as-is" vs "180°-rotated" by correlating star-density maps.
-        // This is a direct matching approach and is more robust than sparse triangle-only matching
-        // when we only detect a handful of stars.
-        const int fineMapSize = 256;
-        const int coarseMapSize = 64;
-        const int coarseShiftCells = 8;
-        const int fineShiftCells = 4;
-        const int coarseToFineRatio = fineMapSize / coarseMapSize;
-
-        if (referenceStars.Count >= 5 && originalStars.Count >= 5)
+        // Guard against pathological/defective frames (e.g. half-black reads) where there are
+        // too few stars for reliable orientation. Falling back to dense correlation in this case
+        // is extremely expensive and can appear as an endless processing loop.
+        if (referenceStars.Count < 3 || (originalStars.Count < 3 && rotatedStars.Count < 3))
         {
-            var referenceMapFine = RasterizeStarDensityMap(referenceStars, referenceCache.SampleWidth, referenceCache.SampleHeight, fineMapSize);
-            var referenceMapCoarse = RasterizeStarDensityMap(referenceStars, referenceCache.SampleWidth, referenceCache.SampleHeight, coarseMapSize);
-            var originalMapFine = RasterizeStarDensityMap(originalStars, sampleWidth, sampleHeight, fineMapSize);
-            var originalMapCoarse = RasterizeStarDensityMap(originalStars, sampleWidth, sampleHeight, coarseMapSize);
-            var rotatedMapFine = RasterizeStarDensityMap(rotatedStars, sampleWidth, sampleHeight, fineMapSize);
-            var rotatedMapCoarse = RasterizeStarDensityMap(rotatedStars, sampleWidth, sampleHeight, coarseMapSize);
-
-            (originalScore, originalSampleDx, originalSampleDy) = PyramidCorrelate(
-                referenceMapCoarse, originalMapCoarse, coarseMapSize, coarseShiftCells,
-                referenceMapFine, originalMapFine, fineMapSize, fineShiftCells,
-                coarseToFineRatio);
-
-            (rotatedScore, rotatedSampleDx, rotatedSampleDy) = PyramidCorrelate(
-                referenceMapCoarse, rotatedMapCoarse, coarseMapSize, coarseShiftCells,
-                referenceMapFine, rotatedMapFine, fineMapSize, fineShiftCells,
-                coarseToFineRatio);
-
-            referenceTriangleOriginal = [];
-            referenceTriangleRotated = [];
-            originalTriangle = [];
-            rotatedTriangle = [];
+            return (false, 0, 0);
         }
-        else
-        {
-            originalScore = -1;
-            rotatedScore = -1;
-            originalSampleDx = 0;
-            originalSampleDy = 0;
-            rotatedSampleDx = 0;
-            rotatedSampleDy = 0;
-            referenceTriangleOriginal = [];
-            referenceTriangleRotated = [];
-            originalTriangle = [];
-            rotatedTriangle = [];
-        }
+
+        var (originalScore, originalSampleDx, originalSampleDy) = originalStars.Count >= 3
+            ? ComputeStarAlignmentScoreWithShift(referenceStars, originalStars, sampleSize, sampleSize)
+            : (-1.0, 0, 0);
+        var (rotatedScore, rotatedSampleDx, rotatedSampleDy) = rotatedStars.Count >= 3
+            ? ComputeStarAlignmentScoreWithShift(referenceStars, rotatedStars, sampleSize, sampleSize)
+            : (-1.0, 0, 0);
 
         var rotate180 = rotatedScore > originalScore + minImprovement;
         var sampleDx = rotate180 ? rotatedSampleDx : originalSampleDx;
