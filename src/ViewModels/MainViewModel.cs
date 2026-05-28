@@ -1453,7 +1453,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             if (files.Count == 0)
             {
-                Status = "No FITS/XISF frames found.";
+                if (WatchFolderEnabled)
+                {
+                    Status = "Watching empty folder for new FITS/XISF frames...";
+                }
+                else
+                {
+                    Status = "No FITS/XISF frames found.";
+                }
                 return;
             }
 
@@ -1632,8 +1639,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
         }
 
-        // Start watching after a successful load if the option is enabled.
-        if (WatchFolderEnabled && Frames.Count > 0)
+        // Start watching after load, including when the folders are currently empty.
+        if (WatchFolderEnabled)
             StartFolderWatch();
     }
 
@@ -1771,9 +1778,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 Metrics = metrics
             };
 
+            var wasEmpty = Frames.Count == 0;
+
             item.PropertyChanged += FrameItem_PropertyChanged;
             Frames.Add(item);
             _loadedFrames.Add(CreateLoadedFrameContext(item, oriented, filePath, rotate180, shiftX, shiftY));
+            SessionFocalLengthMm ??= oriented.FocalLengthMm;
+            SessionPixelSizeUm ??= oriented.PixelSizeUm;
+
+            if (wasEmpty)
+            {
+                var autoStf = _rustafits.ComputeAutoStretch(oriented, _stfTargetBackground);
+                _stfShadows = autoStf.Shadows;
+                _stfMidtones = autoStf.Midtones;
+                _stfHighlights = autoStf.Highlights;
+                OnPropertyChanged(nameof(StfShadows));
+                OnPropertyChanged(nameof(StfMidtones));
+                OnPropertyChanged(nameof(StfHighlights));
+                _manualRoiRect = _rustafits.DetectRoiNormalizedRect(oriented);
+                InitializeThresholdsFromLoadedFrames();
+            }
 
             UpdateFrameComparisons();
             RebuildFilterChips();

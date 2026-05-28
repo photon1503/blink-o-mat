@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Rejection reasons tooltip on the `?` icon now reliably shows all rejection reasons.
 
+## 1.0.27
+
 - Update banner now correctly appears on startup when a new version is available. The check was running on a background thread and raising property-changed notifications off the UI thread, which WPF silently ignores for bindings.
 
 ## 1.0.26
