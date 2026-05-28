@@ -1564,8 +1564,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         var orientation = _rustafits.AnalyzeOrientation(raw, rawMetrics, orientationReference, orientationReferenceMetrics);
                         var oriented = _rustafits.ApplyOrientation(raw, orientation.Rotate180);
                         var metrics = _rustafits.ApplyOrientation(rawMetrics, raw.Width, raw.Height, orientation.Rotate180);
+
+                        // Align to the same visual reference as the first loaded frame in the list.
+                        // DetectOrientation returns the shift that moves the candidate onto reference,
+                        // so we apply that translation directly for rendering.
+                        var previewShiftX = orientation.ShiftX;
+                        var previewShiftY = orientation.ShiftY;
                         var renderFrame = _isAlignmentEnabled
-                            ? _rustafits.ApplyShift(oriented, orientation.ShiftX, orientation.ShiftY)
+                            ? _rustafits.ApplyShift(oriented, previewShiftX, previewShiftY)
                             : oriented;
                         var previews = await _rustafits.RenderPreviewBitmapsAsync(renderFrame, GetStfForFrame(renderFrame), _manualRoiRect, metrics, CancellationToken.None).ConfigureAwait(false);
 
@@ -1583,7 +1589,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                             OrientationDebug = orientation.CandidateDebug
                         };
 
-                        return (Item: (FrameItem?)item, Frame: (RustafitsService.LoadedFrame?)oriented, Rotate180: orientation.Rotate180, ShiftX: orientation.ShiftX, ShiftY: orientation.ShiftY, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: item.FileName);
+                        return (Item: (FrameItem?)item, Frame: (RustafitsService.LoadedFrame?)oriented, Rotate180: orientation.Rotate180, ShiftX: previewShiftX, ShiftY: previewShiftY, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: item.FileName);
                     }
                     catch (Exception ex)
                     {
@@ -2251,8 +2257,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                                 : (Rotate180: false, ShiftX: 0, ShiftY: 0, ReferenceDebug: new OrientationDebugInfo(System.Array.Empty<MeasuredStar>(), System.Array.Empty<int>(), false, "reference", 1.0), CandidateDebug: new OrientationDebugInfo(System.Array.Empty<MeasuredStar>(), System.Array.Empty<int>(), false, "not flipped", 1.0));
                             var oriented = _rustafits.ApplyOrientation(raw, orientation.Rotate180);
                             var metrics = _rustafits.ApplyOrientation(rawMetrics, raw.Width, raw.Height, orientation.Rotate180);
+                            var previewShiftX = orientation.ShiftX;
+                            var previewShiftY = orientation.ShiftY;
                             var renderFrame = _isAlignmentEnabled
-                                ? _rustafits.ApplyShift(oriented, orientation.ShiftX, orientation.ShiftY)
+                                ? _rustafits.ApplyShift(oriented, previewShiftX, previewShiftY)
                                 : oriented;
                             var previews = await _rustafits.RenderPreviewBitmapsAsync(renderFrame, GetStfForFrame(renderFrame), _manualRoiRect, metrics, CancellationToken.None);
 
@@ -2272,7 +2280,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                             newItem.PropertyChanged += FrameItem_PropertyChanged;
                             Frames.Add(newItem);
-                            _loadedFrames.Add(CreateLoadedFrameContext(newItem, oriented, file, orientation.Rotate180, orientation.ShiftX, orientation.ShiftY));
+                            _loadedFrames.Add(CreateLoadedFrameContext(newItem, oriented, file, orientation.Rotate180, previewShiftX, previewShiftY));
                             SessionFocalLengthMm ??= oriented.FocalLengthMm;
                             SessionPixelSizeUm ??= oriented.PixelSizeUm;
                             orientationReference ??= oriented;

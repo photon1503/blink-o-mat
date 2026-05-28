@@ -411,8 +411,14 @@ public sealed class RustafitsService
         var sampleDx = rotate180 ? rotatedSampleDx : originalSampleDx;
         var sampleDy = rotate180 ? rotatedSampleDy : originalSampleDy;
 
-        var shiftX = (int)Math.Round(sampleDx * sampleScaleX);
-        var shiftY = (int)Math.Round(sampleDy * sampleScaleY);
+        // Correlation shifts are in fine-map pixel coordinates (fineMapSize), not in
+        // orientation-sample coordinates. Convert map-shift -> sample-shift -> source-shift.
+        var mapDenom = Math.Max(1, fineMapSize - 1);
+        var mapToSampleX = sampleWidth > 1 ? (sampleWidth - 1) / (double)mapDenom : 1.0;
+        var mapToSampleY = sampleHeight > 1 ? (sampleHeight - 1) / (double)mapDenom : 1.0;
+
+        var shiftX = (int)Math.Round(sampleDx * mapToSampleX * sampleScaleX);
+        var shiftY = (int)Math.Round(sampleDy * mapToSampleY * sampleScaleY);
 
         (shiftX, shiftY) = RefineShiftInImagePixels(reference, frame, rotate180, shiftX, shiftY,
             refineRadiusX: (int)Math.Ceiling(sampleScaleX) + 1,

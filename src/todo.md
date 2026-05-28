@@ -30,7 +30,7 @@ ok •	Systemvergleich CCD Inspector vs. Rejector (Werteberechnungen)
 
 * dass man die selektionparameter an/abhaken kann (ich brauche zb fast ausschließlich FWHM arcsec (der wäre super) und die Eccentricity) und diese als Profil speichern kann
 * Einstellungszeile – BW und Pix size einstellbar (falls auch keine fits header)
-* Monitor folder for new files and automatically load them into the software. This would be especially useful for users who are capturing images in real-time and want to see the results immediately without having to manually refresh or reload the folder.
+ok * Monitor folder for new files and automatically load them into the software. This would be especially useful for users who are capturing images in real-time and want to see the results immediately without having to manually refresh or reload the folder.
 
 •	Optische Elemente – Lesbarkeit/Größe der Bewertungsparameter
 •	Ampelsystem: Gewichtung einstellbar?

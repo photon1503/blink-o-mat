@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 - Switched preprocessing to full-frame adaptive downsampling targeting about 1.0 arcsec/pixel (with no upsampling when native sampling is already coarser).
 - Increased robustness by using a larger, stable star set for scoring, while keeping a compact star set for debug overlays.
 
+### Fixed
+- Restored alignment functionality
+
 ## 1.0.31
 
 Fixed an issue where a defect FITS file could lead to a program loop.
