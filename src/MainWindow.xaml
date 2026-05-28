@@ -130,21 +130,19 @@
                                         <Button x:Name="LoadFramesButtonPopup" Padding="10,8"
                                                 Command="{Binding LoadFramesCommand}"
                                                 Click="LoadFramesButtonPopup_Click"
-                                                ToolTip="Scan the input folder and load all FITS/XISF frames for analysis"
                                                 HorizontalAlignment="Stretch"
                                                 FontWeight="SemiBold"
                                                 Foreground="#FFFFFF">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                <Path Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
-                                                      Fill="#FFFFFF" Stretch="Uniform" Width="14" Height="14" Margin="0,0,6,0" />
-                                                <TextBlock Text="Load Frames" />
-                                            </StackPanel>
                                             <Button.Style>
                                                 <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Setter Property="ToolTip" Value="Scan the input folder and load all FITS/XISF frames for analysis" />
                                                     <Setter Property="Background" Value="#B0BEC5" />
                                                     <Setter Property="BorderBrush" Value="#90A4AE" />
                                                     <Setter Property="BorderThickness" Value="1" />
                                                     <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding WatchFolderEnabled}" Value="True">
+                                                            <Setter Property="ToolTip" Value="Scan the input folder, load all FITS/XISF frames, and keep watching for new files" />
+                                                        </DataTrigger>
                                                         <!-- When folder is selected and not busy, show green -->
                                                         <DataTrigger Binding="{Binding HasInputFolder}" Value="True">
                                                             <Setter Property="Background" Value="#5D9A65" />
@@ -181,6 +179,23 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                <Path Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+                                                      Fill="#FFFFFF" Stretch="Uniform" Width="14" Height="14" Margin="0,0,6,0" />
+                                                <TextBlock>
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="Load Frames" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding WatchFolderEnabled}" Value="True">
+                                                                    <Setter Property="Text" Value="Load Frames &amp; Watch Folder" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+
                                         </Button>
                                     </StackPanel>
                                 </Border>

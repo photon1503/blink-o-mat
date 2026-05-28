@@ -42,3 +42,8 @@ ok * square icons on vertical sliders turn yellow when selected (active)
 v22 * only import LIGHT images (not BIAS, DARK, FLAT)
 v22 * add option to import multiple (sub) folders at once
 * filter on rejected per slider
+
+Andreas:
+
+* add option to recognice same files 
+* add option to loop (start from beginning after reaching the end) when previewing images

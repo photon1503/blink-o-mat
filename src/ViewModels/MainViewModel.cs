@@ -979,6 +979,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasMultipleFilterChips));
 
         RebuildRejectionScopeChips();
+        FilteredFrames.Refresh();
+        UpdateFrameStatistics();
+        RefreshPreviewVisibleFrames();
     }
 
     private void FilterChip_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1676,6 +1679,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 watcher.Filters.Add(ext);
 
             watcher.Created += OnWatcherFileCreated;
+            watcher.Deleted += OnWatcherFileDeleted;
             watchers.Add(watcher);
         }
 
@@ -1695,6 +1699,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             w.EnableRaisingEvents = false;
             w.Created -= OnWatcherFileCreated;
+            w.Deleted -= OnWatcherFileDeleted;
             w.Dispose();
         }
 
@@ -1708,6 +1713,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(async () =>
             await AddWatchedFileAsync(e.FullPath));
+    }
+
+    private void OnWatcherFileDeleted(object sender, FileSystemEventArgs e)
+    {
+        _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+            RemoveWatchedFile(e.FullPath));
     }
 
     private async Task AddWatchedFileAsync(string filePath)
@@ -1810,6 +1821,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             _watcherAddSemaphore.Release();
         }
+    }
+
+    private void RemoveWatchedFile(string filePath)
+    {
+        _watcherKnownFiles.Remove(filePath);
+
+        var item = Frames.FirstOrDefault(f => string.Equals(f.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+        if (item is null)
+        {
+            return;
+        }
+
+        item.PropertyChanged -= FrameItem_PropertyChanged;
+        Frames.Remove(item);
+
+        var idx = _loadedFrames.FindIndex(f => string.Equals(f.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+        if (idx >= 0)
+        {
+            _loadedFrames.RemoveAt(idx);
+        }
+
+        if (SelectedFrame is not null && ReferenceEquals(SelectedFrame, item))
+        {
+            SelectedFrame = Frames.FirstOrDefault();
+        }
+
+        UpdateFrameComparisons();
+        RebuildFilterChips();
+        ApplyThresholds();
+        ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
+        OnPropertyChanged(nameof(MoveRejectedEnabled));
+
+        Status = $"Watch: removed {item.FileName} — {Frames.Count} frame(s) total.";
     }
 
     private void SaveSession()

@@ -2,7 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.30
+### Fixed
+- When a watched file introduces a new filter, the new chip appears and the frame becomes visible immediately.
+### Changed
+- When Watch Folder is checked, the button text becomes Load Frames & Watch Folder and the tooltip updates to mention that it will continue watching for new files
+### Added 
+- Watched folders now also react to deleted files
+
 ## 1.0.29
+### Fixed
 - Empty input folders now work with Watch Folder enabled
 
 ## 1.0.28
@@ -10,7 +19,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **Watch Folder mode.** A new "Watch Folder" checkbox in the Open Folder panel activates live monitoring of the input folder. New FITS/XISF frames are automatically detected, analyzed, and added to the list as they arrive — no reload needed. A blinking **LIVE** badge in the status bar indicates when watching is active.
 
-### Fixed
+
 - Rejection reasons tooltip on the `?` icon now reliably shows all rejection reasons.
 
 ## 1.0.27
