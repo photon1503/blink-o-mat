@@ -293,7 +293,6 @@ public sealed class RustafitsService
         // 512 keeps that under ~8 px on a 4K sensor, which is below the visual jitter threshold
         // for the small preview canvas without breaking the "quick, no big perf impact" budget.
         const int sampleSize = 512;
-        const int maxOffset = 96;
         const double minImprovement = 0.04;
 
         var referenceSample = CreateOrientationSample(reference.Pixels, reference.Width, reference.Height, sampleSize, rotate180: false);
@@ -304,20 +303,20 @@ public sealed class RustafitsService
         var originalStars = DetectOrientationStars(originalSample, sampleSize, sampleSize);
         var rotatedStars = DetectOrientationStars(rotatedSample, sampleSize, sampleSize);
 
-        double originalScore;
-        double rotatedScore;
-        int originalSampleDx, originalSampleDy;
-        int rotatedSampleDx, rotatedSampleDy;
-        if (referenceStars.Count >= 10 && originalStars.Count >= 10 && rotatedStars.Count >= 10)
+        // Guard against pathological/defective frames (e.g. half-black reads) where there are
+        // too few stars for reliable orientation. Falling back to dense correlation in this case
+        // is extremely expensive and can appear as an endless processing loop.
+        if (referenceStars.Count < 3 || (originalStars.Count < 3 && rotatedStars.Count < 3))
         {
-            (originalScore, originalSampleDx, originalSampleDy) = ComputeStarAlignmentScoreWithShift(referenceStars, originalStars, sampleSize, sampleSize);
-            (rotatedScore, rotatedSampleDx, rotatedSampleDy) = ComputeStarAlignmentScoreWithShift(referenceStars, rotatedStars, sampleSize, sampleSize);
+            return (false, 0, 0);
         }
-        else
-        {
-            (originalScore, originalSampleDx, originalSampleDy) = ComputeBestCorrelationWithOffsetsAndShift(referenceSample, originalSample, sampleSize, maxOffset);
-            (rotatedScore, rotatedSampleDx, rotatedSampleDy) = ComputeBestCorrelationWithOffsetsAndShift(referenceSample, rotatedSample, sampleSize, maxOffset);
-        }
+
+        var (originalScore, originalSampleDx, originalSampleDy) = originalStars.Count >= 3
+            ? ComputeStarAlignmentScoreWithShift(referenceStars, originalStars, sampleSize, sampleSize)
+            : (-1.0, 0, 0);
+        var (rotatedScore, rotatedSampleDx, rotatedSampleDy) = rotatedStars.Count >= 3
+            ? ComputeStarAlignmentScoreWithShift(referenceStars, rotatedStars, sampleSize, sampleSize)
+            : (-1.0, 0, 0);
 
         var rotate180 = rotatedScore > originalScore + minImprovement;
         var sampleDx = rotate180 ? rotatedSampleDx : originalSampleDx;
