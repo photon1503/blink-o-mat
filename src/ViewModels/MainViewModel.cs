@@ -1455,6 +1455,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 if (WatchFolderEnabled)
                 {
+                    StartFolderWatch();
                     Status = "Watching empty folder for new FITS/XISF frames...";
                 }
                 else

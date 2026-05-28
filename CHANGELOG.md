@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.29
+- Empty input folders now work with Watch Folder enabled
+
 ## 1.0.28
 
 ### Added
