@@ -2056,11 +2056,14 @@ public sealed class RustafitsService
             ? Math.Clamp(referenceMedianFwhm / candidateMedianFwhm, 0.75, 1.25)
             : 1.0;
 
-        const double ratioTolerance = 0.035;
-        const double areaTolerance = 0.02;
-        var dxs = new List<double>();
-        var dys = new List<double>();
-        var matches = 0;
+        const double ratioTolerance = 0.02;
+        const double areaTolerance = 0.015;
+
+        // Each matched triangle pair produces 3 per-vertex shift votes (dx, dy).
+        // For the correct orientation these votes cluster tightly around the true
+        // image offset; for the wrong orientation the vertex pairings are geometric
+        // nonsense and the votes scatter across the full image extent.
+        var votes = new List<(double Dx, double Dy)>();
         TriangleSignature? bestReferenceTriangle = null;
         TriangleSignature? bestCandidateTriangle = null;
         var bestOverallError = double.MaxValue;
@@ -2100,30 +2103,41 @@ public sealed class RustafitsService
                 bestCandidateTriangle = match;
             }
 
-            var refIds = new[] { rt.A, rt.B, rt.C };
-            var candIds = new[] { match.A, match.B, match.C };
-            Array.Sort(refIds);
-            Array.Sort(candIds);
-            for (var i = 0; i < 3; i++)
-            {
-                var r = referenceStars[refIds[i]];
-                var c = candidateStars[candIds[i]];
-                dxs.Add(r.X - (c.X * scaleRatio));
-                dys.Add(r.Y - (c.Y * scaleRatio));
-            }
-            matches++;
+            // A/B/C in each TriangleSignature are in canonical order
+            // (opposite shortest/middle/longest side), so rt.A↔match.A etc. are
+            // the correct geometric correspondences.
+            votes.Add((referenceStars[rt.A].X - (candidateStars[match.A].X * scaleRatio),
+                       referenceStars[rt.A].Y - (candidateStars[match.A].Y * scaleRatio)));
+            votes.Add((referenceStars[rt.B].X - (candidateStars[match.B].X * scaleRatio),
+                       referenceStars[rt.B].Y - (candidateStars[match.B].Y * scaleRatio)));
+            votes.Add((referenceStars[rt.C].X - (candidateStars[match.C].X * scaleRatio),
+                       referenceStars[rt.C].Y - (candidateStars[match.C].Y * scaleRatio)));
         }
 
-        if (matches == 0 || dxs.Count == 0)
+        if (votes.Count == 0)
         {
             return (-1, 0, 0, Array.Empty<int>(), Array.Empty<int>());
         }
 
-        dxs.Sort();
-        dys.Sort();
-        var medianDx = dxs[dxs.Count / 2];
-        var medianDy = dys[dys.Count / 2];
-        var score = matches / (double)Math.Max(refTriangles.Count, candTriangles.Count);
+        var sortedDx = votes.Select(v => v.Dx).OrderBy(v => v).ToList();
+        var sortedDy = votes.Select(v => v.Dy).OrderBy(v => v).ToList();
+        var medianDx = sortedDx[sortedDx.Count / 2];
+        var medianDy = sortedDy[sortedDy.Count / 2];
+
+        // Score = fraction of votes within a tight radius of the median shift.
+        // The radius is expressed in sample-space units; 8 sample units on a 512-sample
+        // grid corresponds to ~1.6 % of the image width — tight enough to reject scattered
+        // wrong-orientation votes while tolerating the star-detection jitter.
+        const double inlierRadius = 8.0;
+        var inlierRadiusSq = inlierRadius * inlierRadius;
+        var inliers = votes.Count(v =>
+        {
+            var ddx = v.Dx - medianDx;
+            var ddy = v.Dy - medianDy;
+            return (ddx * ddx) + (ddy * ddy) <= inlierRadiusSq;
+        });
+        var score = inliers / (double)votes.Count;
+
         var refTriangle = bestReferenceTriangle is TriangleSignature br ? new[] { br.A, br.B, br.C } : Array.Empty<int>();
         var candTriangle = bestCandidateTriangle is TriangleSignature bc ? new[] { bc.A, bc.B, bc.C } : Array.Empty<int>();
         return (score, (int)Math.Round(medianDx), (int)Math.Round(medianDy), refTriangle, candTriangle);
@@ -2155,24 +2169,44 @@ public sealed class RustafitsService
             {
                 for (var k = j + 1; k < stars.Count; k++)
                 {
+                    // Each edge is paired with the vertex opposite to it:
+                    //   edge i-j (d1) is opposite vertex k
+                    //   edge i-k (d2) is opposite vertex j
+                    //   edge j-k (d3) is opposite vertex i
                     var d1 = Distance(stars[i], stars[j]);
                     var d2 = Distance(stars[i], stars[k]);
                     var d3 = Distance(stars[j], stars[k]);
-                    var sides = new[] { d1, d2, d3 };
-                    Array.Sort(sides);
-                    if (sides[2] <= 1e-6)
+                    // Sort edges while keeping track of the opposite vertex so that
+                    // A/B/C in the stored signature correspond to the vertex opposite
+                    // the shortest/middle/longest side respectively.  Two triangles
+                    // that match on (Ratio1, Ratio2, AreaNorm) therefore have
+                    // rt.A ↔ ct.A, rt.B ↔ ct.B, rt.C ↔ ct.C as their geometric
+                    // vertex correspondences.
+                    var e0 = (dist: d1, opp: k);
+                    var e1 = (dist: d2, opp: j);
+                    var e2 = (dist: d3, opp: i);
+                    // Sort ascending by distance (simple 3-element sort)
+                    if (e0.dist > e1.dist) { (e0, e1) = (e1, e0); }
+                    if (e1.dist > e2.dist) { (e1, e2) = (e2, e1); }
+                    if (e0.dist > e1.dist) { (e0, e1) = (e1, e0); }
+
+                    if (e2.dist <= 1e-6)
                     {
                         continue;
                     }
 
                     var area2 = Math.Abs(((stars[j].X - stars[i].X) * (stars[k].Y - stars[i].Y)) - ((stars[j].Y - stars[i].Y) * (stars[k].X - stars[i].X)));
-                    var areaNorm = area2 / (sides[2] * sides[2]);
-                    if (areaNorm <= 1e-4)
+                    var areaNorm = area2 / (e2.dist * e2.dist);
+                    // Reject near-degenerate (nearly-collinear) triangles. areaNorm is the
+                    // twice-normalised area: for an equilateral triangle it is ~0.43, for a
+                    // right isoceles ~0.50, for a very flat triangle <<0.05. Allowing tiny
+                    // values produces pseudo-triangles that can false-match almost anything.
+                    if (areaNorm < 0.05)
                     {
                         continue;
                     }
 
-                    result.Add(new TriangleSignature(i, j, k, sides[0] / sides[2], sides[1] / sides[2], areaNorm));
+                    result.Add(new TriangleSignature(e0.opp, e1.opp, e2.opp, e0.dist / e2.dist, e1.dist / e2.dist, areaNorm));
                 }
             }
         }
