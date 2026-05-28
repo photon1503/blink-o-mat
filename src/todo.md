@@ -32,14 +32,9 @@ ok •	Systemvergleich CCD Inspector vs. Rejector (Werteberechnungen)
 * Einstellungszeile – BW und Pix size einstellbar (falls auch keine fits header)
 * Monitor folder for new files and automatically load them into the software. This would be especially useful for users who are capturing images in real-time and want to see the results immediately without having to manually refresh or reload the folder.
 
-
-•	Ordner Tracking – Auto file load
 •	Optische Elemente – Lesbarkeit/Größe der Bewertungsparameter
 •	Ampelsystem: Gewichtung einstellbar?
-•	Optional – bereich für werteberechnung definierbar
-•	Parameter zum An/Abhaken
-
-
+•	Optional – bereich für werteberechnung definierbar (crop) – z.b. für FWHM, Eccentricity, etc
 
 Michael:
 

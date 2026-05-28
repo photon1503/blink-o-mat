@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.28
+- Fixed tooltip for the reject reasons not always showing up.
+
 ## 1.0.27
 - Fixed update banner now showing.
 

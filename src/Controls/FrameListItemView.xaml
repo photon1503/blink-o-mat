@@ -299,30 +299,30 @@
                             Visibility="{Binding HasRejectionReasons, Converter={StaticResource BoolToVisibilityConverter}}">
                         <Border Background="#2A2D31" BorderBrush="#FF6B6B" BorderThickness="1"
                                 CornerRadius="10" Width="20" Height="20" Cursor="Help">
+                            <Border.ToolTip>
+                                <ToolTip MaxWidth="320" Placement="Left"
+                                         DataContext="{Binding Path=PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <StackPanel>
+                                        <TextBlock Text="REJECTION REASONS" FontSize="10" FontWeight="Bold"
+                                                   Foreground="#FF9A9A" Margin="0,0,0,8" />
+                                        <ItemsControl ItemsSource="{Binding RejectionReasons}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <DockPanel Margin="0,3,0,0">
+                                                        <TextBlock Text="▸" Foreground="#FF6B6B" FontSize="11"
+                                                                   DockPanel.Dock="Left" Margin="0,0,6,0"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding}" Foreground="#F0F0F0"
+                                                                   FontSize="12" TextWrapping="Wrap" />
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </ToolTip>
+                            </Border.ToolTip>
                             <TextBlock Text="?" FontSize="11" FontWeight="Bold" Foreground="#FF9A9A"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock.ToolTip>
-                                    <ToolTip MaxWidth="320" Placement="Left">
-                                        <StackPanel>
-                                            <TextBlock Text="REJECTION REASONS" FontSize="10" FontWeight="Bold"
-                                                       Foreground="#FF9A9A" Margin="0,0,0,8" />
-                                            <ItemsControl ItemsSource="{Binding RejectionReasons}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <DockPanel Margin="0,3,0,0">
-                                                            <TextBlock Text="▸" Foreground="#FF6B6B" FontSize="11"
-                                                                       DockPanel.Dock="Left" Margin="0,0,6,0"
-                                                                       VerticalAlignment="Center" />
-                                                            <TextBlock Text="{Binding}" Foreground="#F0F0F0"
-                                                                       FontSize="12" TextWrapping="Wrap" />
-                                                        </DockPanel>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </ToolTip>
-                                </TextBlock.ToolTip>
-                            </TextBlock>
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                     </Border>
                 </StackPanel>
