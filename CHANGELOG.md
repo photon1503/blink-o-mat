@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.32
+
+###  Orientation detection overhaul
+- Reworked frame orientation detection to use a direct match approach instead of relying on sparse triangle-only decisions.
+- Orientation now compares original vs 180°-rotated candidates by correlating star-density maps, improving reliability on low-star and noisy frames.
+- Switched preprocessing to full-frame adaptive downsampling targeting about 1.0 arcsec/pixel (with no upsampling when native sampling is already coarser).
+- Increased robustness by using a larger, stable star set for scoring, while keeping a compact star set for debug overlays.
+
+## 1.0.31
+
+Fixed an issue where a defect FITS file could lead to a program loop.
+
 ## 1.0.30
 ### Fixed
 - Orientation/flip detection: reference and candidate now use the same star-selection parameters (50 stars / 6×6 grid, top 24 for triangulation) so the same physical stars surface on both images. A minimum confidence floor was added so near-zero-match scores no longer cause near-100% wrong-flip decisions.
