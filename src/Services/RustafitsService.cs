@@ -19,7 +19,7 @@ public sealed class RustafitsService
 {
     private readonly record struct StarPoint(float X, float Y, float Signal);
     private readonly record struct TrailDetectionResult(int Confidence, double X1, double Y1, double X2, double Y2);
-    private readonly record struct OrientationReferenceCache(string Key, IReadOnlyList<MeasuredStar> Stars, IReadOnlyList<TriangleSignature> Triangles, double ScaleX, double ScaleY);
+    private readonly record struct OrientationReferenceCache(string Key, IReadOnlyList<MeasuredStar> Stars, IReadOnlyList<TriangleSignature> Triangles, double ScaleX, double ScaleY, int OffsetX, int OffsetY, int SampleWidth, int SampleHeight);
     private OrientationReferenceCache? _orientationReferenceCache;
     private readonly record struct OrientationDensityCache(string Key, float[] FineMap, float[] CoarseMap, int FineSize, int CoarseSize, int Width, int Height);
     private OrientationDensityCache? _orientationDensityReferenceCache;
@@ -300,7 +300,7 @@ public sealed class RustafitsService
     {
         var referenceCache = GetOrCreateOrientationReferenceCache(frame);
         return new OrientationDebugInfo(
-            referenceCache.Stars.Select(s => new MeasuredStar(s.X * referenceCache.ScaleX, s.Y * referenceCache.ScaleY, s.Fwhm, s.Hfr, s.Peak)).ToArray(),
+            referenceCache.Stars.Select(s => new MeasuredStar(referenceCache.OffsetX + (s.X * referenceCache.ScaleX), referenceCache.OffsetY + (s.Y * referenceCache.ScaleY), s.Fwhm, s.Hfr, s.Peak)).ToArray(),
             Array.Empty<int>(),
             false,
             $"reference  stars={referenceCache.Stars.Count}",
@@ -320,153 +320,78 @@ public sealed class RustafitsService
 
     public (bool Rotate180, int ShiftX, int ShiftY, OrientationDebugInfo ReferenceDebug, OrientationDebugInfo CandidateDebug) AnalyzeOrientation(LoadedFrame frame, AstroMetrics frameMetrics, LoadedFrame reference, AstroMetrics referenceMetrics)
     {
-        // Mixed-filter datasets (LRGB / SHO / RGB) break vertex-based triangle matching:
-        // a star bright in L may be invisible in Hα, so the per-vertex correspondence
-        // rt.A↔ct.A is wrong even when the geometry looks plausible. Instead, rasterize
-        // each star list into a small Gaussian "density map" and cross-correlate the
-        // reference map against the candidate map (both as-is and 180°-rotated). A star
-        // that only one filter sees just contributes a small blob locally and does NOT
-        // poison the matches everywhere else, which is exactly the property we need for
-        // mixed-filter sessions.
-        //
-        // Performance: a naive single-resolution correlation at 256×256 with ±32 cells of
-        // shift is ~65² * 65k = ~270M ops per direction. We instead use a coarse-to-fine
-        // pyramid: search ±8 cells on a 64×64 map (≈4M ops), then refine ±4 cells on the
-        // 256×256 map (≈600k ops). The reference map is also cached across frames in a
-        // batch so it is only rasterized once per session.
-        const int fineMapSize = 256;
-        const int coarseMapSize = 64;
-        const double minImprovement = 0.02;
-        // Absolute correlation floor: below this the two density maps share essentially
-        // no structure (different field of view, no overlap, vastly different star counts)
-        // and the flip decision would be noise. Default to "not flipped".
-        const double minConfidence = 0.15;
-        // Coarse search window covers ~12% of map size: enough for typical post-flip drift.
-        const int coarseShiftCells = 8;
-        // Fine refinement window only needs to cover the coarse-quantization error
-        // (one coarse cell ≈ fineMapSize / coarseMapSize fine cells) plus a small slack.
-        const int fineShiftCells = 4;
-        const int coarseToFineRatio = fineMapSize / coarseMapSize;
-
-        // We rasterize MANY more stars than triangle matching used (the density map
-        // doesn't care about brightness ranking), so even partially overlapping star
-        // sets between filters still produce strong correlation peaks.
-        const int densityStarCap = 200;
-        var referenceDensityStars = SelectOrientationTriangulationStars(referenceMetrics.Stars, reference.Width, reference.Height, densityStarCap);
-        var candidateDensityStars = SelectOrientationTriangulationStars(frameMetrics.Stars, frame.Width, frame.Height, densityStarCap);
-
-        // Debug overlay still uses the top-24 brightness-ranked, edge-safe, well-separated
-        // stars for visual continuity with the previous version.
-        const int debugStarCount = 24;
-        var referenceStars = referenceDensityStars.Take(debugStarCount).ToList();
-        var originalStars = candidateDensityStars.Take(debugStarCount).ToList();
-        var rotatedStars = TransformMeasuredStars(originalStars, frame.Width, frame.Height, rotate180: true).ToList();
-
-        double originalScore = -1;
-        double rotatedScore = -1;
-        int shiftX = 0;
-        int shiftY = 0;
-        int rotatedShiftX = 0;
-        int rotatedShiftY = 0;
-
-        if (referenceDensityStars.Count >= 5 && candidateDensityStars.Count >= 5)
-        {
-            // Reference maps (fine + coarse) are cached across frames in a batch so the
-            // expensive rasterization only happens once per session, not once per frame.
-            var (referenceMapFine, referenceMapCoarse) = GetOrCreateOrientationDensityMaps(reference, referenceDensityStars, fineMapSize, coarseMapSize);
-            var candidateMapFine = RasterizeStarDensityMap(candidateDensityStars, frame.Width, frame.Height, fineMapSize);
-            var candidateMapCoarse = RasterizeStarDensityMap(candidateDensityStars, frame.Width, frame.Height, coarseMapSize);
-
-            // 180° rotation of a square density map is just an index reversal of the
-            // mean-subtracted array (mean is unchanged by rotation). This avoids a full
-            // second rasterization for the rotated branch.
-            var rotatedCandidateMapFine = RotateMap180(candidateMapFine);
-            var rotatedCandidateMapCoarse = RotateMap180(candidateMapCoarse);
-
-            var (origScore, origDx, origDy) = PyramidCorrelate(referenceMapCoarse, candidateMapCoarse, coarseMapSize, coarseShiftCells, referenceMapFine, candidateMapFine, fineMapSize, fineShiftCells, coarseToFineRatio);
-            var (rotScore, rotDx, rotDy) = PyramidCorrelate(referenceMapCoarse, rotatedCandidateMapCoarse, coarseMapSize, coarseShiftCells, referenceMapFine, rotatedCandidateMapFine, fineMapSize, fineShiftCells, coarseToFineRatio);
-
-            originalScore = origScore;
-            rotatedScore = rotScore;
-
-            // Convert map-space shift (dx, dy) back to image-pixel coordinates.
-            var mapDenom = Math.Max(1, fineMapSize - 1);
-            var pixelScaleX = (frame.Width - 1) / (double)mapDenom;
-            var pixelScaleY = (frame.Height - 1) / (double)mapDenom;
-            shiftX = (int)Math.Round(origDx * pixelScaleX);
-            shiftY = (int)Math.Round(origDy * pixelScaleY);
-            rotatedShiftX = (int)Math.Round(rotDx * pixelScaleX);
-            rotatedShiftY = (int)Math.Round(rotDy * pixelScaleY);
-        }
-
-        var rotate180 = rotatedScore > originalScore + minImprovement && rotatedScore >= minConfidence;
-        if (rotate180)
-        {
-            shiftX = rotatedShiftX;
-            shiftY = rotatedShiftY;
-        }
-
-        var chosenScore = rotate180 ? rotatedScore : originalScore;
-        var referenceDebug = new OrientationDebugInfo(
-            referenceStars.ToArray(),
-            Array.Empty<int>(),
-            false,
-            $"reference  stars={referenceStars.Count}  corr={chosenScore:F3}",
-            chosenScore);
-        var candidateDebug = new OrientationDebugInfo(
-            (rotate180 ? rotatedStars : originalStars).ToArray(),
-            Array.Empty<int>(),
-            rotate180,
-            rotate180 ? $"flipped  corr={chosenScore:F3}" : $"not flipped  corr={chosenScore:F3}",
-            chosenScore);
-
-        // The map-space correlation already accounts for which way the candidate is
-        // oriented (we correlated the rotated map directly), so do NOT re-invert the
-        // shift here as the legacy triangle path did.
-
-        (shiftX, shiftY) = RefineShiftInImagePixels(reference, frame, rotate180, shiftX, shiftY,
-            refineRadiusX: 2,
-            refineRadiusY: 2);
-
-        var maxShiftX = Math.Max(1, frame.Width / 4);
-        var maxShiftY = Math.Max(1, frame.Height / 4);
-        shiftX = Math.Clamp(shiftX, -maxShiftX, maxShiftX);
-        shiftY = Math.Clamp(shiftY, -maxShiftY, maxShiftY);
-
-        return (rotate180, shiftX, shiftY, referenceDebug, candidateDebug);
+        // Orientation is intentionally computed from the same fixed 512×512 center crop
+        // for every frame to keep quality consistent and runtime predictable.
+        return AnalyzeOrientation(frame, reference);
     }
 
     public (bool Rotate180, int ShiftX, int ShiftY, OrientationDebugInfo ReferenceDebug, OrientationDebugInfo CandidateDebug) AnalyzeOrientation(LoadedFrame frame, LoadedFrame reference)
     {
-        // Sample size controls the residual alignment quantization: on an image of side W the
-        // resulting integer shift is rounded to multiples of roughly W / (sampleSize - 1) pixels.
-        // 512 keeps that under ~8 px on a 4K sensor, which is below the visual jitter threshold
-        // for the small preview canvas without breaking the "quick, no big perf impact" budget.
-        const int sampleSize = 512;
-        const double minImprovement = 0.04;
+        const double minImprovement = 0.02;
 
         var referenceCache = GetOrCreateOrientationReferenceCache(reference);
-        var originalSample = CreateOrientationSample(frame.Pixels, frame.Width, frame.Height, sampleSize, rotate180: false);
-        var rotatedSample = CreateOrientationSample(frame.Pixels, frame.Width, frame.Height, sampleSize, rotate180: true);
+        var originalSample = CreateOrientationSample(
+            frame.Pixels, frame.Width, frame.Height, frame.FocalLengthMm, frame.PixelSizeUm, rotate180: false,
+            out var sampleWidth, out var sampleHeight, out var sampleScaleX, out var sampleScaleY);
 
         var referenceStars = referenceCache.Stars;
-        var originalStars = SelectOrientationAnchorMeasuredStars(GetOrientationMeasuredStars(originalSample, sampleSize, sampleSize), sampleSize, sampleSize, maxStars: 12, gridSize: 4);
-        var rotatedStars = SelectOrientationAnchorMeasuredStars(GetOrientationMeasuredStars(rotatedSample, sampleSize, sampleSize), sampleSize, sampleSize, maxStars: 12, gridSize: 4);
+        var detectedOriginalStars = GetOrientationMeasuredStars(originalSample, sampleWidth, sampleHeight);
+
+        // Scoring: use a larger, stable star set and compare original vs 180° transformed
+        // positions directly against the same reference set.
+        var originalStars = SelectOrientationTriangulationStars(detectedOriginalStars, sampleWidth, sampleHeight, maxStars: 160);
+        var rotatedStars = TransformMeasuredStars(originalStars, sampleWidth, sampleHeight, rotate180: true).ToList();
+
+        // Debug overlay: keep the compact anchor set so the preview remains readable.
+        var originalDebugStars = SelectOrientationAnchorMeasuredStars(detectedOriginalStars, sampleWidth, sampleHeight, maxStars: 12, gridSize: 4);
+        var rotatedDebugStars = TransformMeasuredStars(originalDebugStars, sampleWidth, sampleHeight, rotate180: true).ToList();
+
         var originalMatchStars = originalStars.Take(10).ToList();
         var rotatedMatchStars = rotatedStars.Take(10).ToList();
 
         double originalScore;
         double rotatedScore;
-        int originalSampleDx, originalSampleDy;
-        int rotatedSampleDx, rotatedSampleDy;
+        int originalSampleDx;
+        int originalSampleDy;
+        int rotatedSampleDx;
+        int rotatedSampleDy;
         IReadOnlyList<int> originalTriangle;
         IReadOnlyList<int> rotatedTriangle;
         IReadOnlyList<int> referenceTriangleOriginal;
         IReadOnlyList<int> referenceTriangleRotated;
-        if (referenceStars.Count >= 5 && originalMatchStars.Count >= 5 && rotatedMatchStars.Count >= 5)
+
+        // Compare "as-is" vs "180°-rotated" by correlating star-density maps.
+        // This is a direct matching approach and is more robust than sparse triangle-only matching
+        // when we only detect a handful of stars.
+        const int fineMapSize = 256;
+        const int coarseMapSize = 64;
+        const int coarseShiftCells = 8;
+        const int fineShiftCells = 4;
+        const int coarseToFineRatio = fineMapSize / coarseMapSize;
+
+        if (referenceStars.Count >= 5 && originalStars.Count >= 5)
         {
-            (originalScore, originalSampleDx, originalSampleDy, referenceTriangleOriginal, originalTriangle) = ComputeTriangleAlignmentScoreWithShift(referenceStars, referenceCache.Triangles, originalMatchStars);
-            (rotatedScore, rotatedSampleDx, rotatedSampleDy, referenceTriangleRotated, rotatedTriangle) = ComputeTriangleAlignmentScoreWithShift(referenceStars, referenceCache.Triangles, rotatedMatchStars);
+            var referenceMapFine = RasterizeStarDensityMap(referenceStars, referenceCache.SampleWidth, referenceCache.SampleHeight, fineMapSize);
+            var referenceMapCoarse = RasterizeStarDensityMap(referenceStars, referenceCache.SampleWidth, referenceCache.SampleHeight, coarseMapSize);
+            var originalMapFine = RasterizeStarDensityMap(originalStars, sampleWidth, sampleHeight, fineMapSize);
+            var originalMapCoarse = RasterizeStarDensityMap(originalStars, sampleWidth, sampleHeight, coarseMapSize);
+            var rotatedMapFine = RasterizeStarDensityMap(rotatedStars, sampleWidth, sampleHeight, fineMapSize);
+            var rotatedMapCoarse = RasterizeStarDensityMap(rotatedStars, sampleWidth, sampleHeight, coarseMapSize);
+
+            (originalScore, originalSampleDx, originalSampleDy) = PyramidCorrelate(
+                referenceMapCoarse, originalMapCoarse, coarseMapSize, coarseShiftCells,
+                referenceMapFine, originalMapFine, fineMapSize, fineShiftCells,
+                coarseToFineRatio);
+
+            (rotatedScore, rotatedSampleDx, rotatedSampleDy) = PyramidCorrelate(
+                referenceMapCoarse, rotatedMapCoarse, coarseMapSize, coarseShiftCells,
+                referenceMapFine, rotatedMapFine, fineMapSize, fineShiftCells,
+                coarseToFineRatio);
+
+            referenceTriangleOriginal = [];
+            referenceTriangleRotated = [];
+            originalTriangle = [];
+            rotatedTriangle = [];
         }
         else
         {
@@ -486,25 +411,13 @@ public sealed class RustafitsService
         var sampleDx = rotate180 ? rotatedSampleDx : originalSampleDx;
         var sampleDy = rotate180 ? rotatedSampleDy : originalSampleDy;
 
-        // Convert the sample-space shift back to original-image pixel coordinates. The sample is
-        // a uniform grid spanning [0..width-1] × [0..height-1], so each sample step corresponds
-        // to (width-1)/(sampleSize-1) image pixels (and likewise for height).
-        var sampleDenom = Math.Max(1, sampleSize - 1);
-        var scaleX = (frame.Width - 1) / (double)sampleDenom;
-        var scaleY = (frame.Height - 1) / (double)sampleDenom;
-        var shiftX = (int)Math.Round(sampleDx * scaleX);
-        var shiftY = (int)Math.Round(sampleDy * scaleY);
+        var shiftX = (int)Math.Round(sampleDx * sampleScaleX);
+        var shiftY = (int)Math.Round(sampleDy * sampleScaleY);
 
-        // Refine the shift in image-pixel space to remove the sample-grid quantization (which is
-        // ~scaleX × scaleY pixels per step). This is a cheap, small search using a center-cropped
-        // luminance patch — about one quick correlation pass over an area smaller than the coarse
-        // sample, so it has negligible additional cost.
         (shiftX, shiftY) = RefineShiftInImagePixels(reference, frame, rotate180, shiftX, shiftY,
-            refineRadiusX: (int)Math.Ceiling(scaleX) + 1,
-            refineRadiusY: (int)Math.Ceiling(scaleY) + 1);
+            refineRadiusX: (int)Math.Ceiling(sampleScaleX) + 1,
+            refineRadiusY: (int)Math.Ceiling(sampleScaleY) + 1);
 
-        // Clamp shifts to a sensible fraction of the image so a noisy correlation cannot push
-        // the canvas completely off-screen.
         var maxShiftX = Math.Max(1, frame.Width / 4);
         var maxShiftY = Math.Max(1, frame.Height / 4);
         shiftX = Math.Clamp(shiftX, -maxShiftX, maxShiftX);
@@ -514,13 +427,13 @@ public sealed class RustafitsService
         var chosenCandidateTriangle = rotate180 ? rotatedTriangle : originalTriangle;
         var chosenScore = rotate180 ? rotatedScore : originalScore;
         var referenceDebug = new OrientationDebugInfo(
-            referenceStars.Select(s => new MeasuredStar(s.X * scaleX, s.Y * scaleY, s.Fwhm, s.Hfr, s.Peak)).ToArray(),
+            referenceStars.Select(s => new MeasuredStar(referenceCache.OffsetX + (s.X * referenceCache.ScaleX), referenceCache.OffsetY + (s.Y * referenceCache.ScaleY), s.Fwhm, s.Hfr, s.Peak)).ToArray(),
             chosenReferenceTriangle,
             false,
             $"reference  stars={referenceStars.Count}  score={chosenScore:F3}",
             chosenScore);
         var candidateDebug = new OrientationDebugInfo(
-            (rotate180 ? rotatedStars : originalStars).Select(s => new MeasuredStar(s.X * scaleX, s.Y * scaleY, s.Fwhm, s.Hfr, s.Peak)).ToArray(),
+            (rotate180 ? rotatedDebugStars : originalDebugStars).Select(s => new MeasuredStar(s.X * sampleScaleX, s.Y * sampleScaleY, s.Fwhm, s.Hfr, s.Peak)).ToArray(),
             chosenCandidateTriangle,
             rotate180,
             rotate180 ? $"flipped  score={chosenScore:F3}" : $"not flipped  score={chosenScore:F3}",
@@ -1895,25 +1808,51 @@ public sealed class RustafitsService
         return new LoadedFrame(pixels, frame.Width, frame.Height, frame.NormalizationMax, frame.FocalLengthMm, frame.PixelSizeUm, frame.ExposureDateTime, frame.ExposureSeconds, frame.FilterName, frame.Sqm, frame.SkyTemp, ImageType: frame.ImageType);
     }
 
-    private static float[] CreateOrientationSample(float[] pixels, int width, int height, int sampleSize, bool rotate180)
+    private static float[] CreateOrientationSample(
+        float[] pixels,
+        int width,
+        int height,
+        double? focalLengthMm,
+        double? pixelSizeUm,
+        bool rotate180,
+        out int sampleWidth,
+        out int sampleHeight,
+        out double scaleX,
+        out double scaleY)
     {
-        var sample = new float[sampleSize * sampleSize];
-        var widthDenom = Math.Max(1, sampleSize - 1);
-        var heightDenom = Math.Max(1, sampleSize - 1);
+        const double targetArcsecPerPixel = 1.0;
 
-        for (var y = 0; y < sampleSize; y++)
+        var downsampleFactor = 1.0;
+        if (focalLengthMm is > 0 && pixelSizeUm is > 0)
         {
-            var sourceY = (int)Math.Round((y / (double)heightDenom) * (height - 1));
-            for (var x = 0; x < sampleSize; x++)
+            var arcsecPerPixel = 206.265 * (pixelSizeUm.Value / focalLengthMm.Value);
+            if (arcsecPerPixel > 0 && arcsecPerPixel < targetArcsecPerPixel)
             {
-                var sourceX = (int)Math.Round((x / (double)widthDenom) * (width - 1));
+                downsampleFactor = arcsecPerPixel / targetArcsecPerPixel;
+            }
+        }
+
+        sampleWidth = Math.Max(1, (int)Math.Round(width * downsampleFactor));
+        sampleHeight = Math.Max(1, (int)Math.Round(height * downsampleFactor));
+
+        scaleX = sampleWidth > 1 ? (width - 1) / (double)(sampleWidth - 1) : 1.0;
+        scaleY = sampleHeight > 1 ? (height - 1) / (double)(sampleHeight - 1) : 1.0;
+
+        var sample = new float[sampleWidth * sampleHeight];
+        for (var y = 0; y < sampleHeight; y++)
+        {
+            var baseSourceY = MapTargetToSourceCoordinate(y, height, sampleHeight);
+            for (var x = 0; x < sampleWidth; x++)
+            {
+                var sourceX = MapTargetToSourceCoordinate(x, width, sampleWidth);
+                var sourceY = baseSourceY;
                 if (rotate180)
                 {
                     sourceX = (width - 1) - sourceX;
                     sourceY = (height - 1) - sourceY;
                 }
 
-                sample[(y * sampleSize) + x] = pixels[(sourceY * width) + sourceX];
+                sample[(y * sampleWidth) + x] = SampleBilinear(pixels, width, height, sourceX, sourceY);
             }
         }
 
@@ -2263,20 +2202,18 @@ public sealed class RustafitsService
 
     private OrientationReferenceCache GetOrCreateOrientationReferenceCache(LoadedFrame reference)
     {
-        const int sampleSize = 512;
         var key = $"{reference.Width}x{reference.Height}:{reference.ExposureDateTime?.Ticks}:{reference.FilterName}:{reference.Pixels.Length}:{reference.Pixels[0]:G9}";
         if (_orientationReferenceCache is { } cache && string.Equals(cache.Key, key, StringComparison.Ordinal))
         {
             return cache;
         }
 
-        var sample = CreateOrientationSample(reference.Pixels, reference.Width, reference.Height, sampleSize, rotate180: false);
-        var stars = SelectOrientationAnchorMeasuredStars(GetOrientationMeasuredStars(sample, sampleSize, sampleSize), sampleSize, sampleSize, maxStars: 50, gridSize: 6);
-        var sampleDenom = Math.Max(1, sampleSize - 1);
-        var scaleX = (reference.Width - 1) / (double)sampleDenom;
-        var scaleY = (reference.Height - 1) / (double)sampleDenom;
+        var sample = CreateOrientationSample(
+            reference.Pixels, reference.Width, reference.Height, reference.FocalLengthMm, reference.PixelSizeUm, rotate180: false,
+            out var sampleWidth, out var sampleHeight, out var scaleX, out var scaleY);
+        var stars = SelectOrientationTriangulationStars(GetOrientationMeasuredStars(sample, sampleWidth, sampleHeight), sampleWidth, sampleHeight, maxStars: 160);
         var triangles = BuildTriangleSignatures(stars.Take(18).ToList());
-        cache = new OrientationReferenceCache(key, stars, triangles, scaleX, scaleY);
+        cache = new OrientationReferenceCache(key, stars, triangles, scaleX, scaleY, 0, 0, sampleWidth, sampleHeight);
         _orientationReferenceCache = cache;
         return cache;
     }
