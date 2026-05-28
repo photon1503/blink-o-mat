@@ -46,6 +46,7 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
     private int _selectedVisibleFrameIndex;
     private bool _isRoiOverlayVisible;
     private bool _isStarDebugOverlayVisible;
+    private bool _isOrientationDebugOverlayVisible;
     private bool _isCurvatureViewVisible;
 
     public bool IsCurvatureViewVisible
@@ -66,6 +67,17 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
         {
             if (_isStarDebugOverlayVisible == value) return;
             _isStarDebugOverlayVisible = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsOrientationDebugOverlayVisible
+    {
+        get => _isOrientationDebugOverlayVisible;
+        set
+        {
+            if (_isOrientationDebugOverlayVisible == value) return;
+            _isOrientationDebugOverlayVisible = value;
             OnPropertyChanged();
         }
     }

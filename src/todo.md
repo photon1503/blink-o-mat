@@ -36,6 +36,13 @@ ok •	Systemvergleich CCD Inspector vs. Rejector (Werteberechnungen)
 •	Ampelsystem: Gewichtung einstellbar?
 •	Optional – bereich für werteberechnung definierbar (crop) – z.b. für FWHM, Eccentricity, etc
 
+.) BewertungsProfil anlegen/speichern mit:
+.) Bewertungsfilter an/abhaken (alle sollten frei wählbar sein)
+.) automatisch dieses laden lassen können (autocalculation oder profil sollte wählbar sein)
+.) wenn gewisse Parameter abgewählt sind diese gar nicht anzeigen lassen
+.) wenn man in der Liste auf einen Frame klickt sollte das besser ersichtlich sein welcher gewählt ist (beim dicken unterstrich könnte der frame überm/unterm Strich gemeint sein) - vielleicht die Hintergrundfarbe ändern wenn angewählt? und was kann ich dann mehr machen? 
+.) der button „Keep“ ist eigentlich verkehrt - bin ich bei den accepted und klick ich da drauf wirft er ihn weg . Sogesehen müsste der Button „Reject frame“ heißen 
+
 Michael:
 
 ok * square icons on vertical sliders turn yellow when selected (active)

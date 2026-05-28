@@ -2,6 +2,13 @@ namespace blink_o_mat.Models;
 
 public sealed record MeasuredStar(double X, double Y, double Fwhm, double Hfr, double Peak);
 
+public sealed record OrientationDebugInfo(
+    System.Collections.Generic.IReadOnlyList<MeasuredStar> Stars,
+    System.Collections.Generic.IReadOnlyList<int> TriangleIndices,
+    bool Rotate180,
+    string StatusText,
+    double MatchScore);
+
 public sealed record AstroMetrics
 {
     public double Fwhm { get; init; }

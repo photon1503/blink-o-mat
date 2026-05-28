@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## 1.0.30
 ### Fixed
+- Orientation/flip detection: reference and candidate now use the same star-selection parameters (50 stars / 6×6 grid, top 24 for triangulation) so the same physical stars surface on both images. A minimum confidence floor was added so near-zero-match scores no longer cause near-100% wrong-flip decisions.
 - When a watched file introduces a new filter, the new chip appears and the frame becomes visible immediately.
 ### Changed
 - When Watch Folder is checked, the button text becomes Load Frames & Watch Folder and the tooltip updates to mention that it will continue watching for new files
