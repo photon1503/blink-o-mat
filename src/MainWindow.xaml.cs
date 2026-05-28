@@ -94,6 +94,7 @@ namespace blink_o_mat
             {
                 vm.PropertyChanged -= Vm_PropertyChanged;
                 vm.Performance.Dispose();
+                vm.StopFolderWatch();
             }
         }
 

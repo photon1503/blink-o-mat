@@ -37,6 +37,7 @@ The videos are using IMX571 FITS images and are in realtime.
     - [Visibility toggles](#visibility-toggles)
     - [Filter chips](#filter-chips)
     - [Sorting](#sorting)
+  - [Watch Folder (live mode)](#watch-folder-live-mode)
   - [Moving rejected frames](#moving-rejected-frames)
   - [Saving \& loading sessions](#saving--loading-sessions)
   - [Keyboard shortcuts](#keyboard-shortcuts)
@@ -61,7 +62,8 @@ The videos are using IMX571 FITS images and are in realtime.
 
 1. Click  *Input folder* and pick the folder with your light frames.
 2. Optionally tick **Subfolders** to scan recursively.
-3. Wait for the status bar to finish loading. Frames appear in the list as soon as each one is measured.
+3. Optionally tick **Watch Folder** to keep monitoring the folder after loading — new frames are added and measured automatically as your capture software saves them (see [Watch Folder](#watch-folder-live-mode)).
+4. Wait for the status bar to finish loading. Frames appear in the list as soon as each one is measured.
 4. Look at the *Frame summary* card on the left to see how many frames passed and how much integration time you have.
 5. Click **Open preview** (or double-click any frame) and press `Space` to blink through your session.
 6. Tweak the sliders under *Automatic rejection* until the **Rejects: N** counters look right.
@@ -107,6 +109,8 @@ Loading 47/120 • active: 32 • current: NGC7000_L_001.xisf • skipped: 1
 The progress bar advances steadily from 0 to 100 % as frames complete, and the UI stays responsive throughout — even with hundreds of frames.
 
 The status bar also shows live **CPU / RAM / Disk / Network** indicators on the right while loading.
+
+When **Watch Folder** mode is active, a blinking red **LIVE** badge appears on the left side of the status bar to indicate that new frames will be picked up automatically.
 
 ---
 
@@ -322,6 +326,25 @@ Below the visibility toggles, one chip per filter found in your session. Tick / 
 ![alt text](src/image-4.png)
 
 Stack multiple sort rules in the *Sort* card. You can sort by any metric column or by **Score**. Use **−** to remove a rule and **+** to add another. Default sort is *Observation time, ascending*. Sorting in the main window and the preview window is kept in sync.
+
+---
+
+## Watch Folder (live mode)
+
+Enable **Watch Folder** in the Open Folder panel (the checkbox sits just below *Include Subfolders*) before or after clicking **Load Frames**.
+
+Once frames have loaded and the option is ticked, Rejector starts a `FileSystemWatcher` on every input folder path. When a new `.fit`, `.fits`, or `.xisf` file appears:
+
+1. Rejector waits 1.5 seconds for the capture software to finish writing the file.
+2. The file is loaded, oriented relative to the first frame, and all quality metrics are computed — exactly the same pipeline as the initial bulk load.
+3. The frame is appended to the bottom of the list, filter chips are updated, and rejection thresholds are applied immediately.
+4. The status bar shows a confirmation line: `Watch: added NGC7000_L_042.fits — 42 frame(s) total.`
+
+A blinking red **LIVE** badge in the status bar shows that watching is active. It disappears as soon as you untick **Watch Folder** or start a new **Load Frames** operation.
+
+> **Tip:** Leave Rejector open during a long imaging session with **Watch Folder** on. Each new frame will be graded automatically — you can spot a cloud rolling in or a bad seeing run without touching the keyboard.
+
+> **Note:** The watcher monitors the file system in real time but does *not* replace a manual reload. If you change the input folder path or toggle *Include Subfolders* while watching is active, click **Load Frames** again to rescan from scratch.
 
 ---
 

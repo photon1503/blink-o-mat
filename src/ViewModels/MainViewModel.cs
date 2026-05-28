@@ -212,6 +212,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _showRejected = true;
     private bool _isUpdatingFilterSelection;
     private FrameItem? _selectedFrame;
+    private bool _watchFolderEnabled;
+    private bool _isWatchingFolder;
+    private FileSystemWatcher? _folderWatcher;
+    private List<FileSystemWatcher>? _folderWatchers;
+    private readonly SemaphoreSlim _watcherAddSemaphore = new(1, 1);
+    private readonly HashSet<string> _watcherKnownFiles = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly List<LoadedFrameContext> _loadedFrames = [];
     private PreviewWindow? _previewWindow;
@@ -274,6 +280,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _includeSubfolders = value;
             OnPropertyChanged();
             SaveFolderSettings();
+        }
+    }
+
+    public bool WatchFolderEnabled
+    {
+        get => _watchFolderEnabled;
+        set
+        {
+            if (_watchFolderEnabled == value) return;
+            _watchFolderEnabled = value;
+            OnPropertyChanged();
+            SaveFolderSettings();
+            if (!value)
+                StopFolderWatch();
+        }
+    }
+
+    public bool IsWatchingFolder
+    {
+        get => _isWatchingFolder;
+        private set
+        {
+            if (_isWatchingFolder == value) return;
+            _isWatchingFolder = value;
+            OnPropertyChanged();
         }
     }
 
@@ -853,6 +884,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         InputFolder = settings.InputFolder;
         RejectedFolder = settings.RejectedFolder;
         _includeSubfolders = settings.IncludeSubfolders;
+        _watchFolderEnabled = settings.WatchFolder;
 
         // Fire-and-forget update check — deferred to let UI show first.
         _ = Task.Run(async () =>
@@ -1374,7 +1406,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             InputFolder = InputFolder,
             RejectedFolder = RejectedFolder,
-            IncludeSubfolders = IncludeSubfolders
+            IncludeSubfolders = IncludeSubfolders,
+            WatchFolder = WatchFolderEnabled
         });
     }
 
@@ -1597,6 +1630,160 @@ public sealed class MainViewModel : INotifyPropertyChanged
             IsBusy = false;
             IsProgressVisible = false;
             ((RelayCommand)MoveRejectedCommand).RaiseCanExecuteChanged();
+        }
+
+        // Start watching after a successful load if the option is enabled.
+        if (WatchFolderEnabled && Frames.Count > 0)
+            StartFolderWatch();
+    }
+
+    private void StartFolderWatch()
+    {
+        StopFolderWatch();
+
+        if (string.IsNullOrWhiteSpace(InputFolder))
+            return;
+
+        var folders = InputFolder.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                 .Where(Directory.Exists)
+                                 .ToList();
+        if (folders.Count == 0)
+            return;
+
+        // Snapshot already-known file paths so we don't re-process them.
+        _watcherKnownFiles.Clear();
+        foreach (var frame in Frames)
+            _watcherKnownFiles.Add(frame.FilePath);
+
+        var watchers = new List<FileSystemWatcher>();
+        foreach (var folder in folders)
+        {
+            var watcher = new FileSystemWatcher(folder)
+            {
+                IncludeSubdirectories = IncludeSubfolders,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+                EnableRaisingEvents = true
+            };
+            foreach (var ext in new[] { "*.fit", "*.fits", "*.xisf" })
+                watcher.Filters.Add(ext);
+
+            watcher.Created += OnWatcherFileCreated;
+            watchers.Add(watcher);
+        }
+
+        // Store the first watcher for backward-compat; keep all in the dedicated list.
+        _folderWatchers = watchers;
+        _folderWatcher = watchers[0];
+        IsWatchingFolder = true;
+    }
+
+    public void StopFolderWatch()
+    {
+        if (_folderWatchers is null && _folderWatcher is null)
+            return;
+
+        var all = _folderWatchers ?? (_folderWatcher is not null ? [_folderWatcher] : []);
+        foreach (var w in all)
+        {
+            w.EnableRaisingEvents = false;
+            w.Created -= OnWatcherFileCreated;
+            w.Dispose();
+        }
+
+        _folderWatcher = null;
+        _folderWatchers = null;
+        _watcherKnownFiles.Clear();
+        IsWatchingFolder = false;
+    }
+
+    private void OnWatcherFileCreated(object sender, FileSystemEventArgs e)
+    {
+        _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(async () =>
+            await AddWatchedFileAsync(e.FullPath));
+    }
+
+    private async Task AddWatchedFileAsync(string filePath)
+    {
+        if (!_watcherKnownFiles.Add(filePath))
+            return;
+
+        // Brief delay: capture programs may still be writing the file.
+        await Task.Delay(1500);
+
+        await _watcherAddSemaphore.WaitAsync();
+        try
+        {
+            // Double-check after the delay — could have been added in a racing call.
+            if (Frames.Any(f => string.Equals(f.FilePath, filePath, StringComparison.OrdinalIgnoreCase)))
+                return;
+
+            RustafitsService.LoadedFrame? raw = null;
+            try
+            {
+                raw = await _rustafits.LoadRawFrameAsync(filePath, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Watch: skipped {filePath}: {ex.Message}");
+                return;
+            }
+
+            if (!raw.IsLightFrame)
+                return;
+
+            // Use the first loaded frame as orientation reference if available.
+            var reference = _loadedFrames.FirstOrDefault();
+            var rotate180 = false;
+            var shiftX = 0;
+            var shiftY = 0;
+
+            RustafitsService.LoadedFrame oriented;
+            if (reference is not null)
+            {
+                var refFrame = await _rustafits.LoadRawFrameAsync(reference.FilePath, CancellationToken.None);
+                var orientation = _rustafits.DetectOrientation(raw, refFrame);
+                oriented = _rustafits.ApplyOrientation(raw, orientation.Rotate180);
+                rotate180 = orientation.Rotate180;
+                shiftX = orientation.ShiftX;
+                shiftY = orientation.ShiftY;
+            }
+            else
+            {
+                oriented = raw;
+            }
+
+            var metrics = _rustafits.AnalyzeFrame(oriented);
+            var renderFrame = (_isAlignmentEnabled && reference is not null)
+                ? _rustafits.ApplyShift(oriented, shiftX, shiftY)
+                : oriented;
+            var previews = await _rustafits.RenderPreviewBitmapsAsync(renderFrame, GetStfForFrame(renderFrame), _manualRoiRect, metrics, CancellationToken.None);
+
+            var item = new FrameItem
+            {
+                FilePath = filePath,
+                FileName = Path.GetFileName(filePath),
+                RelativePath = ComputeRelativePath(filePath),
+                ExposureDateTime = oriented.ExposureDateTime,
+                ExposureSeconds = oriented.ExposureSeconds,
+                FilterName = oriented.FilterName,
+                ThumbnailImage = previews.Full,
+                RoiImage = previews.Roi,
+                Metrics = metrics
+            };
+
+            item.PropertyChanged += FrameItem_PropertyChanged;
+            Frames.Add(item);
+            _loadedFrames.Add(CreateLoadedFrameContext(item, oriented, filePath, rotate180, shiftX, shiftY));
+
+            UpdateFrameComparisons();
+            RebuildFilterChips();
+            ApplyThresholds();
+
+            Status = $"Watch: added {item.FileName} — {Frames.Count} frame(s) total.";
+        }
+        finally
+        {
+            _watcherAddSemaphore.Release();
         }
     }
 

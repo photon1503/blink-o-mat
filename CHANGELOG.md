@@ -3,10 +3,14 @@
 All notable changes to this project will be documented in this file.
 
 ## 1.0.28
-- Fixed tooltip for the reject reasons not always showing up.
 
-## 1.0.27
-- Fixed update banner now showing.
+### Added
+- **Watch Folder mode.** A new "Watch Folder" checkbox in the Open Folder panel activates live monitoring of the input folder. New FITS/XISF frames are automatically detected, analyzed, and added to the list as they arrive — no reload needed. A blinking **LIVE** badge in the status bar indicates when watching is active.
+
+### Fixed
+- Rejection reasons tooltip on the `?` icon now reliably shows all rejection reasons.
+
+- Update banner now correctly appears on startup when a new version is available. The check was running on a background thread and raising property-changed notifications off the UI thread, which WPF silently ignores for bindings.
 
 ## 1.0.26
 

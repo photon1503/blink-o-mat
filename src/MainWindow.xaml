@@ -96,8 +96,14 @@
                                         <!-- Include subfolders checkbox -->
                                         <CheckBox IsChecked="{Binding IncludeSubfolders}"
                                                   Content="Include Subfolders"
-                                                  Margin="0,0,0,14"
+                                                  Margin="0,0,0,6"
                                                   ToolTip="Include subfolders recursively"
+                                                  FontSize="11" />
+
+                                        <CheckBox IsChecked="{Binding WatchFolderEnabled}"
+                                                  Content="Watch Folder"
+                                                  Margin="0,0,0,14"
+                                                  ToolTip="Automatically add new frames as they appear in the input folder"
                                                   FontSize="11" />
 
                                         <!-- Rejected folder -->
@@ -1048,14 +1054,51 @@
 
                 <Grid Grid.Row="0">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Column="0" Text="{Binding Status}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <!-- LIVE badge — visible only while folder watching is active -->
+                    <Border Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center"
+                            Background="#CC2222" CornerRadius="4" Padding="6,2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsWatchingFolder}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="6" Height="6" Fill="White" Margin="0,0,5,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Style.Triggers>
+                                            <EventTrigger RoutedEvent="Loaded">
+                                                <BeginStoryboard>
+                                                    <Storyboard RepeatBehavior="Forever">
+                                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                         From="1" To="0.2" Duration="0:0:0.8"
+                                                                         AutoReverse="True" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </EventTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="LIVE" FontSize="10" FontWeight="Bold" Foreground="White"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Grid.Column="1" Text="{Binding Status}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
 
                     <!-- Performance indicators (fixed-width columns to prevent layout shifts) -->
-                    <Grid Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0" Opacity="0.65">
+                    <Grid Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0" Opacity="0.65">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="62" />
                             <ColumnDefinition Width="100" />
