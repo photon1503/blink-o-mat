@@ -866,7 +866,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         var info = await _updateCheck.GetLatestUpdateAsync();
         if (info is not null)
-            UpdateBanner.ShowUpdate(info);
+            System.Windows.Application.Current.Dispatcher.Invoke(() => UpdateBanner.ShowUpdate(info));
     }
 
     private async Task ShowDebugUpdateBannerAsync()

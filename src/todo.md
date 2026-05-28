@@ -23,18 +23,21 @@ Mark:
 
 Patrick:
 
-* dass man die selektionparameter an/abhaken kann (ich brauche zb fast ausschließlich FWHM arcsec (der wäre super) und die Eccentricity) und diese als Profil speichern kann
-•	Einstellungszeile – BW und Pix size einstellbar (falls auch keine fits header)
-* Monitor folder for new files and automatically load them into the software. This would be especially useful for users who are capturing images in real-time and want to see the results immediately without having to manually refresh or reload the folder.
-•	Optional – bereich für werteberechnung definierbar
-•	Parameter zum An/Abhaken
 ok •	FWHM arcsec
-•	Eccentricity Werte - Testergebnisse
-•	FWHM Werte Berechnung? Testergebnisse
+ok •	Eccentricity Werte - Testergebnisse
+ok •	FWHM Werte Berechnung? Testergebnisse
+ok •	Systemvergleich CCD Inspector vs. Rejector (Werteberechnungen)
+
+* dass man die selektionparameter an/abhaken kann (ich brauche zb fast ausschließlich FWHM arcsec (der wäre super) und die Eccentricity) und diese als Profil speichern kann
+* Einstellungszeile – BW und Pix size einstellbar (falls auch keine fits header)
+* Monitor folder for new files and automatically load them into the software. This would be especially useful for users who are capturing images in real-time and want to see the results immediately without having to manually refresh or reload the folder.
+
+
 •	Ordner Tracking – Auto file load
 •	Optische Elemente – Lesbarkeit/Größe der Bewertungsparameter
 •	Ampelsystem: Gewichtung einstellbar?
-•	Systemvergleich CCD Inspector vs. Rejector (Werteberechnungen)
+•	Optional – bereich für werteberechnung definierbar
+•	Parameter zum An/Abhaken
 
 
 
