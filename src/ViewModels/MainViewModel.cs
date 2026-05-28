@@ -1511,7 +1511,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         FilterName = raw.FilterName,
                         ThumbnailImage = previews.Full,
                         RoiImage = previews.Roi,
-                        Metrics = metrics
+                        Metrics = metrics,
+                        OrientationDebug = _rustafits.CreateOrientationReferenceDebugInfo(raw)
                     };
 
                     item.PropertyChanged += FrameItem_PropertyChanged;
@@ -1558,9 +1559,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         {
                             return (Item: (FrameItem?)null, Frame: (RustafitsService.LoadedFrame?)null, Rotate180: false, ShiftX: 0, ShiftY: 0, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: Path.GetFileName(entry.File));
                         }
-                        var orientation = _rustafits.DetectOrientation(raw, orientationReference);
+                        var rawMetrics = _rustafits.AnalyzeFrame(raw);
+                        var orientationReferenceMetrics = Frames[0].Metrics;
+                        var orientation = _rustafits.AnalyzeOrientation(raw, rawMetrics, orientationReference, orientationReferenceMetrics);
                         var oriented = _rustafits.ApplyOrientation(raw, orientation.Rotate180);
-                        var metrics = _rustafits.AnalyzeFrame(oriented);
+                        var metrics = _rustafits.ApplyOrientation(rawMetrics, raw.Width, raw.Height, orientation.Rotate180);
                         var renderFrame = _isAlignmentEnabled
                             ? _rustafits.ApplyShift(oriented, orientation.ShiftX, orientation.ShiftY)
                             : oriented;
@@ -1576,7 +1579,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                             FilterName = oriented.FilterName,
                             ThumbnailImage = previews.Full,
                             RoiImage = previews.Roi,
-                            Metrics = metrics
+                            Metrics = metrics,
+                            OrientationDebug = orientation.CandidateDebug
                         };
 
                         return (Item: (FrameItem?)item, Frame: (RustafitsService.LoadedFrame?)oriented, Rotate180: orientation.Rotate180, ShiftX: orientation.ShiftX, ShiftY: orientation.ShiftY, Error: (Exception?)null, SourceIndex: entry.SourceIndex, FileName: item.FileName);
@@ -1755,13 +1759,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var rotate180 = false;
             var shiftX = 0;
             var shiftY = 0;
+            var rawMetrics = _rustafits.AnalyzeFrame(raw);
+            var orientation = (Rotate180: false, ShiftX: 0, ShiftY: 0, ReferenceDebug: new OrientationDebugInfo(System.Array.Empty<MeasuredStar>(), System.Array.Empty<int>(), false, "reference", 1.0), CandidateDebug: new OrientationDebugInfo(System.Array.Empty<MeasuredStar>(), System.Array.Empty<int>(), false, "not flipped", 1.0));
 
             RustafitsService.LoadedFrame oriented;
+            AstroMetrics metrics;
             if (reference is not null)
             {
-                var refFrame = await _rustafits.LoadRawFrameAsync(reference.FilePath, CancellationToken.None);
-                var orientation = _rustafits.DetectOrientation(raw, refFrame);
+                var referenceMetrics = reference.Item.Metrics;
+                orientation = _rustafits.AnalyzeOrientation(raw, rawMetrics, await _rustafits.LoadRawFrameAsync(reference.FilePath, CancellationToken.None), referenceMetrics);
                 oriented = _rustafits.ApplyOrientation(raw, orientation.Rotate180);
+                metrics = _rustafits.ApplyOrientation(rawMetrics, raw.Width, raw.Height, orientation.Rotate180);
                 rotate180 = orientation.Rotate180;
                 shiftX = orientation.ShiftX;
                 shiftY = orientation.ShiftY;
@@ -1769,9 +1777,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             else
             {
                 oriented = raw;
+                metrics = rawMetrics;
             }
-
-            var metrics = _rustafits.AnalyzeFrame(oriented);
             var renderFrame = (_isAlignmentEnabled && reference is not null)
                 ? _rustafits.ApplyShift(oriented, shiftX, shiftY)
                 : oriented;
@@ -1787,7 +1794,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 FilterName = oriented.FilterName,
                 ThumbnailImage = previews.Full,
                 RoiImage = previews.Roi,
-                Metrics = metrics
+                Metrics = metrics,
+                OrientationDebug = reference is not null ? orientation.CandidateDebug : _rustafits.CreateOrientationReferenceDebugInfo(oriented, metrics)
             };
 
             var wasEmpty = Frames.Count == 0;
@@ -2237,11 +2245,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         try
                         {
                             var raw = await _rustafits.LoadRawFrameAsync(file, CancellationToken.None);
+                            var rawMetrics = _rustafits.AnalyzeFrame(raw);
                             var orientation = orientationReference is not null
-                                ? _rustafits.DetectOrientation(raw, orientationReference)
-                                : (Rotate180: false, ShiftX: 0, ShiftY: 0);
+                                ? _rustafits.AnalyzeOrientation(raw, rawMetrics, orientationReference, _loadedFrames[0].Item.Metrics)
+                                : (Rotate180: false, ShiftX: 0, ShiftY: 0, ReferenceDebug: new OrientationDebugInfo(System.Array.Empty<MeasuredStar>(), System.Array.Empty<int>(), false, "reference", 1.0), CandidateDebug: new OrientationDebugInfo(System.Array.Empty<MeasuredStar>(), System.Array.Empty<int>(), false, "not flipped", 1.0));
                             var oriented = _rustafits.ApplyOrientation(raw, orientation.Rotate180);
-                            var metrics = _rustafits.AnalyzeFrame(oriented);
+                            var metrics = _rustafits.ApplyOrientation(rawMetrics, raw.Width, raw.Height, orientation.Rotate180);
                             var renderFrame = _isAlignmentEnabled
                                 ? _rustafits.ApplyShift(oriented, orientation.ShiftX, orientation.ShiftY)
                                 : oriented;
@@ -2257,7 +2266,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                                 FilterName = oriented.FilterName,
                                 ThumbnailImage = previews.Full,
                                 RoiImage = previews.Roi,
-                                Metrics = metrics
+                                Metrics = metrics,
+                                OrientationDebug = orientation.CandidateDebug
                             };
 
                             newItem.PropertyChanged += FrameItem_PropertyChanged;

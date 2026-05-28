@@ -19,6 +19,8 @@ public sealed class RustafitsService
 {
     private readonly record struct StarPoint(float X, float Y, float Signal);
     private readonly record struct TrailDetectionResult(int Confidence, double X1, double Y1, double X2, double Y2);
+    private readonly record struct OrientationReferenceCache(string Key, IReadOnlyList<MeasuredStar> Stars, IReadOnlyList<TriangleSignature> Triangles, double ScaleX, double ScaleY);
+    private OrientationReferenceCache? _orientationReferenceCache;
     private static readonly Regex SqmRegex = new(@"(?:%SQM%|SQM[_-])(?<value>\d{1,2}\.\d{1,3})(?:%|(?=[_.-]|$))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public sealed record LoadedFrame(
@@ -94,12 +96,12 @@ public sealed class RustafitsService
             {
                 var oscStf = ComputeAutoStretchOsc(frame);
                 var full = CreateThumbnailBitmapColor(cc[0], cc[1], cc[2], frame.Width, frame.Height, 160, 160, oscStf[0], oscStf[1], oscStf[2], metrics, frame.NormalizationMax);
-                var roi  = CreateRoiBitmapColor(cc[0], cc[1], cc[2], frame.Width, frame.Height, 160, oscStf[0], oscStf[1], oscStf[2], roiNormalizedRect, frame.NormalizationMax);
+                var roi = CreateRoiBitmapColor(cc[0], cc[1], cc[2], frame.Width, frame.Height, 160, oscStf[0], oscStf[1], oscStf[2], roiNormalizedRect, frame.NormalizationMax);
                 return (full, roi);
             }
 
             var monoFull = CreateThumbnailBitmap(frame.Pixels, frame.Width, frame.Height, 160, 160, stf, metrics, frame.NormalizationMax);
-            var monoRoi  = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stf, roiNormalizedRect, frame.NormalizationMax);
+            var monoRoi = CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stf, roiNormalizedRect, frame.NormalizationMax);
             return (monoFull, monoRoi);
         }, cancellationToken);
     }
@@ -288,35 +290,150 @@ public sealed class RustafitsService
     /// </summary>
     public (bool Rotate180, int ShiftX, int ShiftY) DetectOrientation(LoadedFrame frame, LoadedFrame reference)
     {
+        var analysis = AnalyzeOrientation(frame, reference);
+        return (analysis.Rotate180, analysis.ShiftX, analysis.ShiftY);
+    }
+
+    public OrientationDebugInfo CreateOrientationReferenceDebugInfo(LoadedFrame frame)
+    {
+        var referenceCache = GetOrCreateOrientationReferenceCache(frame);
+        return new OrientationDebugInfo(
+            referenceCache.Stars.Select(s => new MeasuredStar(s.X * referenceCache.ScaleX, s.Y * referenceCache.ScaleY, s.Fwhm, s.Hfr, s.Peak)).ToArray(),
+            Array.Empty<int>(),
+            false,
+            $"reference  stars={referenceCache.Stars.Count}",
+            1.0);
+    }
+
+    public OrientationDebugInfo CreateOrientationReferenceDebugInfo(LoadedFrame frame, AstroMetrics metrics)
+    {
+        var stars = SelectOrientationAnchorMeasuredStars(metrics.Stars, frame.Width, frame.Height, maxStars: 50, gridSize: 6);
+        return new OrientationDebugInfo(
+            stars.ToArray(),
+            Array.Empty<int>(),
+            false,
+            $"reference  stars={stars.Count}",
+            1.0);
+    }
+
+    public (bool Rotate180, int ShiftX, int ShiftY, OrientationDebugInfo ReferenceDebug, OrientationDebugInfo CandidateDebug) AnalyzeOrientation(LoadedFrame frame, AstroMetrics frameMetrics, LoadedFrame reference, AstroMetrics referenceMetrics)
+    {
+        const double minImprovement = 0.04;
+
+        var referenceStars = SelectOrientationAnchorMeasuredStars(referenceMetrics.Stars, reference.Width, reference.Height, maxStars: 50, gridSize: 6);
+        var referenceMatchStars = referenceStars.Take(24).ToList();
+        var referenceTriangles = BuildTriangleSignatures(referenceMatchStars);
+
+        var originalStars = SelectOrientationAnchorMeasuredStars(frameMetrics.Stars, frame.Width, frame.Height, maxStars: 16, gridSize: 4);
+        var rotatedMetricStars = TransformMeasuredStars(frameMetrics.Stars, frame.Width, frame.Height, rotate180: true);
+        var rotatedStars = SelectOrientationAnchorMeasuredStars(rotatedMetricStars, frame.Width, frame.Height, maxStars: 16, gridSize: 4);
+        var originalMatchStars = originalStars.Take(12).ToList();
+        var rotatedMatchStars = rotatedStars.Take(12).ToList();
+
+        double originalScore;
+        double rotatedScore;
+        int shiftX;
+        int shiftY;
+        IReadOnlyList<int> originalTriangle;
+        IReadOnlyList<int> rotatedTriangle;
+        IReadOnlyList<int> referenceTriangleOriginal;
+        IReadOnlyList<int> referenceTriangleRotated;
+        if (referenceMatchStars.Count >= 5 && originalMatchStars.Count >= 5 && rotatedMatchStars.Count >= 5)
+        {
+            (originalScore, shiftX, shiftY, referenceTriangleOriginal, originalTriangle) = ComputeTriangleAlignmentScoreWithShift(referenceMatchStars, referenceTriangles, originalMatchStars);
+            (rotatedScore, _, _, referenceTriangleRotated, rotatedTriangle) = ComputeTriangleAlignmentScoreWithShift(referenceMatchStars, referenceTriangles, rotatedMatchStars);
+        }
+        else
+        {
+            originalScore = -1;
+            rotatedScore = -1;
+            shiftX = 0;
+            shiftY = 0;
+            referenceTriangleOriginal = [];
+            referenceTriangleRotated = [];
+            originalTriangle = [];
+            rotatedTriangle = [];
+        }
+
+        var rotate180 = rotatedScore > originalScore + minImprovement;
+        var chosenReferenceTriangle = rotate180 ? referenceTriangleRotated : referenceTriangleOriginal;
+        var chosenCandidateTriangle = rotate180 ? rotatedTriangle : originalTriangle;
+        var chosenScore = rotate180 ? rotatedScore : originalScore;
+        var referenceDebug = new OrientationDebugInfo(
+            referenceStars.ToArray(),
+            chosenReferenceTriangle,
+            false,
+            $"reference  stars={referenceStars.Count}  score={chosenScore:F3}",
+            chosenScore);
+        var candidateDebug = new OrientationDebugInfo(
+            (rotate180 ? rotatedStars : originalStars).ToArray(),
+            chosenCandidateTriangle,
+            rotate180,
+            rotate180 ? $"flipped  score={chosenScore:F3}" : $"not flipped  score={chosenScore:F3}",
+            chosenScore);
+
+        if (rotate180)
+        {
+            shiftX = -shiftX;
+            shiftY = -shiftY;
+        }
+
+        (shiftX, shiftY) = RefineShiftInImagePixels(reference, frame, rotate180, shiftX, shiftY,
+            refineRadiusX: 2,
+            refineRadiusY: 2);
+
+        var maxShiftX = Math.Max(1, frame.Width / 4);
+        var maxShiftY = Math.Max(1, frame.Height / 4);
+        shiftX = Math.Clamp(shiftX, -maxShiftX, maxShiftX);
+        shiftY = Math.Clamp(shiftY, -maxShiftY, maxShiftY);
+
+        return (rotate180, shiftX, shiftY, referenceDebug, candidateDebug);
+    }
+
+    public (bool Rotate180, int ShiftX, int ShiftY, OrientationDebugInfo ReferenceDebug, OrientationDebugInfo CandidateDebug) AnalyzeOrientation(LoadedFrame frame, LoadedFrame reference)
+    {
         // Sample size controls the residual alignment quantization: on an image of side W the
         // resulting integer shift is rounded to multiples of roughly W / (sampleSize - 1) pixels.
         // 512 keeps that under ~8 px on a 4K sensor, which is below the visual jitter threshold
         // for the small preview canvas without breaking the "quick, no big perf impact" budget.
         const int sampleSize = 512;
-        const int maxOffset = 96;
         const double minImprovement = 0.04;
 
-        var referenceSample = CreateOrientationSample(reference.Pixels, reference.Width, reference.Height, sampleSize, rotate180: false);
+        var referenceCache = GetOrCreateOrientationReferenceCache(reference);
         var originalSample = CreateOrientationSample(frame.Pixels, frame.Width, frame.Height, sampleSize, rotate180: false);
         var rotatedSample = CreateOrientationSample(frame.Pixels, frame.Width, frame.Height, sampleSize, rotate180: true);
 
-        var referenceStars = DetectOrientationStars(referenceSample, sampleSize, sampleSize);
-        var originalStars = DetectOrientationStars(originalSample, sampleSize, sampleSize);
-        var rotatedStars = DetectOrientationStars(rotatedSample, sampleSize, sampleSize);
+        var referenceStars = referenceCache.Stars;
+        var originalStars = SelectOrientationAnchorMeasuredStars(GetOrientationMeasuredStars(originalSample, sampleSize, sampleSize), sampleSize, sampleSize, maxStars: 12, gridSize: 4);
+        var rotatedStars = SelectOrientationAnchorMeasuredStars(GetOrientationMeasuredStars(rotatedSample, sampleSize, sampleSize), sampleSize, sampleSize, maxStars: 12, gridSize: 4);
+        var originalMatchStars = originalStars.Take(10).ToList();
+        var rotatedMatchStars = rotatedStars.Take(10).ToList();
 
         double originalScore;
         double rotatedScore;
         int originalSampleDx, originalSampleDy;
         int rotatedSampleDx, rotatedSampleDy;
-        if (referenceStars.Count >= 10 && originalStars.Count >= 10 && rotatedStars.Count >= 10)
+        IReadOnlyList<int> originalTriangle;
+        IReadOnlyList<int> rotatedTriangle;
+        IReadOnlyList<int> referenceTriangleOriginal;
+        IReadOnlyList<int> referenceTriangleRotated;
+        if (referenceStars.Count >= 5 && originalMatchStars.Count >= 5 && rotatedMatchStars.Count >= 5)
         {
-            (originalScore, originalSampleDx, originalSampleDy) = ComputeStarAlignmentScoreWithShift(referenceStars, originalStars, sampleSize, sampleSize);
-            (rotatedScore, rotatedSampleDx, rotatedSampleDy) = ComputeStarAlignmentScoreWithShift(referenceStars, rotatedStars, sampleSize, sampleSize);
+            (originalScore, originalSampleDx, originalSampleDy, referenceTriangleOriginal, originalTriangle) = ComputeTriangleAlignmentScoreWithShift(referenceStars, referenceCache.Triangles, originalMatchStars);
+            (rotatedScore, rotatedSampleDx, rotatedSampleDy, referenceTriangleRotated, rotatedTriangle) = ComputeTriangleAlignmentScoreWithShift(referenceStars, referenceCache.Triangles, rotatedMatchStars);
         }
         else
         {
-            (originalScore, originalSampleDx, originalSampleDy) = ComputeBestCorrelationWithOffsetsAndShift(referenceSample, originalSample, sampleSize, maxOffset);
-            (rotatedScore, rotatedSampleDx, rotatedSampleDy) = ComputeBestCorrelationWithOffsetsAndShift(referenceSample, rotatedSample, sampleSize, maxOffset);
+            originalScore = -1;
+            rotatedScore = -1;
+            originalSampleDx = 0;
+            originalSampleDy = 0;
+            rotatedSampleDx = 0;
+            rotatedSampleDy = 0;
+            referenceTriangleOriginal = [];
+            referenceTriangleRotated = [];
+            originalTriangle = [];
+            rotatedTriangle = [];
         }
 
         var rotate180 = rotatedScore > originalScore + minImprovement;
@@ -347,7 +464,23 @@ public sealed class RustafitsService
         shiftX = Math.Clamp(shiftX, -maxShiftX, maxShiftX);
         shiftY = Math.Clamp(shiftY, -maxShiftY, maxShiftY);
 
-        return (rotate180, shiftX, shiftY);
+        var chosenReferenceTriangle = rotate180 ? referenceTriangleRotated : referenceTriangleOriginal;
+        var chosenCandidateTriangle = rotate180 ? rotatedTriangle : originalTriangle;
+        var chosenScore = rotate180 ? rotatedScore : originalScore;
+        var referenceDebug = new OrientationDebugInfo(
+            referenceStars.Select(s => new MeasuredStar(s.X * scaleX, s.Y * scaleY, s.Fwhm, s.Hfr, s.Peak)).ToArray(),
+            chosenReferenceTriangle,
+            false,
+            $"reference  stars={referenceStars.Count}  score={chosenScore:F3}",
+            chosenScore);
+        var candidateDebug = new OrientationDebugInfo(
+            (rotate180 ? rotatedStars : originalStars).Select(s => new MeasuredStar(s.X * scaleX, s.Y * scaleY, s.Fwhm, s.Hfr, s.Peak)).ToArray(),
+            chosenCandidateTriangle,
+            rotate180,
+            rotate180 ? $"flipped  score={chosenScore:F3}" : $"not flipped  score={chosenScore:F3}",
+            chosenScore);
+
+        return (rotate180, shiftX, shiftY, referenceDebug, candidateDebug);
     }
 
     /// <summary>
@@ -444,6 +577,41 @@ public sealed class RustafitsService
     public LoadedFrame ApplyOrientation(LoadedFrame frame, bool rotate180)
     {
         return rotate180 ? Rotate180(frame) : frame;
+    }
+
+    public AstroMetrics ApplyOrientation(AstroMetrics metrics, int width, int height, bool rotate180)
+    {
+        if (!rotate180)
+        {
+            return metrics;
+        }
+
+        var rotatedStars = TransformMeasuredStars(metrics.Stars, width, height, rotate180: true).ToArray();
+        return metrics with
+        {
+            Stars = rotatedStars,
+            TrailX1 = metrics.TrailX1 is double x1 ? (width - 1) - x1 : null,
+            TrailY1 = metrics.TrailY1 is double y1 ? (height - 1) - y1 : null,
+            TrailX2 = metrics.TrailX2 is double x2 ? (width - 1) - x2 : null,
+            TrailY2 = metrics.TrailY2 is double y2 ? (height - 1) - y2 : null
+        };
+    }
+
+    private static IReadOnlyList<MeasuredStar> TransformMeasuredStars(IReadOnlyList<MeasuredStar> stars, int width, int height, bool rotate180)
+    {
+        if (!rotate180)
+        {
+            return stars;
+        }
+
+        var result = new MeasuredStar[stars.Count];
+        for (var i = 0; i < stars.Count; i++)
+        {
+            var star = stars[i];
+            result[i] = new MeasuredStar((width - 1) - star.X, (height - 1) - star.Y, star.Fwhm, star.Hfr, star.Peak);
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -593,7 +761,7 @@ public sealed class RustafitsService
         // record-property accessors on every iteration.
         var bitPix = header.BitPix;
         var bScale = header.BScale;
-        var bZero  = header.BZero;
+        var bZero = header.BZero;
 
         if (channels == 1)
         {
@@ -992,12 +1160,15 @@ public sealed class RustafitsService
                 case SampleFormat.UInt16:
                     DecodeMonoUInt16(memory, luminance, pixelCount, cancellationToken);
                     break;
+
                 case SampleFormat.Float32:
                     DecodeMonoFloat32(memory, luminance, pixelCount, cancellationToken);
                     break;
+
                 case SampleFormat.UInt8:
                     DecodeMonoUInt8(memory, luminance, pixelCount, cancellationToken);
                     break;
+
                 default:
                     DecodeMonoGeneric(memory, luminance, pixelCount, sampleFormat, cancellationToken);
                     break;
@@ -1012,9 +1183,11 @@ public sealed class RustafitsService
                     case SampleFormat.UInt16:
                         DecodeColorPlanarUInt16(memory, luminance, pixelCount, cancellationToken);
                         break;
+
                     case SampleFormat.Float32:
                         DecodeColorPlanarFloat32(memory, luminance, pixelCount, cancellationToken);
                         break;
+
                     default:
                         DecodeColorGeneric(memory, luminance, pixelCount, channels, sampleFormat, planar: true, cancellationToken);
                         break;
@@ -1027,9 +1200,11 @@ public sealed class RustafitsService
                     case SampleFormat.UInt16:
                         DecodeColorInterleavedUInt16(memory, luminance, pixelCount, channels, cancellationToken);
                         break;
+
                     case SampleFormat.Float32:
                         DecodeColorInterleavedFloat32(memory, luminance, pixelCount, channels, cancellationToken);
                         break;
+
                     default:
                         DecodeColorGeneric(memory, luminance, pixelCount, channels, sampleFormat, planar: false, cancellationToken);
                         break;
@@ -1685,157 +1860,331 @@ public sealed class RustafitsService
         return dot / Math.Sqrt(normA * normB);
     }
 
-    private static List<StarPoint> DetectOrientationStars(float[] pixels, int width, int height)
+    private static IReadOnlyList<MeasuredStar> GetOrientationMeasuredStars(float[] pixels, int width, int height)
     {
-        var sample = Sample(pixels);
-        if (sample.Length == 0)
+        var statsSample = Sample(pixels);
+        if (statsSample.Length == 0)
+        {
+            return Array.Empty<MeasuredStar>();
+        }
+
+        Array.Sort(statsSample);
+        var background = PercentileFromSorted(statsSample, 0.5);
+        var sigma = ComputeSigmaFromSample(statsSample, background);
+        var (stars, _) = DetectStars(pixels, width, height, background, sigma);
+        return stars
+            .OrderByDescending(s => s.Peak)
+            .Select(s => new MeasuredStar(s.X, s.Y, s.Fwhm, s.Hfr, s.Peak))
+            .ToArray();
+    }
+
+    private static List<MeasuredStar> SelectOrientationAnchorMeasuredStars(IReadOnlyList<MeasuredStar> stars, int width, int height, int maxStars, int gridSize)
+    {
+        const double edgeMarginNormalized = 0.16;
+        var marginX = width * edgeMarginNormalized;
+        var marginY = height * edgeMarginNormalized;
+
+        var safeStars = stars
+            .Where(s => s.X >= marginX && s.X <= width - 1 - marginX && s.Y >= marginY && s.Y <= height - 1 - marginY)
+            .OrderByDescending(s => s.Peak)
+            .ToList();
+
+        if (safeStars.Count == 0)
         {
             return [];
         }
 
-        Array.Sort(sample);
-        var background = PercentileFromSorted(sample, 0.5);
-        var mad = MedianAbsoluteDeviation(sample, background, alreadySorted: true);
-        var sigma = Math.Max(1e-6, 1.4826 * mad);
-        var p98 = PercentileFromSorted(sample, 0.98);
-        var threshold = Math.Max(background + (4.0 * sigma), background + ((p98 - background) * 0.35));
-        var stars = new List<StarPoint>(256);
-        for (var y = 1; y < height - 1; y++)
+        var strongestPeak = safeStars[0].Peak;
+        var robustStars = safeStars
+            .Where(s => s.Peak >= strongestPeak * 0.22)
+            .ToList();
+
+        var selected = new List<MeasuredStar>(maxStars);
+        TrySelectDistributedMeasured(robustStars.Count >= 5 ? robustStars : safeStars, selected, maxStars, marginX, marginY, width, height, gridSize, minSeparation: 24.0);
+
+        if (selected.Count < 5)
         {
-            var row = y * width;
-            for (var x = 1; x < width - 1; x++)
+            TrySelectDistributedMeasured(safeStars, selected, maxStars, marginX, marginY, width, height, gridSize, minSeparation: 12.0);
+        }
+
+        if (selected.Count < 3)
+        {
+            foreach (var star in safeStars)
             {
-                var center = pixels[row + x];
-                if (center < threshold)
+                if (selected.Any(s => Math.Abs(s.X - star.X) < 0.5 && Math.Abs(s.Y - star.Y) < 0.5))
                 {
                     continue;
                 }
 
-                if (center < pixels[row + x - 1] ||
-                    center < pixels[row + x + 1] ||
-                    center < pixels[row - width + x] ||
-                    center < pixels[row + width + x] ||
-                    center < pixels[row - width + x - 1] ||
-                    center < pixels[row - width + x + 1] ||
-                    center < pixels[row + width + x - 1] ||
-                    center < pixels[row + width + x + 1])
+                selected.Add(star);
+                if (selected.Count >= maxStars)
                 {
-                    continue;
+                    break;
                 }
-
-                var signal = (float)Math.Max(0, center - background);
-                stars.Add(new StarPoint(x, y, signal));
             }
         }
 
-        return stars
-            .OrderByDescending(s => s.Signal)
-            .Take(160)
-            .ToList();
+        return selected;
     }
 
-    private static double ComputeStarAlignmentScore(IReadOnlyList<StarPoint> referenceStars, IReadOnlyList<StarPoint> candidateStars, int width, int height)
+    private static void TrySelectDistributedMeasured(
+        IReadOnlyList<MeasuredStar> sourceStars,
+        List<MeasuredStar> selected,
+        int maxStars,
+        double marginX,
+        double marginY,
+        int width,
+        int height,
+        int gridSize,
+        double minSeparation)
     {
-        return ComputeStarAlignmentScoreWithShift(referenceStars, candidateStars, width, height).Score;
+        if (sourceStars.Count == 0 || selected.Count >= maxStars)
+        {
+            return;
+        }
+
+        var innerWidth = Math.Max(1.0, (width - (2 * marginX)) / gridSize);
+        var innerHeight = Math.Max(1.0, (height - (2 * marginY)) / gridSize);
+
+        for (var gy = 0; gy < gridSize; gy++)
+        {
+            for (var gx = 0; gx < gridSize; gx++)
+            {
+                if (selected.Count >= maxStars)
+                {
+                    return;
+                }
+
+                var x0 = marginX + (gx * innerWidth);
+                var x1 = gx == gridSize - 1 ? width - marginX : x0 + innerWidth;
+                var y0 = marginY + (gy * innerHeight);
+                var y1 = gy == gridSize - 1 ? height - marginY : y0 + innerHeight;
+
+                var bestInCell = sourceStars.FirstOrDefault(s =>
+                    s.X >= x0 && s.X < x1 &&
+                    s.Y >= y0 && s.Y < y1 &&
+                    IsFarEnoughFromSelectedMeasured(s, selected, minSeparation));
+
+                if (bestInCell is null || bestInCell.Peak <= 0)
+                {
+                    continue;
+                }
+
+                if (selected.All(s => Math.Abs(s.X - bestInCell.X) >= 0.5 || Math.Abs(s.Y - bestInCell.Y) >= 0.5))
+                {
+                    selected.Add(bestInCell);
+                }
+            }
+        }
+
+        foreach (var star in sourceStars)
+        {
+            if (selected.Count >= maxStars)
+            {
+                return;
+            }
+
+            if (!IsFarEnoughFromSelectedMeasured(star, selected, minSeparation))
+            {
+                continue;
+            }
+
+            if (selected.Any(s => Math.Abs(s.X - star.X) < 0.5 && Math.Abs(s.Y - star.Y) < 0.5))
+            {
+                continue;
+            }
+
+            selected.Add(star);
+        }
     }
 
-    private static (double Score, int Dx, int Dy) ComputeStarAlignmentScoreWithShift(IReadOnlyList<StarPoint> referenceStars, IReadOnlyList<StarPoint> candidateStars, int width, int height)
+    private static bool IsFarEnoughFromSelectedMeasured(MeasuredStar candidate, IReadOnlyList<MeasuredStar> selected, double minSeparation)
+    {
+        var minSeparationSq = minSeparation * minSeparation;
+        for (var i = 0; i < selected.Count; i++)
+        {
+            var dx = candidate.X - selected[i].X;
+            var dy = candidate.Y - selected[i].Y;
+            if ((dx * dx) + (dy * dy) < minSeparationSq)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private readonly record struct TriangleSignature(int A, int B, int C, double Ratio1, double Ratio2, double AreaNorm);
+
+    private OrientationReferenceCache GetOrCreateOrientationReferenceCache(LoadedFrame reference)
+    {
+        const int sampleSize = 512;
+        var key = $"{reference.Width}x{reference.Height}:{reference.ExposureDateTime?.Ticks}:{reference.FilterName}:{reference.Pixels.Length}:{reference.Pixels[0]:G9}";
+        if (_orientationReferenceCache is { } cache && string.Equals(cache.Key, key, StringComparison.Ordinal))
+        {
+            return cache;
+        }
+
+        var sample = CreateOrientationSample(reference.Pixels, reference.Width, reference.Height, sampleSize, rotate180: false);
+        var stars = SelectOrientationAnchorMeasuredStars(GetOrientationMeasuredStars(sample, sampleSize, sampleSize), sampleSize, sampleSize, maxStars: 50, gridSize: 6);
+        var sampleDenom = Math.Max(1, sampleSize - 1);
+        var scaleX = (reference.Width - 1) / (double)sampleDenom;
+        var scaleY = (reference.Height - 1) / (double)sampleDenom;
+        var triangles = BuildTriangleSignatures(stars.Take(18).ToList());
+        cache = new OrientationReferenceCache(key, stars, triangles, scaleX, scaleY);
+        _orientationReferenceCache = cache;
+        return cache;
+    }
+
+    private static (double Score, int Dx, int Dy, IReadOnlyList<int> ReferenceTriangle, IReadOnlyList<int> CandidateTriangle) ComputeTriangleAlignmentScoreWithShift(IReadOnlyList<MeasuredStar> referenceStars, IReadOnlyList<TriangleSignature> referenceTriangles, IReadOnlyList<MeasuredStar> candidateStars)
     {
         if (referenceStars.Count < 3 || candidateStars.Count < 3)
         {
-            return (-1, 0, 0);
+            return (-1, 0, 0, Array.Empty<int>(), Array.Empty<int>());
         }
 
-        const int maxStarsForShift = 18;
-        const double tolerance = 2.0;
-        var refTop = referenceStars.Take(maxStarsForShift).ToList();
-        var candTop = candidateStars.Take(maxStarsForShift).ToList();
-
-        var occupancy = BuildStarOccupancy(referenceStars, width, height);
-        var best = 0.0;
-        var bestDx = 0;
-        var bestDy = 0;
-        foreach (var r in refTop)
+        var refTriangles = referenceTriangles;
+        var candTriangles = BuildTriangleSignatures(candidateStars);
+        if (refTriangles.Count == 0 || candTriangles.Count == 0)
         {
-            foreach (var c in candTop)
+            return (-1, 0, 0, Array.Empty<int>(), Array.Empty<int>());
+        }
+
+        var referenceMedianFwhm = MedianMeasuredStarFwhm(referenceStars);
+        var candidateMedianFwhm = MedianMeasuredStarFwhm(candidateStars);
+        var scaleRatio = candidateMedianFwhm > 0 && referenceMedianFwhm > 0
+            ? Math.Clamp(referenceMedianFwhm / candidateMedianFwhm, 0.75, 1.25)
+            : 1.0;
+
+        const double ratioTolerance = 0.035;
+        const double areaTolerance = 0.02;
+        var dxs = new List<double>();
+        var dys = new List<double>();
+        var matches = 0;
+        TriangleSignature? bestReferenceTriangle = null;
+        TriangleSignature? bestCandidateTriangle = null;
+        var bestOverallError = double.MaxValue;
+
+        foreach (var rt in refTriangles)
+        {
+            var best = default(TriangleSignature?);
+            var bestError = double.MaxValue;
+            foreach (var ct in candTriangles)
             {
-                var dx = (int)Math.Round(r.X - c.X);
-                var dy = (int)Math.Round(r.Y - c.Y);
-                var score = ScoreShift(occupancy, candidateStars, dx, dy, tolerance, width, height, referenceStars.Count);
-                if (score > best)
-                {
-                    best = score;
-                    bestDx = dx;
-                    bestDy = dy;
-                }
-            }
-        }
-
-        return (best, bestDx, bestDy);
-    }
-
-    private static bool[] BuildStarOccupancy(IReadOnlyList<StarPoint> stars, int width, int height)
-    {
-        var occupancy = new bool[width * height];
-        foreach (var s in stars)
-        {
-            var x = Math.Clamp((int)Math.Round(s.X), 0, width - 1);
-            var y = Math.Clamp((int)Math.Round(s.Y), 0, height - 1);
-            occupancy[(y * width) + x] = true;
-        }
-
-        return occupancy;
-    }
-
-    private static double ScoreShift(bool[] referenceOccupancy, IReadOnlyList<StarPoint> candidateStars, int dx, int dy, double tolerance, int width, int height, int referenceCount)
-    {
-        var toleranceInt = (int)Math.Ceiling(tolerance);
-        var toleranceSq = tolerance * tolerance;
-        var matched = 0;
-
-        foreach (var c in candidateStars)
-        {
-            var tx = (int)Math.Round(c.X + dx);
-            var ty = (int)Math.Round(c.Y + dy);
-            var found = false;
-
-            for (var oy = -toleranceInt; oy <= toleranceInt && !found; oy++)
-            {
-                var y = ty + oy;
-                if ((uint)y >= (uint)height)
+                var ratioError = Math.Abs(rt.Ratio1 - ct.Ratio1) + Math.Abs(rt.Ratio2 - ct.Ratio2);
+                var areaError = Math.Abs(rt.AreaNorm - ct.AreaNorm);
+                if (Math.Abs(rt.Ratio1 - ct.Ratio1) > ratioTolerance ||
+                    Math.Abs(rt.Ratio2 - ct.Ratio2) > ratioTolerance ||
+                    areaError > areaTolerance)
                 {
                     continue;
                 }
 
-                for (var ox = -toleranceInt; ox <= toleranceInt; ox++)
+                var totalError = ratioError + areaError;
+                if (totalError < bestError)
                 {
-                    var x = tx + ox;
-                    if ((uint)x >= (uint)width)
-                    {
-                        continue;
-                    }
-
-                    if ((ox * ox) + (oy * oy) > toleranceSq)
-                    {
-                        continue;
-                    }
-
-                    if (referenceOccupancy[(y * width) + x])
-                    {
-                        found = true;
-                        break;
-                    }
+                    bestError = totalError;
+                    best = ct;
                 }
             }
 
-            if (found)
+            if (best is not TriangleSignature match)
             {
-                matched++;
+                continue;
+            }
+
+            if (bestError < bestOverallError)
+            {
+                bestOverallError = bestError;
+                bestReferenceTriangle = rt;
+                bestCandidateTriangle = match;
+            }
+
+            var refIds = new[] { rt.A, rt.B, rt.C };
+            var candIds = new[] { match.A, match.B, match.C };
+            Array.Sort(refIds);
+            Array.Sort(candIds);
+            for (var i = 0; i < 3; i++)
+            {
+                var r = referenceStars[refIds[i]];
+                var c = candidateStars[candIds[i]];
+                dxs.Add(r.X - (c.X * scaleRatio));
+                dys.Add(r.Y - (c.Y * scaleRatio));
+            }
+            matches++;
+        }
+
+        if (matches == 0 || dxs.Count == 0)
+        {
+            return (-1, 0, 0, Array.Empty<int>(), Array.Empty<int>());
+        }
+
+        dxs.Sort();
+        dys.Sort();
+        var medianDx = dxs[dxs.Count / 2];
+        var medianDy = dys[dys.Count / 2];
+        var score = matches / (double)Math.Max(refTriangles.Count, candTriangles.Count);
+        var refTriangle = bestReferenceTriangle is TriangleSignature br ? new[] { br.A, br.B, br.C } : Array.Empty<int>();
+        var candTriangle = bestCandidateTriangle is TriangleSignature bc ? new[] { bc.A, bc.B, bc.C } : Array.Empty<int>();
+        return (score, (int)Math.Round(medianDx), (int)Math.Round(medianDy), refTriangle, candTriangle);
+    }
+
+    private static double MedianMeasuredStarFwhm(IReadOnlyList<MeasuredStar> stars)
+    {
+        if (stars.Count == 0)
+        {
+            return 0;
+        }
+
+        var values = stars.Where(s => s.Fwhm > 0).Select(s => s.Fwhm).OrderBy(v => v).ToArray();
+        if (values.Length == 0)
+        {
+            return 0;
+        }
+
+        var mid = values.Length / 2;
+        return (values.Length & 1) == 1 ? values[mid] : (values[mid - 1] + values[mid]) * 0.5;
+    }
+
+    private static List<TriangleSignature> BuildTriangleSignatures(IReadOnlyList<MeasuredStar> stars)
+    {
+        var result = new List<TriangleSignature>();
+        for (var i = 0; i < stars.Count - 2; i++)
+        {
+            for (var j = i + 1; j < stars.Count - 1; j++)
+            {
+                for (var k = j + 1; k < stars.Count; k++)
+                {
+                    var d1 = Distance(stars[i], stars[j]);
+                    var d2 = Distance(stars[i], stars[k]);
+                    var d3 = Distance(stars[j], stars[k]);
+                    var sides = new[] { d1, d2, d3 };
+                    Array.Sort(sides);
+                    if (sides[2] <= 1e-6)
+                    {
+                        continue;
+                    }
+
+                    var area2 = Math.Abs(((stars[j].X - stars[i].X) * (stars[k].Y - stars[i].Y)) - ((stars[j].Y - stars[i].Y) * (stars[k].X - stars[i].X)));
+                    var areaNorm = area2 / (sides[2] * sides[2]);
+                    if (areaNorm <= 1e-4)
+                    {
+                        continue;
+                    }
+
+                    result.Add(new TriangleSignature(i, j, k, sides[0] / sides[2], sides[1] / sides[2], areaNorm));
+                }
             }
         }
 
-        var denominator = Math.Max(1, Math.Min(referenceCount, candidateStars.Count));
-        return matched / (double)denominator;
+        return result;
+    }
+
+    private static double Distance(MeasuredStar a, MeasuredStar b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return Math.Sqrt((dx * dx) + (dy * dy));
     }
 
     private static void Flatten(Array array, List<double> output)
@@ -1909,7 +2258,7 @@ public sealed class RustafitsService
             "BGGR" => new[,] { { 2, 1 }, { 1, 0 } },
             "GRBG" => new[,] { { 1, 0 }, { 2, 1 } },
             "GBRG" => new[,] { { 1, 2 }, { 0, 1 } },
-            _      => new[,] { { 0, 1 }, { 1, 2 } }   // default RGGB
+            _ => new[,] { { 0, 1 }, { 1, 2 } }   // default RGGB
         };
 
         var r = new float[width * height];
@@ -1928,13 +2277,13 @@ public sealed class RustafitsService
             // Pre-compute which row of the cell map applies to this y.
             var cellRow = ((y + offsetY) % 2 + 2) % 2;
             var rowChEven = cellRow == 0 ? ch00 : ch10; // channel at even x
-            var rowChOdd  = cellRow == 0 ? ch01 : ch11; // channel at odd  x
+            var rowChOdd = cellRow == 0 ? ch01 : ch11; // channel at odd  x
 
             // Decide whether the slow boundary path is needed for this row.
             var atTopOrBottom = y == 0 || y == height - 1;
             var rowOffset = y * width;
-            var rowAbove  = (y - 1) * width;
-            var rowBelow  = (y + 1) * width;
+            var rowAbove = (y - 1) * width;
+            var rowBelow = (y + 1) * width;
 
             for (var x = 0; x < width; x++)
             {
@@ -1952,11 +2301,13 @@ public sealed class RustafitsService
                             g[idx] = (GetClamped(x - 1, y) + GetClamped(x + 1, y) + GetClamped(x, y - 1) + GetClamped(x, y + 1)) * 0.25f;
                             b[idx] = (GetClamped(x - 1, y - 1) + GetClamped(x + 1, y - 1) + GetClamped(x - 1, y + 1) + GetClamped(x + 1, y + 1)) * 0.25f;
                             break;
+
                         case 2:
                             b[idx] = raw[idx];
                             g[idx] = (GetClamped(x - 1, y) + GetClamped(x + 1, y) + GetClamped(x, y - 1) + GetClamped(x, y + 1)) * 0.25f;
                             r[idx] = (GetClamped(x - 1, y - 1) + GetClamped(x + 1, y - 1) + GetClamped(x - 1, y + 1) + GetClamped(x + 1, y + 1)) * 0.25f;
                             break;
+
                         default:
                             g[idx] = raw[idx];
                             if (cellRow == 0)
@@ -1982,11 +2333,13 @@ public sealed class RustafitsService
                         g[idx] = (raw[idx - 1] + raw[idx + 1] + raw[rowAbove + x] + raw[rowBelow + x]) * 0.25f;
                         b[idx] = (raw[rowAbove + x - 1] + raw[rowAbove + x + 1] + raw[rowBelow + x - 1] + raw[rowBelow + x + 1]) * 0.25f;
                         break;
+
                     case 2: // B pixel
                         b[idx] = raw[idx];
                         g[idx] = (raw[idx - 1] + raw[idx + 1] + raw[rowAbove + x] + raw[rowBelow + x]) * 0.25f;
                         r[idx] = (raw[rowAbove + x - 1] + raw[rowAbove + x + 1] + raw[rowBelow + x - 1] + raw[rowBelow + x + 1]) * 0.25f;
                         break;
+
                     default: // G pixel
                         g[idx] = raw[idx];
                         if (cellRow == 0)
@@ -2059,7 +2412,7 @@ public sealed class RustafitsService
     {
         var normalised = rawValue / dataMax;
         var c0 = stf.Shadows;
-        var m  = stf.Midtones;
+        var m = stf.Midtones;
         var c1 = stf.Highlights;
         var stretchRange = Math.Max(1e-9, c1 - c0);
         var clipped = Math.Clamp((normalised - c0) / stretchRange, 0.0, 1.0);
@@ -2098,7 +2451,7 @@ public sealed class RustafitsService
                     rv = rCh[si]; gv = gCh[si]; bv = bCh[si];
                 }
                 var idx = ((y * targetWidth) + x) * 3;
-                data[idx]     = StretchSample(rv, dataMax, stfR);
+                data[idx] = StretchSample(rv, dataMax, stfR);
                 data[idx + 1] = StretchSample(gv, dataMax, stfG);
                 data[idx + 2] = StretchSample(bv, dataMax, stfB);
             }
@@ -2115,7 +2468,7 @@ public sealed class RustafitsService
     {
         var scale = Math.Min(maxWidth / (double)Math.Max(1, width), maxHeight / (double)Math.Max(1, height));
         scale = Math.Min(1.0, scale <= 0 ? 1.0 : scale);
-        var contentWidth  = Math.Max(1, (int)Math.Round(width  * scale));
+        var contentWidth = Math.Max(1, (int)Math.Round(width * scale));
         var contentHeight = Math.Max(1, (int)Math.Round(height * scale));
         var sample = DownsampleAndStretchColor(rCh, gCh, bCh, width, height, contentWidth, contentHeight, stfR, stfG, stfB, normalizationMax);
         if (metrics is { SatelliteTrailConfidence: > 0, TrailX1: not null, TrailY1: not null, TrailX2: not null, TrailY2: not null })
@@ -2523,12 +2876,12 @@ public sealed class RustafitsService
     {
         var result = new float[targetWidth * targetHeight];
         var targetHeightM1 = Math.Max(1, targetHeight - 1);
-        var targetWidthM1  = Math.Max(1, targetWidth  - 1);
+        var targetWidthM1 = Math.Max(1, targetWidth - 1);
         Parallel.For(0, targetHeight, y =>
         {
-            var sy     = Math.Min(height - 1, (int)Math.Round((y / (double)targetHeightM1) * (height - 1)));
+            var sy = Math.Min(height - 1, (int)Math.Round((y / (double)targetHeightM1) * (height - 1)));
             var srcRow = sy * width;
-            var dstRow = y  * targetWidth;
+            var dstRow = y * targetWidth;
             for (var x = 0; x < targetWidth; x++)
             {
                 var sx = Math.Min(width - 1, (int)Math.Round((x / (double)targetWidthM1) * (width - 1)));
@@ -2576,7 +2929,7 @@ public sealed class RustafitsService
 
         // STF clipping bounds in [0,1]
         var c0 = stf.Shadows;    // shadow clipping
-        var m  = stf.Midtones;   // midtones balance
+        var m = stf.Midtones;   // midtones balance
         var c1 = stf.Highlights; // highlights clipping (typically 1.0)
         var stretchRange = Math.Max(1e-9, c1 - c0);
 
@@ -3536,7 +3889,7 @@ public sealed class RustafitsService
         // exactly one axis (bestSupport > 2.5 × secondSupport).
         // Stars are nearly isotropic → they fail this test convincingly.
         var points = new List<(int X, int Y, double Signal)>(1024);
-        var cx = (width  - 1) * 0.5;
+        var cx = (width - 1) * 0.5;
         var cy = (height - 1) * 0.5;
 
         for (var y = 5; y < height - 5; y++)
@@ -3548,14 +3901,14 @@ public sealed class RustafitsService
                 if (center < threshold)
                     continue;
 
-                var h  = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1,  0);
-                var v  = ComputeDirectionalTrailSupport(enhanced, width, x, y, 0,  1);
-                var d1 = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1,  1);
+                var h = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, 0);
+                var v = ComputeDirectionalTrailSupport(enhanced, width, x, y, 0, 1);
+                var d1 = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, 1);
                 var d2 = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, -1);
 
-                var best   = h;
+                var best = h;
                 var second = 0.0;
-                UpdateTopTwo(v,  ref best, ref second);
+                UpdateTopTwo(v, ref best, ref second);
                 UpdateTopTwo(d1, ref best, ref second);
                 UpdateTopTwo(d2, ref best, ref second);
 
@@ -3582,12 +3935,12 @@ public sealed class RustafitsService
 
         // ── Hough accumulator (1° resolution) ────────────────────────────────
         const int angleBins = 180;
-        var maxRho     = Math.Sqrt((cx * cx) + (cy * cy));
+        var maxRho = Math.Sqrt((cx * cx) + (cy * cy));
         var rhoBinSize = Math.Max(2.0, Math.Min(5.0, Math.Min(width, height) / 180.0));
-        var rhoBins    = Math.Max(180, (int)Math.Ceiling((2.0 * maxRho) / rhoBinSize) + 1);
+        var rhoBins = Math.Max(180, (int)Math.Ceiling((2.0 * maxRho) / rhoBinSize) + 1);
         var accumulator = new int[angleBins * rhoBins];
-        var cosTable    = new double[angleBins];
-        var sinTable    = new double[angleBins];
+        var cosTable = new double[angleBins];
+        var sinTable = new double[angleBins];
 
         for (var a = 0; a < angleBins; a++)
         {
@@ -3604,7 +3957,7 @@ public sealed class RustafitsService
 
             for (var a = 0; a < angleBins; a++)
             {
-                var rho      = (dx * cosTable[a]) + (dy * sinTable[a]);
+                var rho = (dx * cosTable[a]) + (dy * sinTable[a]);
                 var rhoIndex = (int)Math.Round((rho + maxRho) / rhoBinSize);
                 if ((uint)rhoIndex < (uint)rhoBins)
                     accumulator[(a * rhoBins) + rhoIndex] += weight;
@@ -3612,8 +3965,8 @@ public sealed class RustafitsService
         }
 
         var bestAngleBin = -1;
-        var bestRhoBin   = -1;
-        var bestVotes    = 0;
+        var bestRhoBin = -1;
+        var bestVotes = 0;
         for (var a = 0; a < angleBins; a++)
         {
             var rowOff = a * rhoBins;
@@ -3630,12 +3983,12 @@ public sealed class RustafitsService
         if (bestAngleBin < 0 || bestVotes < Math.Max(20, points.Count / 20))
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        var normalX   = cosTable[bestAngleBin];
-        var normalY   = sinTable[bestAngleBin];
+        var normalX = cosTable[bestAngleBin];
+        var normalY = sinTable[bestAngleBin];
         var rhoCenter = (bestRhoBin * rhoBinSize) - maxRho;
 
         // ── Pass 1: coarse inliers → PCA ─────────────────────────────────────
-        var pass1Dist      = Math.Max(2.5, rhoBinSize * 1.2);
+        var pass1Dist = Math.Max(2.5, rhoBinSize * 1.2);
         var inlierPositions = new List<(double DX, double DY)>(points.Count);
 
         foreach (var p in points)
@@ -3665,8 +4018,8 @@ public sealed class RustafitsService
         cxy /= inlierPositions.Count;
         cyy /= inlierPositions.Count;
 
-        var trace   = cxx + cyy;
-        var disc    = Math.Sqrt(Math.Max(0.0, (trace * trace / 4.0) - (cxx * cyy - cxy * cxy)));
+        var trace = cxx + cyy;
+        var disc = Math.Sqrt(Math.Max(0.0, (trace * trace / 4.0) - (cxx * cyy - cxy * cxy)));
         var lambda1 = (trace / 2.0) + disc;
         var lambda2 = (trace / 2.0) - disc;
 
@@ -3677,15 +4030,15 @@ public sealed class RustafitsService
 
         double evX, evY;
         if (Math.Abs(cxy) > 1e-10) { evX = lambda1 - cyy; evY = cxy; }
-        else                        { evX = cxx >= cyy ? 1.0 : 0.0; evY = cxx >= cyy ? 0.0 : 1.0; }
+        else { evX = cxx >= cyy ? 1.0 : 0.0; evY = cxx >= cyy ? 0.0 : 1.0; }
 
         var evLen = Math.Sqrt((evX * evX) + (evY * evY));
         if (evLen < 1e-10) return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         evX /= evLen; evY /= evLen;
         var refinedNormalX = -evY;
-        var refinedNormalY =  evX;
-        var refinedRho     = (centDx * refinedNormalX) + (centDy * refinedNormalY);
+        var refinedNormalY = evX;
+        var refinedRho = (centDx * refinedNormalX) + (centDy * refinedNormalY);
 
         // ── Pass 2: tight inliers ─────────────────────────────────────────────
         // 2.0 px band — real trail pixels are very tightly collinear.
@@ -3696,15 +4049,15 @@ public sealed class RustafitsService
         double minT = double.PositiveInfinity;
         double maxT = double.NegativeInfinity;
         var inlierCount = 0;
-        double rmsSum   = 0;
+        double rmsSum = 0;
         var spanBinSize = Math.Max(4.0, Math.Min(width, height) / 90.0);
         HashSet<int> occupiedSpanBins = [];
         var inlierTs = new List<double>(inlierPositions.Count);
 
         foreach (var p in points)
         {
-            var dx   = p.X - cx;
-            var dy   = p.Y - cy;
+            var dx = p.X - cx;
+            var dy = p.Y - cy;
             var dist = Math.Abs((dx * refinedNormalX) + (dy * refinedNormalY) - refinedRho);
             if (dist > maxDistPass2) continue;
 
@@ -3720,7 +4073,7 @@ public sealed class RustafitsService
         if (inlierCount < 10)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        var span     = maxT - minT;
+        var span = maxT - minT;
         var imageDim = Math.Min(width, height);
 
         // ── Hard rejection gates ──────────────────────────────────────────────
@@ -3733,7 +4086,7 @@ public sealed class RustafitsService
         // 2. Coverage: inliers must occupy at least 20 % of the span bins
         //    (no very gappy, discontinuous patterns).
         var spanBinCount = Math.Max(1, (int)Math.Ceiling(span / spanBinSize));
-        var coverage     = occupiedSpanBins.Count / (double)spanBinCount;
+        var coverage = occupiedSpanBins.Count / (double)spanBinCount;
         if (coverage < 0.20)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
@@ -3761,18 +4114,18 @@ public sealed class RustafitsService
         // Scores how strong/clear the trail is, not whether it exists.
         // Users can tune the rejection threshold slider to taste.
 
-        var elongRatio  = lambda1 / lambda2;
+        var elongRatio = lambda1 / lambda2;
         var sElongation = Math.Clamp((elongRatio - 7.0) / 93.0, 0.0, 1.0);    // 7→0 … 100→1
 
-        var spanFrac    = span / imageDim;
-        var sSpan       = Math.Clamp((spanFrac - 0.20) / 0.70, 0.0, 1.0);     // 20%→0 … 90%→1
+        var spanFrac = span / imageDim;
+        var sSpan = Math.Clamp((spanFrac - 0.20) / 0.70, 0.0, 1.0);     // 20%→0 … 90%→1
 
-        var sCoverage   = Math.Clamp((coverage - 0.20) / 0.70, 0.0, 1.0);     // 20%→0 … 90%→1
+        var sCoverage = Math.Clamp((coverage - 0.20) / 0.70, 0.0, 1.0);     // 20%→0 … 90%→1
 
-        var gapFrac     = span > 0 ? maxGap / span : 1.0;
-        var sGap        = Math.Clamp(1.0 - gapFrac / 0.35, 0.0, 1.0);        // 0→1 … 35%→0
+        var gapFrac = span > 0 ? maxGap / span : 1.0;
+        var sGap = Math.Clamp(1.0 - gapFrac / 0.35, 0.0, 1.0);        // 0→1 … 35%→0
 
-        var sRms        = Math.Clamp(1.0 - rms / 2.0, 0.0, 1.0);             // 0→1 … 2.0px→0
+        var sRms = Math.Clamp(1.0 - rms / 2.0, 0.0, 1.0);             // 0→1 … 2.0px→0
 
         var rawScore = (0.25 * sElongation)
                      + (0.25 * sSpan)
@@ -3793,9 +4146,9 @@ public sealed class RustafitsService
 
         return new TrailDetectionResult(
             confidence,
-            width  <= 1 ? 0.5 : Math.Clamp(x1 / (width  - 1), 0.0, 1.0),
+            width <= 1 ? 0.5 : Math.Clamp(x1 / (width - 1), 0.0, 1.0),
             height <= 1 ? 0.5 : Math.Clamp(y1 / (height - 1), 0.0, 1.0),
-            width  <= 1 ? 0.5 : Math.Clamp(x2 / (width  - 1), 0.0, 1.0),
+            width <= 1 ? 0.5 : Math.Clamp(x2 / (width - 1), 0.0, 1.0),
             height <= 1 ? 0.5 : Math.Clamp(y2 / (height - 1), 0.0, 1.0));
     }
 

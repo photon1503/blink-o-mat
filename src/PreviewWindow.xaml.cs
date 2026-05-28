@@ -90,8 +90,10 @@ public partial class PreviewWindow : Window
             RedrawCacheIndicators();
             ImageScrollViewer.ScrollChanged += (_, _) => UpdateRoiOverlay();
             ImageScrollViewer.ScrollChanged += (_, _) => UpdateStarDebugOverlay();
+            ImageScrollViewer.ScrollChanged += (_, _) => UpdateOrientationDebugOverlay();
             UpdateRoiOverlay();
             UpdateStarDebugOverlay();
+            UpdateOrientationDebugOverlay();
             UpdateCurvatureView();
             _hasInitializedView = true;
         };
@@ -951,6 +953,121 @@ public partial class PreviewWindow : Window
         StarDebugOverlayCanvas.Children.Add(summaryBorder);
     }
 
+    private void UpdateOrientationDebugOverlay()
+    {
+        if (StarDebugOverlayCanvas is null)
+        {
+            return;
+        }
+
+        if (!_vm.IsOrientationDebugOverlayVisible
+            || PreviewImage.Source is not BitmapSource source
+            || PreviewImage.ActualWidth <= 0 || PreviewImage.ActualHeight <= 0)
+        {
+            if (!_vm.IsStarDebugOverlayVisible)
+            {
+                StarDebugOverlayCanvas.Visibility = Visibility.Collapsed;
+                StarDebugOverlayCanvas.Children.Clear();
+            }
+            return;
+        }
+
+        var debug = _vm.Item?.OrientationDebug;
+        if (debug is null || debug.Stars.Count == 0)
+        {
+            if (!_vm.IsStarDebugOverlayVisible)
+            {
+                StarDebugOverlayCanvas.Visibility = Visibility.Collapsed;
+                StarDebugOverlayCanvas.Children.Clear();
+            }
+            return;
+        }
+
+        StarDebugOverlayCanvas.Visibility = Visibility.Visible;
+        StarDebugOverlayCanvas.Children.Clear();
+
+        var pixelWidth = source.PixelWidth;
+        var pixelHeight = source.PixelHeight;
+        var scaleX = PreviewImage.ActualWidth / pixelWidth;
+        var scaleY = PreviewImage.ActualHeight / pixelHeight;
+        var starBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xD0, 0x66, 0xCC, 0xFF));
+        var triangleBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE0, 0xFF, 0xC8, 0x33));
+        starBrush.Freeze();
+        triangleBrush.Freeze();
+
+        for (var i = 0; i < debug.Stars.Count; i++)
+        {
+            var star = debug.Stars[i];
+            var pointImg = new WpfPoint(star.X * scaleX, star.Y * scaleY);
+            var point = PreviewImage.TranslatePoint(pointImg, StarDebugOverlayCanvas);
+            var marker = new Ellipse
+            {
+                Width = 8,
+                Height = 8,
+                Stroke = starBrush,
+                StrokeThickness = 1.5,
+                Fill = System.Windows.Media.Brushes.Transparent,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(marker, point.X - 4);
+            Canvas.SetTop(marker, point.Y - 4);
+            StarDebugOverlayCanvas.Children.Add(marker);
+
+            var label = new TextBlock
+            {
+                Text = $"{i + 1}",
+                Foreground = starBrush,
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize = 10,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(label, point.X + 5);
+            Canvas.SetTop(label, point.Y - 8);
+            StarDebugOverlayCanvas.Children.Add(label);
+        }
+
+        if (debug.TriangleIndices.Count == 3)
+        {
+            var polyline = new Polyline
+            {
+                Stroke = triangleBrush,
+                StrokeThickness = 2.0,
+                IsHitTestVisible = false
+            };
+            foreach (var idx in debug.TriangleIndices)
+            {
+                if (idx < 0 || idx >= debug.Stars.Count) continue;
+                var star = debug.Stars[idx];
+                var point = PreviewImage.TranslatePoint(new WpfPoint(star.X * scaleX, star.Y * scaleY), StarDebugOverlayCanvas);
+                polyline.Points.Add(point);
+            }
+            if (polyline.Points.Count == 3)
+            {
+                polyline.Points.Add(polyline.Points[0]);
+                StarDebugOverlayCanvas.Children.Add(polyline);
+            }
+        }
+
+        var summaryBackground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xB0, 0, 0, 0));
+        summaryBackground.Freeze();
+        var summaryBorder = new Border
+        {
+            Background = summaryBackground,
+            Padding = new Thickness(6, 3, 6, 3),
+            Child = new TextBlock
+            {
+                Text = $"Orientation: {(debug.Rotate180 ? "flipped 180°" : "not flipped")}   stars: {debug.Stars.Count}   {debug.StatusText}",
+                Foreground = triangleBrush,
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize = 12
+            },
+            IsHitTestVisible = false
+        };
+        Canvas.SetLeft(summaryBorder, 8);
+        Canvas.SetTop(summaryBorder, 8);
+        StarDebugOverlayCanvas.Children.Add(summaryBorder);
+    }
+
     private void UpdateCurvatureView()
     {
         if (CurvatureImage is null || CurvatureStatsText is null || ImageScrollViewer is null)
@@ -1615,6 +1732,13 @@ public partial class PreviewWindow : Window
             UpdateStarDebugOverlay();
         }
 
+        if (e.PropertyName is nameof(FramePreviewViewModel.IsOrientationDebugOverlayVisible)
+            or nameof(FramePreviewViewModel.Zoom)
+            or nameof(FramePreviewViewModel.Image))
+        {
+            UpdateOrientationDebugOverlay();
+        }
+
         if (e.PropertyName is nameof(FramePreviewViewModel.IsCurvatureViewVisible)
             or nameof(FramePreviewViewModel.Image))
         {
@@ -1820,6 +1944,13 @@ public partial class PreviewWindow : Window
         {
             e.Handled = true;
             _vm.IsStarDebugOverlayVisible = !_vm.IsStarDebugOverlayVisible;
+            return;
+        }
+
+        if (e.Key == Key.O && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            _vm.IsOrientationDebugOverlayVisible = !_vm.IsOrientationDebugOverlayVisible;
             return;
         }
 
