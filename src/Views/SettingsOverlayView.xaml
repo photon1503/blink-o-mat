@@ -9,7 +9,8 @@
             BorderBrush="{StaticResource PanelBorderBrush}"
             BorderThickness="1"
             CornerRadius="6"
-            Padding="14">
+            Padding="14"
+            d:Visibility="Visible">
         <Border.Style>
             <Style TargetType="Border">
                 <Setter Property="Visibility" Value="Collapsed" />
@@ -51,8 +52,6 @@
                                     <ColumnDefinition Width="220" />
                                     <ColumnDefinition Width="12" />
                                     <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Profile" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource MutedTextBrush}" />
                                 <ComboBox Grid.Column="1" Height="28"
@@ -65,40 +64,62 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <TextBlock Grid.Column="3" Text="Current" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource MutedTextBrush}" />
-                                <Border Grid.Column="4" Background="#1E2227" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Padding="8,5" MinHeight="28">
-                                    <TextBlock Text="{Binding SelectedProfileName}" VerticalAlignment="Center" />
-                                </Border>
-                                <Button Grid.Column="5" Margin="8,0,0,0" Height="28" Padding="12,0"
+                                <Button Grid.Column="3" Margin="8,0,0,0" Height="28" Padding="12,0"
                                         Content="Create new profile"
                                         Click="CreateNewProfileButton_Click" />
                             </Grid>
+                            <CheckBox Margin="0,0,0,0"
+                                      Content="Default on startup"
+                                      IsChecked="{Binding IsSelectedProfileDefault, Mode=TwoWay}" />
                         </StackPanel>
                     </Border>
 
-                    <Border Background="#14171A" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,10">
-                        <StackPanel>
-                            <TextBlock Text="Profile defaults" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8" />
-                            <WrapPanel>
-                                <CheckBox Margin="0,0,16,0" VerticalAlignment="Center"
-                                          Content="Default on startup"
-                                          IsChecked="{Binding IsSelectedProfileDefault, Mode=TwoWay}" />
-                                <CheckBox Margin="0,0,16,0" VerticalAlignment="Center"
-                                          Content="Include subfolders"
-                                          IsChecked="{Binding IncludeSubfolders, Mode=TwoWay}" />
-                                <CheckBox Margin="0,0,16,0" VerticalAlignment="Center"
-                                          Content="Watch folder"
-                                          IsChecked="{Binding WatchFolderEnabled, Mode=TwoWay}" />
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="STF Target Background" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource MutedTextBrush}" />
-                                    <controls:MetricSliderControl Width="240"
-                                                                  Value="{Binding StfTargetBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                                  Minimum="0.01" Maximum="0.5" TickFrequency="0.01" LargeChange="0.05"
-                                                                  Decimals="2" />
-                                </StackPanel>
-                            </WrapPanel>
-                        </StackPanel>
+                    <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,0,0,8">
+                        <TextBlock Text="FOLDERS" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
                     </Border>
+                    <Grid HorizontalAlignment="Left" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="96" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Column="0" Grid.Row="0" Text="Setting" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Grid.Row="0" Text="Enabled" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="1" Text="Include subfolders" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="1" IsChecked="{Binding IncludeSubfolders, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="2" Text="Watch folders" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="2" IsChecked="{Binding WatchFolderEnabled, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,0,0,8">
+                        <TextBlock Text="STRETCH" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
+                    </Border>
+                    <Grid HorizontalAlignment="Left" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="320" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Column="0" Grid.Row="0" Text="Setting" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Grid.Row="0" Text="Value" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" HorizontalAlignment="Left" VerticalAlignment="Center" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="1" Text="STF target background" Margin="0,4,8,4" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="1" Grid.Row="1" Width="300"
+                                                      Value="{Binding StfTargetBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0.01" Maximum="0.5" TickFrequency="0.01" LargeChange="0.05"
+                                                      Decimals="2" />
+                    </Grid>
 
                     <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,0,0,8">
                         <TextBlock Text="VISIBILITY" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />

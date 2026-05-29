@@ -733,27 +733,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool ShowTrailSlider { get => _showTrailSlider; set { if (_showTrailSlider == value) return; _showTrailSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowFwhmSlider { get => _showFwhmSlider; set { if (_showFwhmSlider == value) return; _showFwhmSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowFwhmArcsecSlider { get => _showFwhmArcsecSlider; set { if (_showFwhmArcsecSlider == value) return; _showFwhmArcsecSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowSqmSlider { get => _showSqmSlider; set { if (_showSqmSlider == value) return; _showSqmSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowSkyTempSlider { get => _showSkyTempSlider; set { if (_showSkyTempSlider == value) return; _showSkyTempSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowHfrSlider { get => _showHfrSlider; set { if (_showHfrSlider == value) return; _showHfrSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowEccentricitySlider { get => _showEccentricitySlider; set { if (_showEccentricitySlider == value) return; _showEccentricitySlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowMeanBackgroundSlider { get => _showMeanBackgroundSlider; set { if (_showMeanBackgroundSlider == value) return; _showMeanBackgroundSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowStarsSlider { get => _showStarsSlider; set { if (_showStarsSlider == value) return; _showStarsSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowScoreSlider { get => _showScoreSlider; set { if (_showScoreSlider == value) return; _showScoreSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowTrailSlider { get => _showTrailSlider; set { if (_showTrailSlider == value) return; _showTrailSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowFwhmSlider { get => _showFwhmSlider; set { if (_showFwhmSlider == value) return; _showFwhmSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowFwhmArcsecSlider { get => _showFwhmArcsecSlider; set { if (_showFwhmArcsecSlider == value) return; _showFwhmArcsecSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowSqmSlider { get => _showSqmSlider; set { if (_showSqmSlider == value) return; _showSqmSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowSkyTempSlider { get => _showSkyTempSlider; set { if (_showSkyTempSlider == value) return; _showSkyTempSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowHfrSlider { get => _showHfrSlider; set { if (_showHfrSlider == value) return; _showHfrSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowEccentricitySlider { get => _showEccentricitySlider; set { if (_showEccentricitySlider == value) return; _showEccentricitySlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowMeanBackgroundSlider { get => _showMeanBackgroundSlider; set { if (_showMeanBackgroundSlider == value) return; _showMeanBackgroundSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowStarsSlider { get => _showStarsSlider; set { if (_showStarsSlider == value) return; _showStarsSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowScoreSlider { get => _showScoreSlider; set { if (_showScoreSlider == value) return; _showScoreSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
 
-    public bool ShowTrailMetric { get => _showTrailMetric; set { if (_showTrailMetric == value) return; _showTrailMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowFwhmMetric { get => _showFwhmMetric; set { if (_showFwhmMetric == value) return; _showFwhmMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowFwhmArcsecMetric { get => _showFwhmArcsecMetric; set { if (_showFwhmArcsecMetric == value) return; _showFwhmArcsecMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowSqmMetric { get => _showSqmMetric; set { if (_showSqmMetric == value) return; _showSqmMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowSkyTempMetric { get => _showSkyTempMetric; set { if (_showSkyTempMetric == value) return; _showSkyTempMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowHfrMetric { get => _showHfrMetric; set { if (_showHfrMetric == value) return; _showHfrMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowEccentricityMetric { get => _showEccentricityMetric; set { if (_showEccentricityMetric == value) return; _showEccentricityMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowMeanBackgroundMetric { get => _showMeanBackgroundMetric; set { if (_showMeanBackgroundMetric == value) return; _showMeanBackgroundMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowStarsMetric { get => _showStarsMetric; set { if (_showStarsMetric == value) return; _showStarsMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
-    public bool ShowScoreMetric { get => _showScoreMetric; set { if (_showScoreMetric == value) return; _showScoreMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowTrailMetric { get => _showTrailMetric; set { if (_showTrailMetric == value) return; _showTrailMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowFwhmMetric { get => _showFwhmMetric; set { if (_showFwhmMetric == value) return; _showFwhmMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowFwhmArcsecMetric { get => _showFwhmArcsecMetric; set { if (_showFwhmArcsecMetric == value) return; _showFwhmArcsecMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowSqmMetric { get => _showSqmMetric; set { if (_showSqmMetric == value) return; _showSqmMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowSkyTempMetric { get => _showSkyTempMetric; set { if (_showSkyTempMetric == value) return; _showSkyTempMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowHfrMetric { get => _showHfrMetric; set { if (_showHfrMetric == value) return; _showHfrMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowEccentricityMetric { get => _showEccentricityMetric; set { if (_showEccentricityMetric == value) return; _showEccentricityMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowMeanBackgroundMetric { get => _showMeanBackgroundMetric; set { if (_showMeanBackgroundMetric == value) return; _showMeanBackgroundMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowStarsMetric { get => _showStarsMetric; set { if (_showStarsMetric == value) return; _showStarsMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowScoreMetric { get => _showScoreMetric; set { if (_showScoreMetric == value) return; _showScoreMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+
+    private void OnRejectionCriteriaVisibilityChanged()
+    {
+        PersistProfileUiFlags();
+        if (!_isApplyingProfile && !_isLoadingInitialSettings)
+        {
+            ApplyThresholds();
+        }
+    }
 
     public ObservableCollection<SettingsProfile> SettingsProfiles { get; } = [];
 
@@ -3739,18 +3748,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             var key = NormalizeFilterValue(frame.FilterName);
             var t = GetThresholdsForKey(key);
+            var trailEnabled = ShowTrailSlider && ShowTrailMetric;
+            var fwhmEnabled = ShowFwhmSlider && ShowFwhmMetric;
+            var fwhmArcsecEnabled = ShowFwhmArcsecSlider && ShowFwhmArcsecMetric;
+            var sqmEnabled = ShowSqmSlider && ShowSqmMetric;
+            var skyTempEnabled = ShowSkyTempSlider && ShowSkyTempMetric;
+            var hfrEnabled = ShowHfrSlider && ShowHfrMetric;
+            var eccentricityEnabled = ShowEccentricitySlider && ShowEccentricityMetric;
+            var meanBackgroundEnabled = ShowMeanBackgroundSlider && ShowMeanBackgroundMetric;
+            var starsEnabled = ShowStarsSlider && ShowStarsMetric;
+            var scoreEnabled = ShowScoreSlider && ShowScoreMetric;
+
             var effective = new Thresholds
             {
-                MaxFwhm = t.MaxFwhm,
-                MaxFwhmArcsec = t.MaxFwhmArcsec,
-                MinSqm = t.MinSqm,
-                MaxSkyTemp = t.MaxSkyTemp,
-                MaxHfr = t.MaxHfr,
-                MaxEccentricity = t.MaxEccentricity,
-                MaxMeanBackground = t.MaxMeanBackground,
-                MinStars = t.MinStars,
-                MinSatelliteConfidence = RejectSatelliteTrail ? t.MinSatelliteConfidence : 0,
-                MinScore = t.MinScore,
+                MaxFwhm = fwhmEnabled ? t.MaxFwhm : double.PositiveInfinity,
+                MaxFwhmArcsec = fwhmArcsecEnabled ? t.MaxFwhmArcsec : double.PositiveInfinity,
+                MinSqm = sqmEnabled ? t.MinSqm : double.NegativeInfinity,
+                MaxSkyTemp = skyTempEnabled ? t.MaxSkyTemp : double.PositiveInfinity,
+                MaxHfr = hfrEnabled ? t.MaxHfr : double.PositiveInfinity,
+                MaxEccentricity = eccentricityEnabled ? t.MaxEccentricity : double.PositiveInfinity,
+                MaxMeanBackground = meanBackgroundEnabled ? t.MaxMeanBackground : double.PositiveInfinity,
+                MinStars = starsEnabled ? t.MinStars : double.NegativeInfinity,
+                MinSatelliteConfidence = (RejectSatelliteTrail && trailEnabled) ? t.MinSatelliteConfidence : 0,
+                MinScore = scoreEnabled ? t.MinScore : 0,
             };
 
             var autoRejected = _rejection.ShouldReject(frame, effective);

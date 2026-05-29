@@ -752,7 +752,7 @@
                                 Visibility="{Binding ShowStarsSlider, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Label="Min Stars"
                                 Value="{Binding MinStars, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                Minimum="0" Maximum="1000" TickFrequency="5" LargeChange="50"
+                                Minimum="0" Maximum="20000" TickFrequency="50" LargeChange="500"
                                 Decimals="0"
                                 ShowRejectCount="True"
                                 RejectCount="{Binding StarCountRejectedFrameCount}" />

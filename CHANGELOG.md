@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.34
+### Fixed
+- Ignore metrics for rejection if they are disabled in the current profile.
+
 ## 1.0.33
 ### Changed
 - Improved visibility of the currently selected frame.
