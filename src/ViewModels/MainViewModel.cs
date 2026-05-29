@@ -956,6 +956,288 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => SetScopedThreshold((t, v) => t.AutoCalcScoreThreshold = v, value, nameof(AutoCalcScoreThreshold));
     }
 
+    private Thresholds GetSettingsThresholds() => SelectedSettingsProfile?.Thresholds ?? GetThresholdsForKey(string.Empty);
+
+    public bool SettingsAutoCalcTrailThreshold
+    {
+        get => GetSettingsThresholds().AutoCalcTrailThreshold;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (t.AutoCalcTrailThreshold == value) return;
+            t.AutoCalcTrailThreshold = value;
+            OnPropertyChanged();
+            PersistAppSettings();
+        }
+    }
+
+    public bool SettingsAutoCalcFwhmThreshold
+    {
+        get => GetSettingsThresholds().AutoCalcFwhmThreshold;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (t.AutoCalcFwhmThreshold == value) return;
+            t.AutoCalcFwhmThreshold = value;
+            OnPropertyChanged();
+            PersistAppSettings();
+        }
+    }
+
+    public bool SettingsAutoCalcFwhmArcsecThreshold
+    {
+        get => GetSettingsThresholds().AutoCalcFwhmArcsecThreshold;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (t.AutoCalcFwhmArcsecThreshold == value) return;
+            t.AutoCalcFwhmArcsecThreshold = value;
+            OnPropertyChanged();
+            PersistAppSettings();
+        }
+    }
+
+    public bool SettingsAutoCalcSqmThreshold
+    {
+        get => GetSettingsThresholds().AutoCalcSqmThreshold;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (t.AutoCalcSqmThreshold == value) return;
+            t.AutoCalcSqmThreshold = value;
+            OnPropertyChanged();
+            PersistAppSettings();
+        }
+    }
+
+    public bool SettingsAutoCalcSkyTempThreshold
+    {
+        get => GetSettingsThresholds().AutoCalcSkyTempThreshold;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (t.AutoCalcSkyTempThreshold == value) return;
+            t.AutoCalcSkyTempThreshold = value;
+            OnPropertyChanged();
+            PersistAppSettings();
+        }
+    }
+
+    public bool SettingsAutoCalcHfrThreshold
+    {
+        get => GetSettingsThresholds().AutoCalcHfrThreshold;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (t.AutoCalcHfrThreshold == value) return;
+            t.AutoCalcHfrThreshold = value;
+            OnPropertyChanged();
+            PersistAppSettings();
+        }
+    }
+
+    public bool SettingsAutoCalcEccentricityThreshold
+    {
+        get => GetSettingsThresholds().AutoCalcEccentricityThreshold;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (t.AutoCalcEccentricityThreshold == value) return;
+            t.AutoCalcEccentricityThreshold = value;
+            OnPropertyChanged();
+            PersistAppSettings();
+        }
+    }
+
+    public bool SettingsAutoCalcMeanBackgroundThreshold
+    {
+        get => GetSettingsThresholds().AutoCalcMeanBackgroundThreshold;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (t.AutoCalcMeanBackgroundThreshold == value) return;
+            t.AutoCalcMeanBackgroundThreshold = value;
+            OnPropertyChanged();
+            PersistAppSettings();
+        }
+    }
+
+    public bool SettingsAutoCalcStarsThreshold
+    {
+        get => GetSettingsThresholds().AutoCalcStarsThreshold;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (t.AutoCalcStarsThreshold == value) return;
+            t.AutoCalcStarsThreshold = value;
+            OnPropertyChanged();
+            PersistAppSettings();
+        }
+    }
+
+    public bool SettingsAutoCalcScoreThreshold
+    {
+        get => GetSettingsThresholds().AutoCalcScoreThreshold;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (t.AutoCalcScoreThreshold == value) return;
+            t.AutoCalcScoreThreshold = value;
+            OnPropertyChanged();
+            PersistAppSettings();
+        }
+    }
+
+    public double SettingsMaxFwhm
+    {
+        get => GetSettingsThresholds().MaxFwhm;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (Math.Abs(t.MaxFwhm - value) < double.Epsilon) return;
+            t.MaxFwhm = value;
+            t.AutoCalcFwhmThreshold = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SettingsAutoCalcFwhmThreshold));
+            PersistAppSettings();
+        }
+    }
+
+    public double SettingsMaxFwhmArcsec
+    {
+        get => GetSettingsThresholds().MaxFwhmArcsec;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (Math.Abs(t.MaxFwhmArcsec - value) < double.Epsilon) return;
+            t.MaxFwhmArcsec = value;
+            t.AutoCalcFwhmArcsecThreshold = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SettingsAutoCalcFwhmArcsecThreshold));
+            PersistAppSettings();
+        }
+    }
+
+    public double SettingsMinSqm
+    {
+        get => GetSettingsThresholds().MinSqm;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (Math.Abs(t.MinSqm - value) < double.Epsilon) return;
+            t.MinSqm = value;
+            t.AutoCalcSqmThreshold = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SettingsAutoCalcSqmThreshold));
+            PersistAppSettings();
+        }
+    }
+
+    public double SettingsMaxSkyTemp
+    {
+        get => GetSettingsThresholds().MaxSkyTemp;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (Math.Abs(t.MaxSkyTemp - value) < double.Epsilon) return;
+            t.MaxSkyTemp = value;
+            t.AutoCalcSkyTempThreshold = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SettingsAutoCalcSkyTempThreshold));
+            PersistAppSettings();
+        }
+    }
+
+    public double SettingsMaxHfr
+    {
+        get => GetSettingsThresholds().MaxHfr;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (Math.Abs(t.MaxHfr - value) < double.Epsilon) return;
+            t.MaxHfr = value;
+            t.AutoCalcHfrThreshold = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SettingsAutoCalcHfrThreshold));
+            PersistAppSettings();
+        }
+    }
+
+    public double SettingsMaxEccentricity
+    {
+        get => GetSettingsThresholds().MaxEccentricity;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (Math.Abs(t.MaxEccentricity - value) < double.Epsilon) return;
+            t.MaxEccentricity = value;
+            t.AutoCalcEccentricityThreshold = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SettingsAutoCalcEccentricityThreshold));
+            PersistAppSettings();
+        }
+    }
+
+    public double SettingsMaxMeanBackground
+    {
+        get => GetSettingsThresholds().MaxMeanBackground;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (Math.Abs(t.MaxMeanBackground - value) < double.Epsilon) return;
+            t.MaxMeanBackground = value;
+            t.AutoCalcMeanBackgroundThreshold = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SettingsAutoCalcMeanBackgroundThreshold));
+            PersistAppSettings();
+        }
+    }
+
+    public double SettingsMinStars
+    {
+        get => GetSettingsThresholds().MinStars;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (Math.Abs(t.MinStars - value) < double.Epsilon) return;
+            t.MinStars = value;
+            t.AutoCalcStarsThreshold = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SettingsAutoCalcStarsThreshold));
+            PersistAppSettings();
+        }
+    }
+
+    public double SettingsMinScore
+    {
+        get => GetSettingsThresholds().MinScore;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (Math.Abs(t.MinScore - value) < double.Epsilon) return;
+            t.MinScore = value;
+            t.AutoCalcScoreThreshold = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SettingsAutoCalcScoreThreshold));
+            PersistAppSettings();
+        }
+    }
+
+    public int SettingsMinSatelliteConfidence
+    {
+        get => GetSettingsThresholds().MinSatelliteConfidence;
+        set
+        {
+            var t = GetSettingsThresholds();
+            if (t.MinSatelliteConfidence == value) return;
+            t.MinSatelliteConfidence = value;
+            t.AutoCalcTrailThreshold = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SettingsAutoCalcTrailThreshold));
+            PersistAppSettings();
+        }
+    }
+
     private void OnRejectionCriteriaVisibilityChanged()
     {
         PersistProfileUiFlags();
@@ -1161,7 +1443,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return new SettingsProfile
         {
             Name = SettingsProfile.NormalizeName(name),
-            Thresholds = CloneThresholds(GetThresholdsForKey(string.Empty)),
+            Thresholds = CloneThresholds(GetSettingsThresholds()),
             FilterThresholds = _filterThresholds
                 .Select(kvp => new ProfileFilterThresholds
                 {
@@ -1329,16 +1611,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SelectedSettingsProfile.ScoreWeightHfr = ScoreWeightHfr;
         SelectedSettingsProfile.ScoreWeightStars = ScoreWeightStars;
         SelectedSettingsProfile.ScoreWeightMeanBackground = ScoreWeightMeanBackground;
-        SelectedSettingsProfile.AutoCalcTrailThreshold = AutoCalcTrailThreshold;
-        SelectedSettingsProfile.AutoCalcFwhmThreshold = AutoCalcFwhmThreshold;
-        SelectedSettingsProfile.AutoCalcFwhmArcsecThreshold = AutoCalcFwhmArcsecThreshold;
-        SelectedSettingsProfile.AutoCalcSqmThreshold = AutoCalcSqmThreshold;
-        SelectedSettingsProfile.AutoCalcSkyTempThreshold = AutoCalcSkyTempThreshold;
-        SelectedSettingsProfile.AutoCalcHfrThreshold = AutoCalcHfrThreshold;
-        SelectedSettingsProfile.AutoCalcEccentricityThreshold = AutoCalcEccentricityThreshold;
-        SelectedSettingsProfile.AutoCalcMeanBackgroundThreshold = AutoCalcMeanBackgroundThreshold;
-        SelectedSettingsProfile.AutoCalcStarsThreshold = AutoCalcStarsThreshold;
-        SelectedSettingsProfile.AutoCalcScoreThreshold = AutoCalcScoreThreshold;
+        SelectedSettingsProfile.AutoCalcTrailThreshold = SettingsAutoCalcTrailThreshold;
+        SelectedSettingsProfile.AutoCalcFwhmThreshold = SettingsAutoCalcFwhmThreshold;
+        SelectedSettingsProfile.AutoCalcFwhmArcsecThreshold = SettingsAutoCalcFwhmArcsecThreshold;
+        SelectedSettingsProfile.AutoCalcSqmThreshold = SettingsAutoCalcSqmThreshold;
+        SelectedSettingsProfile.AutoCalcSkyTempThreshold = SettingsAutoCalcSkyTempThreshold;
+        SelectedSettingsProfile.AutoCalcHfrThreshold = SettingsAutoCalcHfrThreshold;
+        SelectedSettingsProfile.AutoCalcEccentricityThreshold = SettingsAutoCalcEccentricityThreshold;
+        SelectedSettingsProfile.AutoCalcMeanBackgroundThreshold = SettingsAutoCalcMeanBackgroundThreshold;
+        SelectedSettingsProfile.AutoCalcStarsThreshold = SettingsAutoCalcStarsThreshold;
+        SelectedSettingsProfile.AutoCalcScoreThreshold = SettingsAutoCalcScoreThreshold;
         SelectedSettingsProfile.IncludeSubfoldersDefault = IncludeSubfolders;
         SelectedSettingsProfile.WatchFolderDefault = WatchFolderEnabled;
         SelectedSettingsProfile.StfTargetBackgroundDefault = StfTargetBackground;
@@ -1378,6 +1660,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => GetScopedDouble(t => t.MaxFwhm);
         set
         {
+            SetScopedAutoCalcFlag((t, v) => t.AutoCalcFwhmThreshold = v, false);
+            OnPropertyChanged(nameof(AutoCalcFwhmThreshold));
             if (Math.Abs(GetScopedDouble(t => t.MaxFwhm) - value) < double.Epsilon) return;
             SetScopedDouble((t, v) => t.MaxFwhm = v, value);
             OnPropertyChanged();
@@ -1391,6 +1675,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => GetScopedDouble(t => t.MaxFwhmArcsec);
         set
         {
+            SetScopedAutoCalcFlag((t, v) => t.AutoCalcFwhmArcsecThreshold = v, false);
+            OnPropertyChanged(nameof(AutoCalcFwhmArcsecThreshold));
             if (Math.Abs(GetScopedDouble(t => t.MaxFwhmArcsec) - value) < double.Epsilon) return;
             SetScopedDouble((t, v) => t.MaxFwhmArcsec = v, value);
             OnPropertyChanged();
@@ -1404,6 +1690,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => GetScopedDouble(t => t.MaxSkyTemp);
         set
         {
+            SetScopedAutoCalcFlag((t, v) => t.AutoCalcSkyTempThreshold = v, false);
+            OnPropertyChanged(nameof(AutoCalcSkyTempThreshold));
             if (Math.Abs(GetScopedDouble(t => t.MaxSkyTemp) - value) < double.Epsilon) return;
             SetScopedDouble((t, v) => t.MaxSkyTemp = v, value);
             OnPropertyChanged();
@@ -1417,6 +1705,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => GetScopedDouble(t => t.MaxHfr);
         set
         {
+            SetScopedAutoCalcFlag((t, v) => t.AutoCalcHfrThreshold = v, false);
+            OnPropertyChanged(nameof(AutoCalcHfrThreshold));
             if (Math.Abs(GetScopedDouble(t => t.MaxHfr) - value) < double.Epsilon) return;
             SetScopedDouble((t, v) => t.MaxHfr = v, value);
             OnPropertyChanged();
@@ -1430,6 +1720,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => GetScopedDouble(t => t.MinSqm);
         set
         {
+            SetScopedAutoCalcFlag((t, v) => t.AutoCalcSqmThreshold = v, false);
+            OnPropertyChanged(nameof(AutoCalcSqmThreshold));
             if (Math.Abs(GetScopedDouble(t => t.MinSqm) - value) < double.Epsilon) return;
             SetScopedDouble((t, v) => t.MinSqm = v, value);
             OnPropertyChanged();
@@ -1443,6 +1735,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => GetScopedDouble(t => t.MaxEccentricity);
         set
         {
+            SetScopedAutoCalcFlag((t, v) => t.AutoCalcEccentricityThreshold = v, false);
+            OnPropertyChanged(nameof(AutoCalcEccentricityThreshold));
             if (Math.Abs(GetScopedDouble(t => t.MaxEccentricity) - value) < double.Epsilon) return;
             SetScopedDouble((t, v) => t.MaxEccentricity = v, value);
             OnPropertyChanged();
@@ -1456,6 +1750,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => GetScopedDouble(t => t.MaxMeanBackground);
         set
         {
+            SetScopedAutoCalcFlag((t, v) => t.AutoCalcMeanBackgroundThreshold = v, false);
+            OnPropertyChanged(nameof(AutoCalcMeanBackgroundThreshold));
             if (Math.Abs(GetScopedDouble(t => t.MaxMeanBackground) - value) < double.Epsilon) return;
             SetScopedDouble((t, v) => t.MaxMeanBackground = v, value);
             OnPropertyChanged();
@@ -1469,6 +1765,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => GetScopedDouble(t => t.MinStars);
         set
         {
+            SetScopedAutoCalcFlag((t, v) => t.AutoCalcStarsThreshold = v, false);
+            OnPropertyChanged(nameof(AutoCalcStarsThreshold));
             if (Math.Abs(GetScopedDouble(t => t.MinStars) - value) < double.Epsilon) return;
             SetScopedDouble((t, v) => t.MinStars = v, value);
             OnPropertyChanged();
@@ -1482,6 +1780,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => GetScopedDouble(t => t.MinScore);
         set
         {
+            SetScopedAutoCalcFlag((t, v) => t.AutoCalcScoreThreshold = v, false);
+            OnPropertyChanged(nameof(AutoCalcScoreThreshold));
             if (Math.Abs(GetScopedDouble(t => t.MinScore) - value) < double.Epsilon) return;
             SetScopedDouble((t, v) => t.MinScore = v, value);
             OnPropertyChanged();
@@ -1507,6 +1807,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => GetScopedInt(t => t.MinSatelliteConfidence);
         set
         {
+            SetScopedAutoCalcFlag((t, v) => t.AutoCalcTrailThreshold = v, false);
+            OnPropertyChanged(nameof(AutoCalcTrailThreshold));
             if (GetScopedInt(t => t.MinSatelliteConfidence) == value) return;
             SetScopedInt((t, v) => t.MinSatelliteConfidence = v, value);
             OnPropertyChanged();
@@ -1841,29 +2143,37 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (!_filterThresholds.TryGetValue(key, out var t))
         {
-            t = new Thresholds
+            if (!string.IsNullOrEmpty(key) && _filterThresholds.TryGetValue(string.Empty, out var baseThresholds))
             {
-                MaxFwhm = 8.0,
-                MaxFwhmArcsec = 20.0,
-                MaxHfr = 4.5,
-                MaxEccentricity = 0.6,
-                MaxMeanBackground = 2000.0,
-                MinStars = 0,
-                MinSqm = 0,
-                MaxSkyTemp = 40.0,
-                MinSatelliteConfidence = 80,
-                MinScore = 0.0,
-                AutoCalcTrailThreshold = true,
-                AutoCalcFwhmThreshold = true,
-                AutoCalcFwhmArcsecThreshold = true,
-                AutoCalcSqmThreshold = true,
-                AutoCalcSkyTempThreshold = true,
-                AutoCalcHfrThreshold = true,
-                AutoCalcEccentricityThreshold = true,
-                AutoCalcMeanBackgroundThreshold = true,
-                AutoCalcStarsThreshold = true,
-                AutoCalcScoreThreshold = true,
-            };
+                t = CloneThresholds(baseThresholds);
+            }
+            else
+            {
+                t = new Thresholds
+                {
+                    MaxFwhm = 8.0,
+                    MaxFwhmArcsec = 20.0,
+                    MaxHfr = 4.5,
+                    MaxEccentricity = 0.6,
+                    MaxMeanBackground = 2000.0,
+                    MinStars = 0,
+                    MinSqm = 0,
+                    MaxSkyTemp = 40.0,
+                    MinSatelliteConfidence = 80,
+                    MinScore = 0.0,
+                    AutoCalcTrailThreshold = true,
+                    AutoCalcFwhmThreshold = true,
+                    AutoCalcFwhmArcsecThreshold = true,
+                    AutoCalcSqmThreshold = true,
+                    AutoCalcSkyTempThreshold = true,
+                    AutoCalcHfrThreshold = true,
+                    AutoCalcEccentricityThreshold = true,
+                    AutoCalcMeanBackgroundThreshold = true,
+                    AutoCalcStarsThreshold = true,
+                    AutoCalcScoreThreshold = true,
+                };
+            }
+
             _filterThresholds[key] = t;
         }
         return t;
@@ -1893,9 +2203,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void SetScopedThreshold(Action<Thresholds, bool> assign, bool value, string propertyName)
     {
-        foreach (var key in GetSelectedScopeKeys())
+        var keys = GetSelectedScopeKeys();
+        foreach (var key in keys)
         {
             assign(GetThresholdsForKey(key), value);
+        }
+
+        var allScopeSelected = RejectionScopeChips.Count == 0 || keys.Count == RejectionScopeChips.Count;
+        if (allScopeSelected && !keys.Contains(string.Empty, StringComparer.OrdinalIgnoreCase))
+        {
+            assign(GetThresholdsForKey(string.Empty), value);
         }
 
         OnPropertyChanged(propertyName);
@@ -1906,17 +2223,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void SetScopedDouble(Action<Thresholds, double> assign, double value)
     {
-        foreach (var key in GetSelectedScopeKeys())
+        var keys = GetSelectedScopeKeys();
+        foreach (var key in keys)
         {
             assign(GetThresholdsForKey(key), value);
+        }
+
+        var allScopeSelected = RejectionScopeChips.Count == 0 || keys.Count == RejectionScopeChips.Count;
+        if (allScopeSelected && !keys.Contains(string.Empty, StringComparer.OrdinalIgnoreCase))
+        {
+            assign(GetThresholdsForKey(string.Empty), value);
         }
     }
 
     private void SetScopedInt(Action<Thresholds, int> assign, int value)
     {
-        foreach (var key in GetSelectedScopeKeys())
+        var keys = GetSelectedScopeKeys();
+        foreach (var key in keys)
         {
             assign(GetThresholdsForKey(key), value);
+        }
+
+        var allScopeSelected = RejectionScopeChips.Count == 0 || keys.Count == RejectionScopeChips.Count;
+        if (allScopeSelected && !keys.Contains(string.Empty, StringComparer.OrdinalIgnoreCase))
+        {
+            assign(GetThresholdsForKey(string.Empty), value);
+        }
+    }
+
+    private void SetScopedAutoCalcFlag(Action<Thresholds, bool> assign, bool value)
+    {
+        var keys = GetSelectedScopeKeys();
+        foreach (var key in keys)
+        {
+            assign(GetThresholdsForKey(key), value);
+        }
+
+        var allScopeSelected = RejectionScopeChips.Count == 0 || keys.Count == RejectionScopeChips.Count;
+        if (allScopeSelected && !keys.Contains(string.Empty, StringComparer.OrdinalIgnoreCase))
+        {
+            assign(GetThresholdsForKey(string.Empty), value);
         }
     }
 
@@ -2013,6 +2359,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(AutoCalcMeanBackgroundThreshold));
         OnPropertyChanged(nameof(AutoCalcStarsThreshold));
         OnPropertyChanged(nameof(AutoCalcScoreThreshold));
+        OnPropertyChanged(nameof(SettingsMinSatelliteConfidence));
+        OnPropertyChanged(nameof(SettingsMaxFwhm));
+        OnPropertyChanged(nameof(SettingsMaxFwhmArcsec));
+        OnPropertyChanged(nameof(SettingsMinSqm));
+        OnPropertyChanged(nameof(SettingsMaxSkyTemp));
+        OnPropertyChanged(nameof(SettingsMaxHfr));
+        OnPropertyChanged(nameof(SettingsMaxEccentricity));
+        OnPropertyChanged(nameof(SettingsMaxMeanBackground));
+        OnPropertyChanged(nameof(SettingsMinStars));
+        OnPropertyChanged(nameof(SettingsMinScore));
+        OnPropertyChanged(nameof(SettingsAutoCalcTrailThreshold));
+        OnPropertyChanged(nameof(SettingsAutoCalcFwhmThreshold));
+        OnPropertyChanged(nameof(SettingsAutoCalcFwhmArcsecThreshold));
+        OnPropertyChanged(nameof(SettingsAutoCalcSqmThreshold));
+        OnPropertyChanged(nameof(SettingsAutoCalcSkyTempThreshold));
+        OnPropertyChanged(nameof(SettingsAutoCalcHfrThreshold));
+        OnPropertyChanged(nameof(SettingsAutoCalcEccentricityThreshold));
+        OnPropertyChanged(nameof(SettingsAutoCalcMeanBackgroundThreshold));
+        OnPropertyChanged(nameof(SettingsAutoCalcStarsThreshold));
+        OnPropertyChanged(nameof(SettingsAutoCalcScoreThreshold));
     }
 
     public bool HasRejectionScopeChips => RejectionScopeChips.Count > 1;
@@ -2838,7 +3204,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 foreach (var ft in session.FilterThresholds)
                 {
-                    _filterThresholds[ft.Key ?? string.Empty] = new Thresholds
+                    var thresholdKey = NormalizeFilterValue(ft.Key);
+                    _filterThresholds[thresholdKey] = new Thresholds
                     {
                         MaxFwhm = ft.MaxFwhm,
                         MaxFwhmArcsec = ft.MaxFwhmArcsec > 0 ? ft.MaxFwhmArcsec : 20.0,
@@ -2861,6 +3228,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         AutoCalcStarsThreshold = ft.AutoCalcStarsThreshold,
                         AutoCalcScoreThreshold = ft.AutoCalcScoreThreshold,
                     };
+                }
+
+                if (!_filterThresholds.ContainsKey(string.Empty) && _filterThresholds.Count > 0)
+                {
+                    _filterThresholds[string.Empty] = CloneThresholds(_filterThresholds.Values.First());
                 }
             }
             else
@@ -3087,6 +3459,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     if (newLoaded > 0)
                     {
                         UpdateFrameComparisons();
+                        InitializeThresholdsFromLoadedFrames(preserveExisting: true);
+                        ApplyThresholds();
                     }
 
                     Status = $"Session restored with {session.Frames.Count} saved frame(s) + {newLoaded} new frame(s). {newSkipped} skipped.";
@@ -4181,10 +4555,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var starsEnabled = ShowStarsSlider && ShowStarsMetric;
             var scoreEnabled = ShowScoreSlider && ShowScoreMetric;
 
-            if (t.AutoCalcFwhmThreshold)
+            if (fwhmEnabled && t.AutoCalcFwhmThreshold)
                 t.MaxFwhm = Frames.Where(f => string.Equals(NormalizeFilterValue(f.FilterName), key, StringComparison.OrdinalIgnoreCase)).DefaultIfEmpty(frame).Max(f => f.Metrics.Fwhm);
 
-            if (t.AutoCalcFwhmArcsecThreshold)
+            if (fwhmArcsecEnabled && t.AutoCalcFwhmArcsecThreshold)
             {
                 var fwhmArcsecValues = Frames.Where(f => string.Equals(NormalizeFilterValue(f.FilterName), key, StringComparison.OrdinalIgnoreCase) && f.Metrics.FwhmArcsec.HasValue)
                     .Select(f => f.Metrics.FwhmArcsec!.Value)
@@ -4192,7 +4566,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 t.MaxFwhmArcsec = fwhmArcsecValues.Count > 0 ? fwhmArcsecValues.Max() : 20.0;
             }
 
-            if (t.AutoCalcSqmThreshold)
+            if (sqmEnabled && t.AutoCalcSqmThreshold)
             {
                 var sqmValues = Frames.Where(f => string.Equals(NormalizeFilterValue(f.FilterName), key, StringComparison.OrdinalIgnoreCase) && f.Metrics.Sqm.HasValue)
                     .Select(f => f.Metrics.Sqm!.Value)
@@ -4200,7 +4574,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 t.MinSqm = sqmValues.Count > 0 ? sqmValues.Min() : 0.0;
             }
 
-            if (t.AutoCalcSkyTempThreshold)
+            if (skyTempEnabled && t.AutoCalcSkyTempThreshold)
             {
                 var skyTempValues = Frames.Where(f => string.Equals(NormalizeFilterValue(f.FilterName), key, StringComparison.OrdinalIgnoreCase) && f.Metrics.SkyTemp.HasValue)
                     .Select(f => f.Metrics.SkyTemp!.Value)
@@ -4208,22 +4582,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 t.MaxSkyTemp = skyTempValues.Count > 0 ? skyTempValues.Max() : 40.0;
             }
 
-            if (t.AutoCalcHfrThreshold)
+            if (hfrEnabled && t.AutoCalcHfrThreshold)
                 t.MaxHfr = Frames.Where(f => string.Equals(NormalizeFilterValue(f.FilterName), key, StringComparison.OrdinalIgnoreCase)).DefaultIfEmpty(frame).Max(f => f.Metrics.Hfr);
 
-            if (t.AutoCalcEccentricityThreshold)
+            if (eccentricityEnabled && t.AutoCalcEccentricityThreshold)
                 t.MaxEccentricity = Frames.Where(f => string.Equals(NormalizeFilterValue(f.FilterName), key, StringComparison.OrdinalIgnoreCase)).DefaultIfEmpty(frame).Max(f => f.Metrics.Eccentricity);
 
-            if (t.AutoCalcMeanBackgroundThreshold)
+            if (meanBackgroundEnabled && t.AutoCalcMeanBackgroundThreshold)
                 t.MaxMeanBackground = Frames.Where(f => string.Equals(NormalizeFilterValue(f.FilterName), key, StringComparison.OrdinalIgnoreCase)).DefaultIfEmpty(frame).Max(f => f.Metrics.MeanBackground);
 
-            if (t.AutoCalcStarsThreshold)
+            if (starsEnabled && t.AutoCalcStarsThreshold)
                 t.MinStars = Frames.Where(f => string.Equals(NormalizeFilterValue(f.FilterName), key, StringComparison.OrdinalIgnoreCase)).DefaultIfEmpty(frame).Min(f => (double)f.Metrics.StarCount);
 
-            if (t.AutoCalcTrailThreshold)
+            if (trailEnabled && t.AutoCalcTrailThreshold)
                 t.MinSatelliteConfidence = 80;
 
-            if (t.AutoCalcScoreThreshold)
+            if (scoreEnabled && t.AutoCalcScoreThreshold)
                 t.MinScore = 0.0;
 
             var effective = new Thresholds

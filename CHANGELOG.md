@@ -6,11 +6,11 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Improved reliability of app startup and settings migration when loading data from older versions. The app now normalizes and validates migrated settings data before applying it, and if critical incompatibilities are detected, it creates a backup of the old settings and retries launch with fresh defaults instead of failing to start.
 - Redesigned the Settings overlay metric controls into one harmonized table per metric: **Visibility** (slider/metric), **Thresholds** (auto/value), and **Score** (use/weight) are now grouped side-by-side for faster tuning.
-- Metric settings rows now use fixed heights so the UI no longer jumps when controls are shown/hidden.
+
 ### Fixed
 - Saved custom threshold values in settings profiles are now correctly persisted and restored, including both the numeric threshold values and the auto/manual state of the score threshold.
 - Score calculation now correctly honors the new per-metric **Use** toggles.
-- Custom threshold values are no longer overwritten when loading a folder with existing threshold settings.
+- Custom threshold values are no longer overwritten when loading a folder.
 
 ## 1.0.35
 ### Added

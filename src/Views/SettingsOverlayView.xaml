@@ -178,20 +178,19 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding ShowTrailSlider}" Value="False" />
-                                                <Condition Binding="{Binding ShowTrailMetric}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
+                                        <DataTrigger Binding="{Binding ShowTrailSlider}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                        </MultiDataTrigger>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ShowTrailMetric}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox IsChecked="{Binding AutoCalcTrailThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <CheckBox IsChecked="{Binding SettingsAutoCalcTrailThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
                             <controls:MetricSliderControl Width="210" Margin="12,-6,0,0"
-                                                          Visibility="{Binding AutoCalcTrailThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
-                                                          Value="{Binding MinSatelliteConfidence, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Visibility="{Binding SettingsAutoCalcTrailThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                          Value="{Binding SettingsMinSatelliteConfidence, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                           Minimum="1" Maximum="100" TickFrequency="5" LargeChange="10"
                                                           Decimals="0" Suffix="%" />
                         </StackPanel>
@@ -215,20 +214,19 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding ShowFwhmSlider}" Value="False" />
-                                                <Condition Binding="{Binding ShowFwhmMetric}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
+                                        <DataTrigger Binding="{Binding ShowFwhmSlider}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                        </MultiDataTrigger>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ShowFwhmMetric}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox IsChecked="{Binding AutoCalcFwhmThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <CheckBox IsChecked="{Binding SettingsAutoCalcFwhmThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
                             <controls:MetricSliderControl Width="210" Margin="12,-6,0,0"
-                                                          Visibility="{Binding AutoCalcFwhmThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
-                                                          Value="{Binding MaxFwhm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Visibility="{Binding SettingsAutoCalcFwhmThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                          Value="{Binding SettingsMaxFwhm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                           Minimum="0" Maximum="15" TickFrequency="0.25" LargeChange="1"
                                                           Decimals="2" />
                         </StackPanel>
@@ -252,20 +250,19 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding ShowFwhmArcsecSlider}" Value="False" />
-                                                <Condition Binding="{Binding ShowFwhmArcsecMetric}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
+                                        <DataTrigger Binding="{Binding ShowFwhmArcsecSlider}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                        </MultiDataTrigger>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ShowFwhmArcsecMetric}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox IsChecked="{Binding AutoCalcFwhmArcsecThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <CheckBox IsChecked="{Binding SettingsAutoCalcFwhmArcsecThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
                             <controls:MetricSliderControl Width="210" Margin="12,-6,0,0"
-                                                          Visibility="{Binding AutoCalcFwhmArcsecThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
-                                                          Value="{Binding MaxFwhmArcsec, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Visibility="{Binding SettingsAutoCalcFwhmArcsecThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                          Value="{Binding SettingsMaxFwhmArcsec, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                           Minimum="0" Maximum="30" TickFrequency="0.1" LargeChange="1"
                                                           Decimals="2" />
                         </StackPanel>
@@ -281,20 +278,19 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding ShowSqmSlider}" Value="False" />
-                                                <Condition Binding="{Binding ShowSqmMetric}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
+                                        <DataTrigger Binding="{Binding ShowSqmSlider}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                        </MultiDataTrigger>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ShowSqmMetric}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox IsChecked="{Binding AutoCalcSqmThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <CheckBox IsChecked="{Binding SettingsAutoCalcSqmThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
                             <controls:MetricSliderControl Width="210" Margin="12,-6,0,0"
-                                                          Visibility="{Binding AutoCalcSqmThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
-                                                          Value="{Binding MinSqm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Visibility="{Binding SettingsAutoCalcSqmThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                          Value="{Binding SettingsMinSqm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                           Minimum="0" Maximum="30" TickFrequency="0.05" LargeChange="1"
                                                           Decimals="2" />
                         </StackPanel>
@@ -310,20 +306,19 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding ShowSkyTempSlider}" Value="False" />
-                                                <Condition Binding="{Binding ShowSkyTempMetric}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
+                                        <DataTrigger Binding="{Binding ShowSkyTempSlider}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                        </MultiDataTrigger>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ShowSkyTempMetric}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox IsChecked="{Binding AutoCalcSkyTempThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <CheckBox IsChecked="{Binding SettingsAutoCalcSkyTempThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
                             <controls:MetricSliderControl Width="210" Margin="12,-6,0,0"
-                                                          Visibility="{Binding AutoCalcSkyTempThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
-                                                          Value="{Binding MaxSkyTemp, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Visibility="{Binding SettingsAutoCalcSkyTempThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                          Value="{Binding SettingsMaxSkyTemp, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                           Minimum="-50" Maximum="50" TickFrequency="1" LargeChange="5"
                                                           Decimals="1" />
                         </StackPanel>
@@ -339,20 +334,19 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding ShowHfrSlider}" Value="False" />
-                                                <Condition Binding="{Binding ShowHfrMetric}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
+                                        <DataTrigger Binding="{Binding ShowHfrSlider}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                        </MultiDataTrigger>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ShowHfrMetric}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox IsChecked="{Binding AutoCalcHfrThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <CheckBox IsChecked="{Binding SettingsAutoCalcHfrThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
                             <controls:MetricSliderControl Width="210" Margin="12,-6,0,0"
-                                                          Visibility="{Binding AutoCalcHfrThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
-                                                          Value="{Binding MaxHfr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Visibility="{Binding SettingsAutoCalcHfrThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                          Value="{Binding SettingsMaxHfr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                           Minimum="0" Maximum="10" TickFrequency="0.1" LargeChange="1"
                                                           Decimals="2" />
                         </StackPanel>
@@ -376,20 +370,19 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding ShowEccentricitySlider}" Value="False" />
-                                                <Condition Binding="{Binding ShowEccentricityMetric}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
+                                        <DataTrigger Binding="{Binding ShowEccentricitySlider}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                        </MultiDataTrigger>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ShowEccentricityMetric}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox IsChecked="{Binding AutoCalcEccentricityThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <CheckBox IsChecked="{Binding SettingsAutoCalcEccentricityThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
                             <controls:MetricSliderControl Width="210" Margin="12,-6,0,0"
-                                                          Visibility="{Binding AutoCalcEccentricityThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
-                                                          Value="{Binding MaxEccentricity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Visibility="{Binding SettingsAutoCalcEccentricityThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                          Value="{Binding SettingsMaxEccentricity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                           Minimum="0" Maximum="1" TickFrequency="0.01" LargeChange="0.1"
                                                           Decimals="3" />
                         </StackPanel>
@@ -413,20 +406,19 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding ShowMeanBackgroundSlider}" Value="False" />
-                                                <Condition Binding="{Binding ShowMeanBackgroundMetric}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
+                                        <DataTrigger Binding="{Binding ShowMeanBackgroundSlider}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                        </MultiDataTrigger>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ShowMeanBackgroundMetric}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox IsChecked="{Binding AutoCalcMeanBackgroundThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <CheckBox IsChecked="{Binding SettingsAutoCalcMeanBackgroundThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
                             <controls:MetricSliderControl Width="210" Margin="12,-6,0,0"
-                                                          Visibility="{Binding AutoCalcMeanBackgroundThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
-                                                          Value="{Binding MaxMeanBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Visibility="{Binding SettingsAutoCalcMeanBackgroundThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                          Value="{Binding SettingsMaxMeanBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                           Minimum="0" Maximum="10000" TickFrequency="50" LargeChange="500"
                                                           Decimals="1" />
                         </StackPanel>
@@ -450,20 +442,19 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding ShowStarsSlider}" Value="False" />
-                                                <Condition Binding="{Binding ShowStarsMetric}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
+                                        <DataTrigger Binding="{Binding ShowStarsSlider}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                        </MultiDataTrigger>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ShowStarsMetric}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox IsChecked="{Binding AutoCalcStarsThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <CheckBox IsChecked="{Binding SettingsAutoCalcStarsThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
                             <controls:MetricSliderControl Width="210" Margin="12,-6,0,0"
-                                                          Visibility="{Binding AutoCalcStarsThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
-                                                          Value="{Binding MinStars, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Visibility="{Binding SettingsAutoCalcStarsThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                          Value="{Binding SettingsMinStars, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                           Minimum="0" Maximum="20000" TickFrequency="50" LargeChange="500"
                                                           Decimals="0" />
                         </StackPanel>
@@ -487,20 +478,19 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding ShowScoreSlider}" Value="False" />
-                                                <Condition Binding="{Binding ShowScoreMetric}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
+                                        <DataTrigger Binding="{Binding ShowScoreSlider}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                        </MultiDataTrigger>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ShowScoreMetric}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox IsChecked="{Binding AutoCalcScoreThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <CheckBox IsChecked="{Binding SettingsAutoCalcScoreThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
                             <controls:MetricSliderControl Width="210" Margin="12,-6,0,0"
-                                                          Visibility="{Binding AutoCalcScoreThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
-                                                          Value="{Binding MinScore, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Visibility="{Binding SettingsAutoCalcScoreThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                          Value="{Binding SettingsMinScore, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                           Minimum="0" Maximum="5" TickFrequency="0.1" LargeChange="0.5"
                                                           Decimals="1" />
                         </StackPanel>
