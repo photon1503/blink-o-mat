@@ -82,6 +82,17 @@ public sealed class SessionFilterThresholds
     public double MaxSkyTemp { get; set; }
     public int MinSatelliteConfidence { get; set; }
     public double MinScore { get; set; }
+
+    public bool AutoCalcTrailThreshold { get; set; } = true;
+    public bool AutoCalcFwhmThreshold { get; set; } = true;
+    public bool AutoCalcFwhmArcsecThreshold { get; set; } = true;
+    public bool AutoCalcSqmThreshold { get; set; } = true;
+    public bool AutoCalcSkyTempThreshold { get; set; } = true;
+    public bool AutoCalcHfrThreshold { get; set; } = true;
+    public bool AutoCalcEccentricityThreshold { get; set; } = true;
+    public bool AutoCalcMeanBackgroundThreshold { get; set; } = true;
+    public bool AutoCalcStarsThreshold { get; set; } = true;
+    public bool AutoCalcScoreThreshold { get; set; } = true;
 }
 
 public sealed class SessionFrameEntry

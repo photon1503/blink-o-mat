@@ -3,7 +3,12 @@
 All notable changes to this project will be documented in this file.
 
 ## 1.0.34
+### Changed
+- Main window title now includes the active settings profile next to the app version, e.g. `Rejector 1.0.34 (Profile: Default)`.
+- Settings overlay content is now vertically scrollable, making all settings reachable on smaller window heights.
+
 ### Fixed
+- Added a global `BoolToVisibilityConverter` resource registration to prevent XAML parse failures when opening the Settings overlay.
 - Ignore metrics for rejection if they are disabled in the current profile.
 
 ## 1.0.33

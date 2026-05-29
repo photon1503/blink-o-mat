@@ -42,7 +42,9 @@
                     Background="{StaticResource PanelBackgroundBrush}"
                     BorderBrush="{StaticResource PanelBorderBrush}"
                     BorderThickness="1" Padding="10">
-                <StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
                     <Border Background="#14171A" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,10">
                         <StackPanel>
                             <TextBlock Text="Profile management" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8" />
@@ -122,6 +124,114 @@
                     </Grid>
 
                     <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,0,0,8">
+                        <TextBlock Text="THRESHOLDS" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
+                    </Border>
+                    <Grid HorizontalAlignment="Left" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="96" />
+                            <ColumnDefinition Width="220" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Column="0" Grid.Row="0" Text="Metric" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Grid.Row="0" Text="Auto" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
+                        <TextBlock Grid.Column="2" Grid.Row="0" Text="User threshold" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" VerticalAlignment="Center" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="1" Text="Trail confidence" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="1" IsChecked="{Binding AutoCalcTrailThreshold, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="2" Grid.Row="1" Width="210"
+                                                      Visibility="{Binding AutoCalcTrailThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                      Value="{Binding MinSatelliteConfidence, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="1" Maximum="100" TickFrequency="5" LargeChange="10"
+                                                      Decimals="0" Suffix="%" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="2" Text="FWHM (px)" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="2" IsChecked="{Binding AutoCalcFwhmThreshold, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="2" Grid.Row="2" Width="210"
+                                                      Visibility="{Binding AutoCalcFwhmThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                      Value="{Binding MaxFwhm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="15" TickFrequency="0.25" LargeChange="1"
+                                                      Decimals="2" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="3" Text="FWHM (arcsec)" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="3" IsChecked="{Binding AutoCalcFwhmArcsecThreshold, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="2" Grid.Row="3" Width="210"
+                                                      Visibility="{Binding AutoCalcFwhmArcsecThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                      Value="{Binding MaxFwhmArcsec, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="30" TickFrequency="0.1" LargeChange="1"
+                                                      Decimals="2" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="4" Text="SQM" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="4" IsChecked="{Binding AutoCalcSqmThreshold, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="2" Grid.Row="4" Width="210"
+                                                      Visibility="{Binding AutoCalcSqmThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                      Value="{Binding MinSqm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="30" TickFrequency="0.05" LargeChange="1"
+                                                      Decimals="2" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="5" Text="Sky temp" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="5" IsChecked="{Binding AutoCalcSkyTempThreshold, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="2" Grid.Row="5" Width="210"
+                                                      Visibility="{Binding AutoCalcSkyTempThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                      Value="{Binding MaxSkyTemp, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="-50" Maximum="50" TickFrequency="1" LargeChange="5"
+                                                      Decimals="1" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="6" Text="HFR" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="6" IsChecked="{Binding AutoCalcHfrThreshold, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="2" Grid.Row="6" Width="210"
+                                                      Visibility="{Binding AutoCalcHfrThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                      Value="{Binding MaxHfr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="10" TickFrequency="0.1" LargeChange="1"
+                                                      Decimals="2" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="7" Text="Eccentricity" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="7" IsChecked="{Binding AutoCalcEccentricityThreshold, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="2" Grid.Row="7" Width="210"
+                                                      Visibility="{Binding AutoCalcEccentricityThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                      Value="{Binding MaxEccentricity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="1" TickFrequency="0.01" LargeChange="0.1"
+                                                      Decimals="3" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="8" Text="Mean background" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="8" IsChecked="{Binding AutoCalcMeanBackgroundThreshold, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="2" Grid.Row="8" Width="210"
+                                                      Visibility="{Binding AutoCalcMeanBackgroundThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                      Value="{Binding MaxMeanBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="10000" TickFrequency="50" LargeChange="500"
+                                                      Decimals="1" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="9" Text="Stars" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="9" IsChecked="{Binding AutoCalcStarsThreshold, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="2" Grid.Row="9" Width="210"
+                                                      Visibility="{Binding AutoCalcStarsThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                      Value="{Binding MinStars, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="20000" TickFrequency="50" LargeChange="500"
+                                                      Decimals="0" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="10" Text="Score" Margin="0,4,0,4" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Grid.Row="10" IsChecked="{Binding AutoCalcScoreThreshold, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="2" Grid.Row="10" Width="210"
+                                                      Visibility="{Binding AutoCalcScoreThreshold, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                                      Value="{Binding MinScore, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="5" TickFrequency="0.1" LargeChange="0.5"
+                                                      Decimals="1" />
+                    </Grid>
+
+                    <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,0,0,8">
                         <TextBlock Text="VISIBILITY" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
                     </Border>
                     <Grid HorizontalAlignment="Left">
@@ -189,6 +299,7 @@
                         <CheckBox Grid.Column="2" Grid.Row="10" IsChecked="{Binding ShowScoreMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1" />
                     </Grid>
                 </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
     </Border>

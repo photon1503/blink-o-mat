@@ -36,6 +36,17 @@ public sealed class SettingsProfile
     public bool ShowStarsMetric { get; set; } = true;
     public bool ShowScoreMetric { get; set; } = true;
 
+    public bool AutoCalcTrailThreshold { get; set; } = true;
+    public bool AutoCalcFwhmThreshold { get; set; } = true;
+    public bool AutoCalcFwhmArcsecThreshold { get; set; } = true;
+    public bool AutoCalcSqmThreshold { get; set; } = true;
+    public bool AutoCalcSkyTempThreshold { get; set; } = true;
+    public bool AutoCalcHfrThreshold { get; set; } = true;
+    public bool AutoCalcEccentricityThreshold { get; set; } = true;
+    public bool AutoCalcMeanBackgroundThreshold { get; set; } = true;
+    public bool AutoCalcStarsThreshold { get; set; } = true;
+    public bool AutoCalcScoreThreshold { get; set; } = true;
+
     public static string NormalizeName(string? raw)
     {
         var n = (raw ?? string.Empty).Trim();

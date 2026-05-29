@@ -24,21 +24,29 @@ namespace blink_o_mat
             if (DataContext is MainViewModel vm)
             {
                 vm.PropertyChanged += Vm_PropertyChanged;
+                Title = BuildTitle(vm.SelectedProfileName);
+            }
+            else
+            {
+                Title = BuildTitle();
             }
             SourceInitialized += (_, _) => WindowTitleBarStyler.Apply(this);
             Activated += MainWindow_Activated;
             WindowPlacementService.RestoreMainWindow(this);
             Closing += MainWindow_Closing;
-            Title = BuildTitle();
         }
 
-        private static string BuildTitle()
+        private static string BuildTitle(string? selectedProfileName = null)
         {
             var v = Assembly.GetEntryAssembly()?.GetName().Version;
+            var profileSuffix = string.IsNullOrWhiteSpace(selectedProfileName)
+                ? string.Empty
+                : $" (Profile: {selectedProfileName})";
+
             // Version 1.0.0.0 is the default (unstamped dev build) — omit it.
             if (v is null || v == new Version(1, 0, 0, 0))
-                return "Rejector";
-            return $"Rejector {v.Major}.{v.Minor}.{v.Build}";
+                return $"Rejector{profileSuffix}";
+            return $"Rejector {v.Major}.{v.Minor}.{v.Build}{profileSuffix}";
         }
 
         private void RejectButton_Click(object sender, System.Windows.RoutedEventArgs e)
@@ -118,6 +126,12 @@ namespace blink_o_mat
         {
             if (sender is not MainViewModel vm)
             {
+                return;
+            }
+
+            if (e.PropertyName == nameof(MainViewModel.SelectedProfileName))
+            {
+                Title = BuildTitle(vm.SelectedProfileName);
                 return;
             }
 

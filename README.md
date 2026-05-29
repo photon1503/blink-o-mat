@@ -86,6 +86,7 @@ The main window is divided into three areas:
 - **Left sidebar** — *Frame summary*, *Stretch*, *ROI*, *Automatic rejection*, 
 - **Frame list** (right) — one row per frame with thumbnail, ROI preview, metric chips, score, star rating, and a **Reject / Keep** button.
 - **Bottom** - status bar and performance indicators
+- **Title bar** — shows app version and the currently selected settings profile, e.g. `Rejector 1.0.34 (Profile: Default)`.
 
 ### The frame list
 
@@ -230,6 +231,8 @@ Per-filter slider positions are remembered in the session file, so you don't hav
 ## Settings overlay & profiles
 
 Open settings via the **gear icon** in the top toolbar. The settings page overlays the main workspace so you can configure session behavior without leaving the main window.
+
+The overlay includes a **vertical scrollbar** when content exceeds the available height, so all sections remain accessible even on smaller displays.
 
 ### Profile defaults
 
