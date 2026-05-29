@@ -1055,24 +1055,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
+    private static Thresholds CloneThresholds(Thresholds thresholds)
+    {
+        return new Thresholds
+        {
+            MaxFwhm = thresholds.MaxFwhm,
+            MaxFwhmArcsec = thresholds.MaxFwhmArcsec,
+            MinSqm = thresholds.MinSqm,
+            MaxSkyTemp = thresholds.MaxSkyTemp,
+            MaxHfr = thresholds.MaxHfr,
+            MaxEccentricity = thresholds.MaxEccentricity,
+            MaxMeanBackground = thresholds.MaxMeanBackground,
+            MinStars = thresholds.MinStars,
+            MinSatelliteConfidence = thresholds.MinSatelliteConfidence,
+            MinScore = thresholds.MinScore,
+            AutoCalcTrailThreshold = thresholds.AutoCalcTrailThreshold,
+            AutoCalcFwhmThreshold = thresholds.AutoCalcFwhmThreshold,
+            AutoCalcFwhmArcsecThreshold = thresholds.AutoCalcFwhmArcsecThreshold,
+            AutoCalcSqmThreshold = thresholds.AutoCalcSqmThreshold,
+            AutoCalcSkyTempThreshold = thresholds.AutoCalcSkyTempThreshold,
+            AutoCalcHfrThreshold = thresholds.AutoCalcHfrThreshold,
+            AutoCalcEccentricityThreshold = thresholds.AutoCalcEccentricityThreshold,
+            AutoCalcMeanBackgroundThreshold = thresholds.AutoCalcMeanBackgroundThreshold,
+            AutoCalcStarsThreshold = thresholds.AutoCalcStarsThreshold,
+            AutoCalcScoreThreshold = thresholds.AutoCalcScoreThreshold,
+        };
+    }
+
     private static SettingsProfile CloneProfile(SettingsProfile profile)
     {
         return new SettingsProfile
         {
             Name = SettingsProfile.NormalizeName(profile.Name),
-            Thresholds = new Thresholds
-            {
-                MaxFwhm = profile.Thresholds.MaxFwhm,
-                MaxFwhmArcsec = profile.Thresholds.MaxFwhmArcsec,
-                MinSqm = profile.Thresholds.MinSqm,
-                MaxSkyTemp = profile.Thresholds.MaxSkyTemp,
-                MaxHfr = profile.Thresholds.MaxHfr,
-                MaxEccentricity = profile.Thresholds.MaxEccentricity,
-                MaxMeanBackground = profile.Thresholds.MaxMeanBackground,
-                MinStars = profile.Thresholds.MinStars,
-                MinSatelliteConfidence = profile.Thresholds.MinSatelliteConfidence,
-                MinScore = profile.Thresholds.MinScore,
-            },
+            Thresholds = CloneThresholds(profile.Thresholds),
+            FilterThresholds = profile.FilterThresholds
+                .Select(t => new ProfileFilterThresholds
+                {
+                    Key = t.Key,
+                    Thresholds = CloneThresholds(t.Thresholds)
+                })
+                .ToList(),
             IncludeSubfoldersDefault = profile.IncludeSubfoldersDefault,
             WatchFolderDefault = profile.WatchFolderDefault,
             StfTargetBackgroundDefault = profile.StfTargetBackgroundDefault,
@@ -1120,19 +1142,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return new SettingsProfile
         {
             Name = SettingsProfile.NormalizeName(name),
-            Thresholds = new Thresholds
-            {
-                MaxFwhm = MaxFwhm,
-                MaxFwhmArcsec = MaxFwhmArcsec,
-                MinSqm = MinSqm,
-                MaxSkyTemp = MaxSkyTemp,
-                MaxHfr = MaxHfr,
-                MaxEccentricity = MaxEccentricity,
-                MaxMeanBackground = MaxMeanBackground,
-                MinStars = MinStars,
-                MinSatelliteConfidence = MinSatelliteConfidence,
-                MinScore = MinScore,
-            },
+            Thresholds = CloneThresholds(GetThresholdsForKey(string.Empty)),
+            FilterThresholds = _filterThresholds
+                .Select(kvp => new ProfileFilterThresholds
+                {
+                    Key = kvp.Key,
+                    Thresholds = CloneThresholds(kvp.Value)
+                })
+                .ToList(),
             IncludeSubfoldersDefault = IncludeSubfolders,
             WatchFolderDefault = WatchFolderEnabled,
             StfTargetBackgroundDefault = StfTargetBackground,
@@ -1180,17 +1197,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _isApplyingProfile = true;
         try
         {
-            var t = GetThresholdsForKey(string.Empty);
-            t.MaxFwhm = profile.Thresholds.MaxFwhm;
-            t.MaxFwhmArcsec = profile.Thresholds.MaxFwhmArcsec;
-            t.MinSqm = profile.Thresholds.MinSqm;
-            t.MaxSkyTemp = profile.Thresholds.MaxSkyTemp;
-            t.MaxHfr = profile.Thresholds.MaxHfr;
-            t.MaxEccentricity = profile.Thresholds.MaxEccentricity;
-            t.MaxMeanBackground = profile.Thresholds.MaxMeanBackground;
-            t.MinStars = profile.Thresholds.MinStars;
-            t.MinSatelliteConfidence = profile.Thresholds.MinSatelliteConfidence;
-            t.MinScore = profile.Thresholds.MinScore;
+            _filterThresholds.Clear();
+
+            if (profile.FilterThresholds.Count > 0)
+            {
+                foreach (var filterThresholds in profile.FilterThresholds)
+                {
+                    _filterThresholds[NormalizeFilterValue(filterThresholds.Key)] = CloneThresholds(filterThresholds.Thresholds);
+                }
+            }
+            else
+            {
+                _filterThresholds[string.Empty] = CloneThresholds(profile.Thresholds);
+            }
+
+            if (!_filterThresholds.ContainsKey(string.Empty))
+            {
+                _filterThresholds[string.Empty] = CloneThresholds(profile.Thresholds);
+            }
 
             IncludeSubfolders = profile.IncludeSubfoldersDefault;
             WatchFolderEnabled = profile.WatchFolderDefault;
@@ -1222,16 +1246,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ScoreWeightHfr = profile.ScoreWeightHfr;
             ScoreWeightStars = profile.ScoreWeightStars;
             ScoreWeightMeanBackground = profile.ScoreWeightMeanBackground;
-            AutoCalcTrailThreshold = profile.AutoCalcTrailThreshold;
-            AutoCalcFwhmThreshold = profile.AutoCalcFwhmThreshold;
-            AutoCalcFwhmArcsecThreshold = profile.AutoCalcFwhmArcsecThreshold;
-            AutoCalcSqmThreshold = profile.AutoCalcSqmThreshold;
-            AutoCalcSkyTempThreshold = profile.AutoCalcSkyTempThreshold;
-            AutoCalcHfrThreshold = profile.AutoCalcHfrThreshold;
-            AutoCalcEccentricityThreshold = profile.AutoCalcEccentricityThreshold;
-            AutoCalcMeanBackgroundThreshold = profile.AutoCalcMeanBackgroundThreshold;
-            AutoCalcStarsThreshold = profile.AutoCalcStarsThreshold;
-            AutoCalcScoreThreshold = profile.AutoCalcScoreThreshold;
 
             RaiseAllThresholdPropertiesChanged();
             UpdateFrameComparisons();

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace blink_o_mat.Models;
 
@@ -7,6 +8,8 @@ public sealed class SettingsProfile
     public string Name { get; set; } = "Default";
 
     public Thresholds Thresholds { get; set; } = new();
+
+    public List<ProfileFilterThresholds> FilterThresholds { get; set; } = [];
 
     public bool IncludeSubfoldersDefault { get; set; } = false;
 
@@ -59,4 +62,11 @@ public sealed class SettingsProfile
         var n = (raw ?? string.Empty).Trim();
         return string.IsNullOrWhiteSpace(n) ? "Default" : n;
     }
+}
+
+public sealed class ProfileFilterThresholds
+{
+    public string Key { get; set; } = string.Empty;
+
+    public Thresholds Thresholds { get; set; } = new();
 }
