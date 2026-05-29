@@ -191,10 +191,11 @@ The *Automatic rejection* card has one slider per threshold. Each slider has a l
 
 ![alt text](src/image-7.png)
 
-| Threshold | Direction | Default |
+| Threshold | Direction | Default user threshold |
 |---|---|---|
 | Min. trail confidence | min (0 = disabled) | 80 % |
-| Max FWHM | max | 8.0 px |
+| Max FWHM (px) | max | 8.0 px |
+| Max FWHM (arcsec) | max | 20.0" |
 | Min SQM | min | 0 (disabled) |
 | Max sky temperature | max | 40 °C |
 | Max HFR | max | 4.5 px |
@@ -202,6 +203,12 @@ The *Automatic rejection* card has one slider per threshold. Each slider has a l
 | Max mean background | max | 2000 ADU |
 | Min stars | min | 0 (disabled) |
 | Min score | min | 0 (disabled) |
+
+In Settings, each threshold has:
+- **Auto** toggle: when enabled, Rejector calculates the threshold automatically.
+- **User threshold** value: used when **Auto** is disabled for that row.
+
+Both **Auto** state and **User threshold** values are saved per profile (and per filter scope where applicable).
 
 You also get:
 
@@ -232,7 +239,7 @@ Per-filter slider positions are remembered in the session file, so you don't hav
 
 Open settings via the **gear icon** in the top toolbar. The settings page overlays the main workspace so you can configure session behavior without leaving the main window.
 
-The overlay includes a **vertical scrollbar** when content exceeds the available height, so all sections remain accessible even on smaller displays.
+
 
 ### Profile defaults
 
@@ -244,7 +251,8 @@ Settings can be organized in **profiles**. In the profile section you can:
 
 Each profile stores:
 
-- Automatic rejection thresholds (FWHM, HFR, SQM, sky temp, eccentricity, mean background, stars, score, trail confidence).
+- Automatic rejection **user thresholds** (trail confidence, FWHM px, FWHM arcsec, SQM, sky temp, HFR, eccentricity, mean background, stars, score).
+- Per-threshold **Auto/manual** flags (the **Auto** column in the settings threshold matrix).
 - Per-metric visibility toggles (for both sliders and frame-list metrics).
 - Defaults for:
   - **Include subfolders**
