@@ -23,9 +23,38 @@ namespace blink_o_mat
                 return;
             }
 
-            var window = new MainWindow();
-            MainWindow = window;
-            window.Show();
+            try
+            {
+                var window = new MainWindow();
+                MainWindow = window;
+                window.Show();
+            }
+            catch
+            {
+                var backedUpSettings = AppSettingsService.TryBackupPersistedSettings();
+                if (backedUpSettings)
+                {
+                    try
+                    {
+                        var window = new MainWindow();
+                        MainWindow = window;
+                        window.Show();
+
+                        System.Windows.MessageBox.Show(
+                            window,
+                            "Your saved settings were incompatible with this version and were reset. A backup of the previous settings was kept in LocalAppData\\Rejector.",
+                            "Rejector",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                        return;
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                Shutdown(-1);
+            }
         }
     }
 

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.36
+### Changed
+- Improved reliability of app startup and settings migration when loading data from older versions. The app now normalizes and validates migrated settings data before applying it, and if critical incompatibilities are detected, it creates a backup of the old settings and retries launch with fresh defaults instead of failing to start.
+### Fixed
+- Saved custom threshold values in settings profiles are now correctly persisted and restored, including both the numeric threshold values and the auto/manual state of the score threshold.
+
 ## 1.0.35
 ### Added
 - Added configurable score weights.
