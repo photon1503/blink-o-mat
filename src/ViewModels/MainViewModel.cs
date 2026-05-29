@@ -2471,32 +2471,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (framesInGroup.Count == 0) continue;
 
             var t = GetThresholdsForKey(key);
-            if (t.AutoCalcFwhmThreshold)
-                t.MaxFwhm = framesInGroup.Max(f => f.Metrics.Fwhm);
+            t.MaxFwhm = framesInGroup.Max(f => f.Metrics.Fwhm);
             var fwhmArcsecValues = framesInGroup.Where(f => f.Metrics.FwhmArcsec.HasValue).Select(f => f.Metrics.FwhmArcsec!.Value).ToList();
-            if (t.AutoCalcFwhmArcsecThreshold)
-                t.MaxFwhmArcsec = fwhmArcsecValues.Count > 0 ? fwhmArcsecValues.Max() : 20.0;
-            if (t.AutoCalcHfrThreshold)
-                t.MaxHfr = framesInGroup.Max(f => f.Metrics.Hfr);
-            if (t.AutoCalcEccentricityThreshold)
-                t.MaxEccentricity = framesInGroup.Max(f => f.Metrics.Eccentricity);
-            if (t.AutoCalcMeanBackgroundThreshold)
-                t.MaxMeanBackground = framesInGroup.Max(f => f.Metrics.MeanBackground);
-            if (t.AutoCalcStarsThreshold)
-                t.MinStars = framesInGroup.Min(f => (double)f.Metrics.StarCount);
+            t.MaxFwhmArcsec = fwhmArcsecValues.Count > 0 ? fwhmArcsecValues.Max() : 20.0;
+            t.MaxHfr = framesInGroup.Max(f => f.Metrics.Hfr);
+            t.MaxEccentricity = framesInGroup.Max(f => f.Metrics.Eccentricity);
+            t.MaxMeanBackground = framesInGroup.Max(f => f.Metrics.MeanBackground);
+            t.MinStars = framesInGroup.Min(f => (double)f.Metrics.StarCount);
 
             var sqm = framesInGroup.Where(f => f.Metrics.Sqm.HasValue).Select(f => f.Metrics.Sqm!.Value).ToList();
-            if (t.AutoCalcSqmThreshold)
-                t.MinSqm = sqm.Count > 0 ? sqm.Min() : 0.0;
+            t.MinSqm = sqm.Count > 0 ? sqm.Min() : 0.0;
 
             var skyTemp = framesInGroup.Where(f => f.Metrics.SkyTemp.HasValue).Select(f => f.Metrics.SkyTemp!.Value).ToList();
-            if (t.AutoCalcSkyTempThreshold)
-                t.MaxSkyTemp = skyTemp.Count > 0 ? skyTemp.Max() : 40.0;
+            t.MaxSkyTemp = skyTemp.Count > 0 ? skyTemp.Max() : 40.0;
 
-            if (t.AutoCalcScoreThreshold)
-                t.MinScore = 0.0;
-            if (t.AutoCalcTrailThreshold)
-                t.MinSatelliteConfidence = 80;
+            t.MinScore = 0.0;
+            t.AutoCalcTrailThreshold = false;
+            t.MinSatelliteConfidence = 0;
         }
 
         RaiseAllThresholdPropertiesChanged();
