@@ -51,6 +51,7 @@ public partial class MetricSliderControl : System.Windows.Controls.UserControl
         DependencyProperty.Register(nameof(SliderConverterParameter), typeof(object), typeof(MetricSliderControl),
             new PropertyMetadata(null, OnSliderConverterChanged));
 
+
     public string Label
     {
         get => (string)GetValue(LabelProperty);

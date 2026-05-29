@@ -12,6 +12,7 @@
         PreviewKeyDown="MainWindow_PreviewKeyDown">
     <Window.Resources>
         <converters:RatioToGridLengthConverter x:Key="RatioToGridLength" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
     </Window.Resources>
     <Window.InputBindings>
         <KeyBinding Key="W" Modifiers="Control+Alt" Command="{Binding DebugShowUpdateBannerCommand}" />
@@ -30,12 +31,23 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
+            <!-- Settings toggle -->
+            <ToggleButton Grid.Column="0" Padding="10,8" Margin="0,0,8,0"
+                          IsChecked="{Binding IsSettingsOverlayOpen, Mode=TwoWay}"
+                          ToolTip="Open settings">
+                <StackPanel Orientation="Horizontal">
+                    <Path Data="M19.14,12.94A7.43,7.43 0 0,0 19.19,12A7.43,7.43 0 0,0 19.14,11.06L21.19,9.47C21.37,9.33 21.42,9.07 21.3,8.87L19.3,5.13C19.18,4.93 18.93,4.85 18.72,4.93L16.31,5.9C15.79,5.5 15.21,5.17 14.57,4.93L14.2,2.37C14.17,2.15 14,2 13.78,2H10.22C10,2 9.83,2.15 9.8,2.37L9.43,4.93C8.79,5.17 8.21,5.5 7.69,5.9L5.28,4.93C5.07,4.85 4.82,4.93 4.7,5.13L2.7,8.87C2.58,9.07 2.63,9.33 2.81,9.47L4.86,11.06C4.81,11.37 4.78,11.68 4.78,12C4.78,12.32 4.81,12.63 4.86,12.94L2.81,14.53C2.63,14.67 2.58,14.93 2.7,15.13L4.7,18.87C4.82,19.07 5.07,19.15 5.28,19.07L7.69,18.1C8.21,18.5 8.79,18.83 9.43,19.07L9.8,21.63C9.83,21.85 10,22 10.22,22H13.78C14,22 14.17,21.85 14.2,21.63L14.57,19.07C15.21,18.83 15.79,18.5 16.31,18.1L18.72,19.07C18.93,19.15 19.18,19.07 19.3,18.87L21.3,15.13C21.42,14.93 21.37,14.67 21.19,14.53L19.14,12.94M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5Z"
+                          Fill="#FFFFFF" Stretch="Uniform" Width="14" Height="14" Margin="0,0,0,0"/>
+                </StackPanel>
+            </ToggleButton>
+
             <!-- Open Folder Button (Prominent) -->
-            <Button x:Name="SessionSettingsButtonTopBar" Grid.Column="0" Padding="16,8" Margin="0,0,12,0"
+            <Button x:Name="SessionSettingsButtonTopBar" Grid.Column="1" Padding="16,8" Margin="0,0,12,0"
                     ToolTip="Configure input/output folders and subfolders option"
                     Background="#5D9A65" BorderBrush="#74B27C" Foreground="#FFFFFF"
                     FontWeight="SemiBold">
@@ -206,7 +218,7 @@
             </Button>
 
             <!-- Save Session Button (Modern) -->
-            <Button Grid.Column="1" Padding="10,8" Margin="0,0,8,0"
+            <Button Grid.Column="2" Padding="10,8" Margin="0,0,8,0"
                     Command="{Binding SaveSessionCommand}"
                     ToolTip="Save current session — settings, filters, sort order, and per-frame accepted/rejected state — to a .boms file"
                     Background="{DynamicResource ButtonBrush}" BorderBrush="{DynamicResource ButtonBorderBrush}" Foreground="#FFFFFF"
@@ -236,7 +248,7 @@
             </Button>
 
             <!-- Load Session Button (Modern) -->
-            <Button Grid.Column="2" Padding="10,8" Margin="0,0,0,0"
+            <Button Grid.Column="3" Padding="10,8" Margin="0,0,0,0"
                     Command="{Binding LoadSessionCommand}"
                     ToolTip="Load a previously saved .boms session; new files in the folder are picked up and appended automatically"
                     Background="{DynamicResource ButtonBrush}" BorderBrush="{DynamicResource ButtonBorderBrush}" Foreground="#FFFFFF"
@@ -265,7 +277,7 @@
                 </Button.Style>
             </Button>
 
-            <Border Grid.Column="3" Margin="8,0,8,0" Padding="10,8"
+            <Border Grid.Column="4" Margin="8,0,8,0" Padding="10,8"
                     Background="{StaticResource WindowBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="4"
                     VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -278,10 +290,10 @@
             </Border>
 
             <!-- Spacer -->
-            <Border Grid.Column="4" />
+            <Border Grid.Column="5" />
 
             <!-- Reject Button (Red) -->
-            <Button Grid.Column="5" Padding="14,8" Content="Reject"
+            <Button Grid.Column="6" Padding="14,8" Content="Reject"
                     Click="RejectButton_Click"
                     IsEnabled="{Binding MoveRejectedEnabled}"
                     ToolTip="Move all rejected frames to the rejected folder"
@@ -433,7 +445,7 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="2" Margin="0,0,0,10">
+        <Grid Grid.Row="2" Margin="0,0,0,10" x:Name="MainContentGrid">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="310" />
                 <ColumnDefinition Width="*" />
@@ -672,6 +684,7 @@
                                 </Popup>
                             </Grid>
                             <controls:MetricSliderControl
+                                Visibility="{Binding ShowTrailSlider, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Label="Min. trail confidence"
                                 Value="{Binding MinSatelliteConfidence, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="1" Maximum="100" TickFrequency="5" LargeChange="10"
@@ -679,6 +692,7 @@
                                 ShowRejectCount="True"
                                 RejectCount="{Binding SatelliteTrailRejectedFrameCount}" />
                             <controls:MetricSliderControl
+                                Visibility="{Binding ShowFwhmSlider, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Label="Max FWHM (px)"
                                 Value="{Binding MaxFwhm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="0" Maximum="15" TickFrequency="0.25" LargeChange="1"
@@ -686,6 +700,7 @@
                                 ShowRejectCount="True"
                                 RejectCount="{Binding FwhmRejectedFrameCount}" />
                             <controls:MetricSliderControl
+                                Visibility="{Binding ShowFwhmArcsecSlider, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Label="Max FWHM (as)"
                                 Value="{Binding MaxFwhmArcsec, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="0" Maximum="30" TickFrequency="0.1" LargeChange="1"
@@ -693,6 +708,7 @@
                                 ShowRejectCount="True"
                                 RejectCount="{Binding FwhmArcsecRejectedFrameCount}" />
                             <controls:MetricSliderControl
+                                Visibility="{Binding ShowSqmSlider, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Label="Min SQM"
                                 Value="{Binding MinSqm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="0" Maximum="30" TickFrequency="0.05" LargeChange="1"
@@ -700,6 +716,7 @@
                                 ShowRejectCount="True"
                                 RejectCount="{Binding SqmRejectedFrameCount}" />
                             <controls:MetricSliderControl
+                                Visibility="{Binding ShowSkyTempSlider, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Label="Max sky temp"
                                 Value="{Binding MaxSkyTemp, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="-50" Maximum="50" TickFrequency="1" LargeChange="5"
@@ -707,6 +724,7 @@
                                 ShowRejectCount="True"
                                 RejectCount="{Binding SkyTempRejectedFrameCount}" />
                             <controls:MetricSliderControl
+                                Visibility="{Binding ShowHfrSlider, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Label="Max HFR"
                                 Value="{Binding MaxHfr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="0" Maximum="10" TickFrequency="0.1" LargeChange="1"
@@ -714,6 +732,7 @@
                                 ShowRejectCount="True"
                                 RejectCount="{Binding HfrRejectedFrameCount}" />
                             <controls:MetricSliderControl
+                                Visibility="{Binding ShowEccentricitySlider, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Label="Max Eccentricity"
                                 Value="{Binding MaxEccentricity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="0" Maximum="1" TickFrequency="0.01" LargeChange="0.1"
@@ -721,6 +740,7 @@
                                 ShowRejectCount="True"
                                 RejectCount="{Binding EccentricityRejectedFrameCount}" />
                             <controls:MetricSliderControl
+                                Visibility="{Binding ShowMeanBackgroundSlider, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Label="Max Mean Background"
                                 Value="{Binding MaxMeanBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="0" Maximum="10000" TickFrequency="50" LargeChange="500"
@@ -728,6 +748,7 @@
                                 ShowRejectCount="True"
                                 RejectCount="{Binding MeanBackgroundRejectedFrameCount}" />
                             <controls:MetricSliderControl
+                                Visibility="{Binding ShowStarsSlider, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Label="Min Stars"
                                 Value="{Binding MinStars, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="0" Maximum="1000" TickFrequency="5" LargeChange="50"
@@ -735,6 +756,7 @@
                                 ShowRejectCount="True"
                                 RejectCount="{Binding StarCountRejectedFrameCount}" />
                             <controls:MetricSliderControl
+                                Visibility="{Binding ShowScoreSlider, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Label="Min Score"
                                 Value="{Binding MinScore, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="0" Maximum="5" TickFrequency="0.1" LargeChange="0.5"
@@ -1090,6 +1112,175 @@
                 </ListView>
             </Grid>
         </Grid>
+
+        <Border Grid.Row="2"
+                Background="#DD1A1C1F"
+                BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="14"
+                Panel.ZIndex="50">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSettingsOverlayOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Settings" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
+                <Button Grid.Row="0" Grid.Column="1" Padding="8,4" Margin="8,0,0,0"
+                        ToolTip="Close settings"
+                        Click="SettingsCloseButton_Click">
+                    <TextBlock Text="Close" />
+                </Button>
+
+                <Border Grid.Row="1" Grid.ColumnSpan="2" Margin="0,10,0,0"
+                        Background="{StaticResource PanelBackgroundBrush}"
+                        BorderBrush="{StaticResource PanelBorderBrush}"
+                        BorderThickness="1" Padding="10">
+                    <StackPanel>
+                        <Border Background="#14171A" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Profile management" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8" />
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="220" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Profile" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource MutedTextBrush}" />
+                                    <ComboBox Grid.Column="1" Height="28"
+                                              ItemsSource="{Binding SettingsProfiles}"
+                                              SelectedItem="{Binding SelectedSettingsProfile, Mode=TwoWay}"
+                                              TextSearch.TextPath="Name">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBlock Grid.Column="3" Text="Current" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource MutedTextBrush}" />
+                                    <Border Grid.Column="4" Background="#1E2227" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Padding="8,5" MinHeight="28">
+                                        <TextBlock Text="{Binding SelectedProfileName}" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Button Grid.Column="5" Margin="8,0,0,0" Height="28" Padding="12,0"
+                                            Content="Create new profile"
+                                            Click="CreateNewProfileButton_Click" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#14171A" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Profile defaults" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8" />
+                                <WrapPanel>
+                                    <CheckBox Margin="0,0,16,0" VerticalAlignment="Center"
+                                              Content="Default on startup"
+                                              IsChecked="{Binding IsSelectedProfileDefault, Mode=TwoWay}" />
+                                    <CheckBox Margin="0,0,16,0" VerticalAlignment="Center"
+                                              Content="Include subfolders"
+                                              IsChecked="{Binding IncludeSubfolders, Mode=TwoWay}" />
+                                    <CheckBox Margin="0,0,16,0" VerticalAlignment="Center"
+                                              Content="Watch folder"
+                                              IsChecked="{Binding WatchFolderEnabled, Mode=TwoWay}" />
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="STF Target Background" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource MutedTextBrush}" />
+                                        <controls:MetricSliderControl Width="240"
+                                                                      Value="{Binding StfTargetBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      Minimum="0.01" Maximum="0.5" TickFrequency="0.01" LargeChange="0.05"
+                                                                      Decimals="2" />
+                                    </StackPanel>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,0,0,8">
+                            <TextBlock Text="VISIBILITY" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
+                        </Border>
+                        <Grid HorizontalAlignment="Left">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="220" />
+                                <ColumnDefinition Width="96" />
+                                <ColumnDefinition Width="96" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Column="0" Grid.Row="0" Text="Metric" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Grid.Row="0" Text="Slider" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="2" Grid.Row="0" Text="Metric" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
+
+                            <TextBlock Grid.Column="0" Grid.Row="1" Text="Trail confidence" Margin="0,4,0,4" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1" Grid.Row="1" IsChecked="{Binding ShowTrailSlider}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1" />
+                            <CheckBox Grid.Column="2" Grid.Row="1" IsChecked="{Binding ShowTrailMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1" />
+
+                            <TextBlock Grid.Column="0" Grid.Row="2" Text="FWHM (px)" Margin="0,4,0,4" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1" Grid.Row="2" IsChecked="{Binding ShowFwhmSlider}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="2" Grid.Row="2" IsChecked="{Binding ShowFwhmMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="0" Grid.Row="3" Text="FWHM (arcsec)" Margin="0,4,0,4" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1" Grid.Row="3" IsChecked="{Binding ShowFwhmArcsecSlider}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="2" Grid.Row="3" IsChecked="{Binding ShowFwhmArcsecMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="0" Grid.Row="4" Text="SQM" Margin="0,4,0,4" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1" Grid.Row="4" IsChecked="{Binding ShowSqmSlider}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="2" Grid.Row="4" IsChecked="{Binding ShowSqmMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="0" Grid.Row="5" Text="Sky temp" Margin="0,4,0,4" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1" Grid.Row="5" IsChecked="{Binding ShowSkyTempSlider}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="2" Grid.Row="5" IsChecked="{Binding ShowSkyTempMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="0" Grid.Row="6" Text="HFR" Margin="0,4,0,4" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1" Grid.Row="6" IsChecked="{Binding ShowHfrSlider}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="2" Grid.Row="6" IsChecked="{Binding ShowHfrMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="0" Grid.Row="7" Text="Eccentricity" Margin="0,4,0,4" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1" Grid.Row="7" IsChecked="{Binding ShowEccentricitySlider}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="2" Grid.Row="7" IsChecked="{Binding ShowEccentricityMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="0" Grid.Row="8" Text="Mean background" Margin="0,4,0,4" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1" Grid.Row="8" IsChecked="{Binding ShowMeanBackgroundSlider}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="2" Grid.Row="8" IsChecked="{Binding ShowMeanBackgroundMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="0" Grid.Row="9" Text="Stars" Margin="0,4,0,4" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1" Grid.Row="9" IsChecked="{Binding ShowStarsSlider}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="2" Grid.Row="9" IsChecked="{Binding ShowStarsMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="0" Grid.Row="10" Text="Score" Margin="0,4,0,4" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1" Grid.Row="10" IsChecked="{Binding ShowScoreSlider}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1" />
+                            <CheckBox Grid.Column="2" Grid.Row="10" IsChecked="{Binding ShowScoreMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
 
         <Border Grid.Row="3" Margin="0,10,0,0" Padding="8,6" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{DynamicResource MyBorder}" BorderThickness="0,1,0,0">
             <Grid>

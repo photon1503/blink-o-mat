@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using blink_o_mat.Models;
 
 namespace blink_o_mat.Services;
 
@@ -61,4 +63,14 @@ public sealed class AppSettings
     public bool IncludeSubfolders { get; set; }
 
     public bool WatchFolder { get; set; }
+
+    public string DefaultProfileName { get; set; } = "Default";
+
+    public List<SettingsProfile> Profiles { get; set; } =
+    [
+        new SettingsProfile
+        {
+            Name = "Default"
+        }
+    ];
 }

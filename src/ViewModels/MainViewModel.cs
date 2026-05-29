@@ -205,6 +205,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _skyTempRejectedFrameCount;
     private int _starCountRejectedFrameCount;
     private int _scoreRejectedFrameCount;
+    private bool _isSettingsOverlayOpen;
+    private bool _showTrailSlider = true;
+    private bool _showFwhmSlider = true;
+    private bool _showFwhmArcsecSlider = true;
+    private bool _showSqmSlider = true;
+    private bool _showSkyTempSlider = true;
+    private bool _showHfrSlider = true;
+    private bool _showEccentricitySlider = true;
+    private bool _showMeanBackgroundSlider = true;
+    private bool _showStarsSlider = true;
+    private bool _showScoreSlider = true;
+    private bool _showTrailMetric = true;
+    private bool _showFwhmMetric = true;
+    private bool _showFwhmArcsecMetric = true;
+    private bool _showSqmMetric = true;
+    private bool _showSkyTempMetric = true;
+    private bool _showHfrMetric = true;
+    private bool _showEccentricityMetric = true;
+    private bool _showMeanBackgroundMetric = true;
+    private bool _showStarsMetric = true;
+    private bool _showScoreMetric = true;
+    private string _newProfileName = string.Empty;
+    private string _defaultProfileName = "Default";
+    private SettingsProfile? _selectedSettingsProfile;
+    private bool _isApplyingProfile;
+    private bool _isLoadingInitialSettings;
     private bool _hasManualRoi;
     private bool _autoStretchPerFrame = true;
     private bool _skipRejectedInPreview;
@@ -280,6 +306,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _includeSubfolders = value;
             OnPropertyChanged();
             SaveFolderSettings();
+            PersistProfileUiFlags();
         }
     }
 
@@ -292,6 +319,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _watchFolderEnabled = value;
             OnPropertyChanged();
             SaveFolderSettings();
+            PersistProfileUiFlags();
             if (!value)
                 StopFolderWatch();
         }
@@ -578,6 +606,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             // full-resolution images and existing thumbnails/ROI bitmaps must be regenerated.
             InvalidateFullImageCaches();
             OnStretchSettingsChanged();
+            PersistProfileUiFlags();
         }
     }
 
@@ -693,6 +722,344 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool IsSettingsOverlayOpen
+    {
+        get => _isSettingsOverlayOpen;
+        set
+        {
+            if (_isSettingsOverlayOpen == value) return;
+            _isSettingsOverlayOpen = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowTrailSlider { get => _showTrailSlider; set { if (_showTrailSlider == value) return; _showTrailSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowFwhmSlider { get => _showFwhmSlider; set { if (_showFwhmSlider == value) return; _showFwhmSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowFwhmArcsecSlider { get => _showFwhmArcsecSlider; set { if (_showFwhmArcsecSlider == value) return; _showFwhmArcsecSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowSqmSlider { get => _showSqmSlider; set { if (_showSqmSlider == value) return; _showSqmSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowSkyTempSlider { get => _showSkyTempSlider; set { if (_showSkyTempSlider == value) return; _showSkyTempSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowHfrSlider { get => _showHfrSlider; set { if (_showHfrSlider == value) return; _showHfrSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowEccentricitySlider { get => _showEccentricitySlider; set { if (_showEccentricitySlider == value) return; _showEccentricitySlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowMeanBackgroundSlider { get => _showMeanBackgroundSlider; set { if (_showMeanBackgroundSlider == value) return; _showMeanBackgroundSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowStarsSlider { get => _showStarsSlider; set { if (_showStarsSlider == value) return; _showStarsSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowScoreSlider { get => _showScoreSlider; set { if (_showScoreSlider == value) return; _showScoreSlider = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+
+    public bool ShowTrailMetric { get => _showTrailMetric; set { if (_showTrailMetric == value) return; _showTrailMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowFwhmMetric { get => _showFwhmMetric; set { if (_showFwhmMetric == value) return; _showFwhmMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowFwhmArcsecMetric { get => _showFwhmArcsecMetric; set { if (_showFwhmArcsecMetric == value) return; _showFwhmArcsecMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowSqmMetric { get => _showSqmMetric; set { if (_showSqmMetric == value) return; _showSqmMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowSkyTempMetric { get => _showSkyTempMetric; set { if (_showSkyTempMetric == value) return; _showSkyTempMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowHfrMetric { get => _showHfrMetric; set { if (_showHfrMetric == value) return; _showHfrMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowEccentricityMetric { get => _showEccentricityMetric; set { if (_showEccentricityMetric == value) return; _showEccentricityMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowMeanBackgroundMetric { get => _showMeanBackgroundMetric; set { if (_showMeanBackgroundMetric == value) return; _showMeanBackgroundMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowStarsMetric { get => _showStarsMetric; set { if (_showStarsMetric == value) return; _showStarsMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+    public bool ShowScoreMetric { get => _showScoreMetric; set { if (_showScoreMetric == value) return; _showScoreMetric = value; OnPropertyChanged(); PersistProfileUiFlags(); } }
+
+    public ObservableCollection<SettingsProfile> SettingsProfiles { get; } = [];
+
+    public SettingsProfile? SelectedSettingsProfile
+    {
+        get => _selectedSettingsProfile;
+        set
+        {
+            if (ReferenceEquals(_selectedSettingsProfile, value)) return;
+            _selectedSettingsProfile = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedProfileName));
+            OnPropertyChanged(nameof(IsSelectedProfileDefault));
+            ((RelayCommand)AddSettingsProfileCommand).RaiseCanExecuteChanged();
+            if (value is null || _isApplyingProfile) return;
+            ApplySelectedProfileSettings(value);
+        }
+    }
+
+    public string SelectedProfileName
+    {
+        get => SelectedSettingsProfile?.Name ?? string.Empty;
+        set
+        {
+            var target = SettingsProfiles.FirstOrDefault(p => string.Equals(p.Name, value, StringComparison.OrdinalIgnoreCase));
+            if (target is not null)
+            {
+                SelectedSettingsProfile = target;
+            }
+        }
+    }
+
+    public string NewProfileName
+    {
+        get => _newProfileName;
+        set
+        {
+            if (_newProfileName == value) return;
+            _newProfileName = value;
+            OnPropertyChanged();
+            ((RelayCommand)AddSettingsProfileCommand).RaiseCanExecuteChanged();
+        }
+    }
+
+    public string DefaultProfileName
+    {
+        get => _defaultProfileName;
+        set
+        {
+            var normalized = SettingsProfile.NormalizeName(value);
+            if (_defaultProfileName == normalized) return;
+            _defaultProfileName = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsSelectedProfileDefault));
+            PersistAppSettings();
+        }
+    }
+
+    public bool IsSelectedProfileDefault
+    {
+        get => SelectedSettingsProfile is not null && string.Equals(DefaultProfileName, SelectedSettingsProfile.Name, StringComparison.OrdinalIgnoreCase);
+        set
+        {
+            if (!value || SelectedSettingsProfile is null)
+            {
+                OnPropertyChanged();
+                return;
+            }
+
+            DefaultProfileName = SelectedSettingsProfile.Name;
+            OnPropertyChanged();
+        }
+    }
+
+    public ICommand AddSettingsProfileCommand { get; }
+
+    private bool CanAddSettingsProfile()
+    {
+        var normalized = SettingsProfile.NormalizeName(NewProfileName);
+        return !SettingsProfiles.Any(p => string.Equals(p.Name, normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void AddSettingsProfile()
+    {
+        var profile = CreateProfileFromCurrentState(SettingsProfile.NormalizeName(NewProfileName));
+        SettingsProfiles.Add(profile);
+        NewProfileName = profile.Name;
+        SelectedSettingsProfile = profile;
+        PersistAppSettings();
+    }
+
+    public bool TryCreateSettingsProfile(string? profileName)
+    {
+        var normalized = SettingsProfile.NormalizeName(profileName);
+        if (SettingsProfiles.Any(p => string.Equals(p.Name, normalized, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        NewProfileName = normalized;
+        AddSettingsProfile();
+        return true;
+    }
+
+    private static SettingsProfile CloneProfile(SettingsProfile profile)
+    {
+        return new SettingsProfile
+        {
+            Name = SettingsProfile.NormalizeName(profile.Name),
+            Thresholds = new Thresholds
+            {
+                MaxFwhm = profile.Thresholds.MaxFwhm,
+                MaxFwhmArcsec = profile.Thresholds.MaxFwhmArcsec,
+                MinSqm = profile.Thresholds.MinSqm,
+                MaxSkyTemp = profile.Thresholds.MaxSkyTemp,
+                MaxHfr = profile.Thresholds.MaxHfr,
+                MaxEccentricity = profile.Thresholds.MaxEccentricity,
+                MaxMeanBackground = profile.Thresholds.MaxMeanBackground,
+                MinStars = profile.Thresholds.MinStars,
+                MinSatelliteConfidence = profile.Thresholds.MinSatelliteConfidence,
+                MinScore = profile.Thresholds.MinScore,
+            },
+            IncludeSubfoldersDefault = profile.IncludeSubfoldersDefault,
+            WatchFolderDefault = profile.WatchFolderDefault,
+            StfTargetBackgroundDefault = profile.StfTargetBackgroundDefault,
+            ShowTrailSlider = profile.ShowTrailSlider,
+            ShowFwhmSlider = profile.ShowFwhmSlider,
+            ShowFwhmArcsecSlider = profile.ShowFwhmArcsecSlider,
+            ShowSqmSlider = profile.ShowSqmSlider,
+            ShowSkyTempSlider = profile.ShowSkyTempSlider,
+            ShowHfrSlider = profile.ShowHfrSlider,
+            ShowEccentricitySlider = profile.ShowEccentricitySlider,
+            ShowMeanBackgroundSlider = profile.ShowMeanBackgroundSlider,
+            ShowStarsSlider = profile.ShowStarsSlider,
+            ShowScoreSlider = profile.ShowScoreSlider,
+            ShowTrailMetric = profile.ShowTrailMetric,
+            ShowFwhmMetric = profile.ShowFwhmMetric,
+            ShowFwhmArcsecMetric = profile.ShowFwhmArcsecMetric,
+            ShowSqmMetric = profile.ShowSqmMetric,
+            ShowSkyTempMetric = profile.ShowSkyTempMetric,
+            ShowHfrMetric = profile.ShowHfrMetric,
+            ShowEccentricityMetric = profile.ShowEccentricityMetric,
+            ShowMeanBackgroundMetric = profile.ShowMeanBackgroundMetric,
+            ShowStarsMetric = profile.ShowStarsMetric,
+            ShowScoreMetric = profile.ShowScoreMetric,
+        };
+    }
+
+    private SettingsProfile CreateProfileFromCurrentState(string name)
+    {
+        return new SettingsProfile
+        {
+            Name = SettingsProfile.NormalizeName(name),
+            Thresholds = new Thresholds
+            {
+                MaxFwhm = MaxFwhm,
+                MaxFwhmArcsec = MaxFwhmArcsec,
+                MinSqm = MinSqm,
+                MaxSkyTemp = MaxSkyTemp,
+                MaxHfr = MaxHfr,
+                MaxEccentricity = MaxEccentricity,
+                MaxMeanBackground = MaxMeanBackground,
+                MinStars = MinStars,
+                MinSatelliteConfidence = MinSatelliteConfidence,
+                MinScore = MinScore,
+            },
+            IncludeSubfoldersDefault = IncludeSubfolders,
+            WatchFolderDefault = WatchFolderEnabled,
+            StfTargetBackgroundDefault = StfTargetBackground,
+            ShowTrailSlider = ShowTrailSlider,
+            ShowFwhmSlider = ShowFwhmSlider,
+            ShowFwhmArcsecSlider = ShowFwhmArcsecSlider,
+            ShowSqmSlider = ShowSqmSlider,
+            ShowSkyTempSlider = ShowSkyTempSlider,
+            ShowHfrSlider = ShowHfrSlider,
+            ShowEccentricitySlider = ShowEccentricitySlider,
+            ShowMeanBackgroundSlider = ShowMeanBackgroundSlider,
+            ShowStarsSlider = ShowStarsSlider,
+            ShowScoreSlider = ShowScoreSlider,
+            ShowTrailMetric = ShowTrailMetric,
+            ShowFwhmMetric = ShowFwhmMetric,
+            ShowFwhmArcsecMetric = ShowFwhmArcsecMetric,
+            ShowSqmMetric = ShowSqmMetric,
+            ShowSkyTempMetric = ShowSkyTempMetric,
+            ShowHfrMetric = ShowHfrMetric,
+            ShowEccentricityMetric = ShowEccentricityMetric,
+            ShowMeanBackgroundMetric = ShowMeanBackgroundMetric,
+            ShowStarsMetric = ShowStarsMetric,
+            ShowScoreMetric = ShowScoreMetric,
+        };
+    }
+
+    private void ApplySelectedProfileSettings(SettingsProfile profile)
+    {
+        _isApplyingProfile = true;
+        try
+        {
+            var t = GetThresholdsForKey(string.Empty);
+            t.MaxFwhm = profile.Thresholds.MaxFwhm;
+            t.MaxFwhmArcsec = profile.Thresholds.MaxFwhmArcsec;
+            t.MinSqm = profile.Thresholds.MinSqm;
+            t.MaxSkyTemp = profile.Thresholds.MaxSkyTemp;
+            t.MaxHfr = profile.Thresholds.MaxHfr;
+            t.MaxEccentricity = profile.Thresholds.MaxEccentricity;
+            t.MaxMeanBackground = profile.Thresholds.MaxMeanBackground;
+            t.MinStars = profile.Thresholds.MinStars;
+            t.MinSatelliteConfidence = profile.Thresholds.MinSatelliteConfidence;
+            t.MinScore = profile.Thresholds.MinScore;
+
+            IncludeSubfolders = profile.IncludeSubfoldersDefault;
+            WatchFolderEnabled = profile.WatchFolderDefault;
+            StfTargetBackground = profile.StfTargetBackgroundDefault;
+
+            ShowTrailSlider = profile.ShowTrailSlider;
+            ShowFwhmSlider = profile.ShowFwhmSlider;
+            ShowFwhmArcsecSlider = profile.ShowFwhmArcsecSlider;
+            ShowSqmSlider = profile.ShowSqmSlider;
+            ShowSkyTempSlider = profile.ShowSkyTempSlider;
+            ShowHfrSlider = profile.ShowHfrSlider;
+            ShowEccentricitySlider = profile.ShowEccentricitySlider;
+            ShowMeanBackgroundSlider = profile.ShowMeanBackgroundSlider;
+            ShowStarsSlider = profile.ShowStarsSlider;
+            ShowScoreSlider = profile.ShowScoreSlider;
+            ShowTrailMetric = profile.ShowTrailMetric;
+            ShowFwhmMetric = profile.ShowFwhmMetric;
+            ShowFwhmArcsecMetric = profile.ShowFwhmArcsecMetric;
+            ShowSqmMetric = profile.ShowSqmMetric;
+            ShowSkyTempMetric = profile.ShowSkyTempMetric;
+            ShowHfrMetric = profile.ShowHfrMetric;
+            ShowEccentricityMetric = profile.ShowEccentricityMetric;
+            ShowMeanBackgroundMetric = profile.ShowMeanBackgroundMetric;
+            ShowStarsMetric = profile.ShowStarsMetric;
+            ShowScoreMetric = profile.ShowScoreMetric;
+
+            RaiseAllThresholdPropertiesChanged();
+            ApplyThresholds();
+        }
+        finally
+        {
+            _isApplyingProfile = false;
+        }
+
+        PersistAppSettings();
+    }
+
+    private void PersistProfileUiFlags()
+    {
+        if (_isApplyingProfile || _isLoadingInitialSettings || SelectedSettingsProfile is null)
+        {
+            return;
+        }
+
+        SelectedSettingsProfile.ShowTrailSlider = ShowTrailSlider;
+        SelectedSettingsProfile.ShowFwhmSlider = ShowFwhmSlider;
+        SelectedSettingsProfile.ShowFwhmArcsecSlider = ShowFwhmArcsecSlider;
+        SelectedSettingsProfile.ShowSqmSlider = ShowSqmSlider;
+        SelectedSettingsProfile.ShowSkyTempSlider = ShowSkyTempSlider;
+        SelectedSettingsProfile.ShowHfrSlider = ShowHfrSlider;
+        SelectedSettingsProfile.ShowEccentricitySlider = ShowEccentricitySlider;
+        SelectedSettingsProfile.ShowMeanBackgroundSlider = ShowMeanBackgroundSlider;
+        SelectedSettingsProfile.ShowStarsSlider = ShowStarsSlider;
+        SelectedSettingsProfile.ShowScoreSlider = ShowScoreSlider;
+        SelectedSettingsProfile.ShowTrailMetric = ShowTrailMetric;
+        SelectedSettingsProfile.ShowFwhmMetric = ShowFwhmMetric;
+        SelectedSettingsProfile.ShowFwhmArcsecMetric = ShowFwhmArcsecMetric;
+        SelectedSettingsProfile.ShowSqmMetric = ShowSqmMetric;
+        SelectedSettingsProfile.ShowSkyTempMetric = ShowSkyTempMetric;
+        SelectedSettingsProfile.ShowHfrMetric = ShowHfrMetric;
+        SelectedSettingsProfile.ShowEccentricityMetric = ShowEccentricityMetric;
+        SelectedSettingsProfile.ShowMeanBackgroundMetric = ShowMeanBackgroundMetric;
+        SelectedSettingsProfile.ShowStarsMetric = ShowStarsMetric;
+        SelectedSettingsProfile.ShowScoreMetric = ShowScoreMetric;
+        SelectedSettingsProfile.IncludeSubfoldersDefault = IncludeSubfolders;
+        SelectedSettingsProfile.WatchFolderDefault = WatchFolderEnabled;
+        SelectedSettingsProfile.StfTargetBackgroundDefault = StfTargetBackground;
+
+        PersistAppSettings();
+    }
+
+    private void PersistAppSettings()
+    {
+        if (!_isApplyingProfile && SelectedSettingsProfile is not null)
+        {
+            var snapshot = CreateProfileFromCurrentState(SelectedSettingsProfile.Name);
+            var index = SettingsProfiles.IndexOf(SelectedSettingsProfile);
+            if (index >= 0)
+            {
+                SettingsProfiles[index] = snapshot;
+                _selectedSettingsProfile = snapshot;
+                OnPropertyChanged(nameof(SelectedSettingsProfile));
+                OnPropertyChanged(nameof(SelectedProfileName));
+                OnPropertyChanged(nameof(IsSelectedProfileDefault));
+            }
+        }
+
+        _settings.Save(new AppSettings
+        {
+            InputFolder = InputFolder,
+            RejectedFolder = RejectedFolder,
+            IncludeSubfolders = IncludeSubfolders,
+            WatchFolder = WatchFolderEnabled,
+            DefaultProfileName = DefaultProfileName,
+            Profiles = SettingsProfiles.Select(CloneProfile).ToList()
+        });
+    }
+
     public double MaxFwhm
     {
         get => GetScopedDouble(t => t.MaxFwhm);
@@ -702,6 +1069,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SetScopedDouble((t, v) => t.MaxFwhm = v, value);
             OnPropertyChanged();
             ApplyThresholds();
+            PersistAppSettings();
         }
     }
 
@@ -714,6 +1082,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SetScopedDouble((t, v) => t.MaxFwhmArcsec = v, value);
             OnPropertyChanged();
             ApplyThresholds();
+            PersistAppSettings();
         }
     }
 
@@ -726,6 +1095,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SetScopedDouble((t, v) => t.MaxSkyTemp = v, value);
             OnPropertyChanged();
             ApplyThresholds();
+            PersistAppSettings();
         }
     }
 
@@ -738,6 +1108,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SetScopedDouble((t, v) => t.MaxHfr = v, value);
             OnPropertyChanged();
             ApplyThresholds();
+            PersistAppSettings();
         }
     }
 
@@ -750,6 +1121,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SetScopedDouble((t, v) => t.MinSqm = v, value);
             OnPropertyChanged();
             ApplyThresholds();
+            PersistAppSettings();
         }
     }
 
@@ -762,6 +1134,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SetScopedDouble((t, v) => t.MaxEccentricity = v, value);
             OnPropertyChanged();
             ApplyThresholds();
+            PersistAppSettings();
         }
     }
 
@@ -774,6 +1147,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SetScopedDouble((t, v) => t.MaxMeanBackground = v, value);
             OnPropertyChanged();
             ApplyThresholds();
+            PersistAppSettings();
         }
     }
 
@@ -786,6 +1160,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SetScopedDouble((t, v) => t.MinStars = v, value);
             OnPropertyChanged();
             ApplyThresholds();
+            PersistAppSettings();
         }
     }
 
@@ -798,6 +1173,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SetScopedDouble((t, v) => t.MinScore = v, value);
             OnPropertyChanged();
             ApplyThresholds();
+            PersistAppSettings();
         }
     }
 
@@ -822,6 +1198,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SetScopedInt((t, v) => t.MinSatelliteConfidence = v, value);
             OnPropertyChanged();
             ApplyThresholds();
+            PersistAppSettings();
         }
     }
 
@@ -877,14 +1254,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SaveSessionCommand = new RelayCommand(_ => SaveSession(), _ => Frames.Count > 0 && !IsBusy);
         LoadSessionCommand = new RelayCommand(async _ => await LoadSessionAsync(), _ => !IsBusy);
         DebugShowUpdateBannerCommand = new RelayCommand(async _ => await ShowDebugUpdateBannerAsync());
+        AddSettingsProfileCommand = new RelayCommand(_ => AddSettingsProfile(), _ => CanAddSettingsProfile());
 
         AddSortRule(initialField: DefaultPrimarySortField, initialDirection: SortDirectionOptions[0]);
 
-        var settings = _settings.Load();
-        InputFolder = settings.InputFolder;
-        RejectedFolder = settings.RejectedFolder;
-        _includeSubfolders = settings.IncludeSubfolders;
-        _watchFolderEnabled = settings.WatchFolder;
+        _isLoadingInitialSettings = true;
+        try
+        {
+            var settings = _settings.Load();
+            InputFolder = settings.InputFolder;
+            RejectedFolder = settings.RejectedFolder;
+            _includeSubfolders = settings.IncludeSubfolders;
+            _watchFolderEnabled = settings.WatchFolder;
+
+            SettingsProfiles.Clear();
+            var loadedProfiles = settings.Profiles is { Count: > 0 }
+                ? settings.Profiles
+                : [new SettingsProfile { Name = "Default" }];
+            foreach (var profile in loadedProfiles)
+            {
+                SettingsProfiles.Add(CloneProfile(profile));
+            }
+
+            DefaultProfileName = SettingsProfile.NormalizeName(settings.DefaultProfileName);
+            var defaultProfile = SettingsProfiles.FirstOrDefault(p => string.Equals(p.Name, DefaultProfileName, StringComparison.OrdinalIgnoreCase))
+                                 ?? SettingsProfiles.First();
+            SelectedSettingsProfile = defaultProfile;
+            NewProfileName = defaultProfile.Name;
+        }
+        finally
+        {
+            _isLoadingInitialSettings = false;
+        }
 
         // Fire-and-forget update check — deferred to let UI show first.
         _ = Task.Run(async () =>
@@ -1405,13 +1806,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void SaveFolderSettings()
     {
-        _settings.Save(new AppSettings
-        {
-            InputFolder = InputFolder,
-            RejectedFolder = RejectedFolder,
-            IncludeSubfolders = IncludeSubfolders,
-            WatchFolder = WatchFolderEnabled
-        });
+        PersistAppSettings();
     }
 
     private async Task LoadFramesAsync()

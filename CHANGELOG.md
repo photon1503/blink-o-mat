@@ -3,7 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 ## 1.0.33
+### Changed
 - Improved visibility of the currently selected frame.
+### Added
+- Added a full-screen Settings overlay (opened from the new gear icon in the top bar) for future configuration work.
+- Added profile-based settings management: select profiles, create new profiles, and choose which profile should load by default at startup.
+- Added per-profile defaults for Include subfolders, Watch folder, and STF Target Background.
+- Added per-metric visibility toggles for both automatic-rejection sliders and frame-list metric displays (without hiding the Keep/Reject action button).
 
 ## 1.0.32
 

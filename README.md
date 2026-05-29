@@ -29,6 +29,9 @@ The videos are using IMX571 FITS images and are in realtime.
   - [Quality metrics](#quality-metrics)
   - [Automatic rejection](#automatic-rejection)
     - [Per-filter thresholds \& scope selector](#per-filter-thresholds--scope-selector)
+  - [Settings overlay \& profiles](#settings-overlay--profiles)
+    - [Profile defaults](#profile-defaults)
+    - [Metric visibility controls](#metric-visibility-controls)
   - [Quality score (0–5)](#quality-score-05)
     - [How it works](#how-it-works)
   - [Region of Interest (ROI)](#region-of-interest-roi)
@@ -221,6 +224,40 @@ Right next to the *Automatic rejection* heading you get two extras:
 - A **⟳ reset** button. Resets the sliders for the **currently selected** filter group(s) back to the loaded-frame maxima/minima — the same "everything passes" state you start with after loading.
 
 Per-filter slider positions are remembered in the session file, so you don't have to re-tune Ha thresholds every time you reopen a project.
+
+---
+
+## Settings overlay & profiles
+
+Open settings via the **gear icon** in the top toolbar. The settings page overlays the main workspace so you can configure session behavior without leaving the main window.
+
+### Profile defaults
+
+Settings can be organized in **profiles**. In the profile section you can:
+
+- Select an existing profile from the dropdown.
+- Create a new profile via **Create new profile** (name is requested in a prompt).
+- Mark one profile as **Default on startup**.
+
+Each profile stores:
+
+- Automatic rejection thresholds (FWHM, HFR, SQM, sky temp, eccentricity, mean background, stars, score, trail confidence).
+- Per-metric visibility toggles (for both sliders and frame-list metrics).
+- Defaults for:
+  - **Include subfolders**
+  - **Watch folder**
+  - **STF Target Background**
+
+When a profile is selected, those defaults are applied immediately.
+
+### Metric visibility controls
+
+The visibility matrix in settings lets you control each metric independently:
+
+- **Slider** column: show/hide the corresponding threshold slider in *Automatic rejection*.
+- **Metric** column: show/hide that metric in the frame list display.
+
+The **Keep / Reject** row action remains available even if the score metric display is hidden.
 
 ---
 

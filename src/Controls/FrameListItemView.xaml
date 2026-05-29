@@ -144,37 +144,37 @@
                 </WrapPanel>
 
                 <WrapPanel Grid.Row="1">
-                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding FwhmIndicatorBrush}">
+                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding FwhmIndicatorBrush}" Visibility="{Binding DataContext.ShowFwhmArcsecMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="FWHM" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
                             <TextBlock Text="{Binding FwhmArcsecDisplay}" Foreground="{Binding FwhmIndicatorBrush}" FontWeight="SemiBold" />
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding EccentricityIndicatorBrush}">
+                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding EccentricityIndicatorBrush}" Visibility="{Binding DataContext.ShowEccentricityMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="ECC" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
                             <TextBlock Text="{Binding Metrics.Eccentricity, StringFormat={}{0:F3}}" Foreground="{Binding EccentricityIndicatorBrush}" FontWeight="SemiBold" />
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding HfrIndicatorBrush}">
+                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding HfrIndicatorBrush}" Visibility="{Binding DataContext.ShowHfrMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="HFR" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
                             <TextBlock Text="{Binding Metrics.Hfr, StringFormat={}{0:F2}}" Foreground="{Binding HfrIndicatorBrush}" FontWeight="SemiBold" />
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding StarsIndicatorBrush}">
+                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding StarsIndicatorBrush}" Visibility="{Binding DataContext.ShowStarsMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="STARS" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
                             <TextBlock Text="{Binding Metrics.StarCount}" Foreground="{Binding StarsIndicatorBrush}" FontWeight="SemiBold" />
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding TrailIndicatorBrush}">
+                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="{Binding TrailIndicatorBrush}" Visibility="{Binding DataContext.ShowTrailMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="TRAIL" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
                             <TextBlock Text="{Binding TrailText}" Foreground="{Binding TrailIndicatorBrush}" FontWeight="SemiBold" />
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="#4C9AFF">
+                    <Border Style="{StaticResource ChipBorderStyle}" BorderBrush="#4C9AFF" Visibility="{Binding DataContext.ShowSqmMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="SQM" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
                             <TextBlock Text="{Binding SqmDisplay}" Foreground="#DDEBFF" FontWeight="SemiBold" />
@@ -205,14 +205,14 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource MetricNameStyle}" Text="FWHM (px)" />
-                                <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Fwhm, StringFormat={}{0:F2}}" />
-                                <TextBlock Grid.Row="1" Style="{StaticResource MetricNameStyle}" Text="FWHM (arcsec)" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding FwhmArcsecDisplay}" />
-                                <TextBlock Grid.Row="2" Style="{StaticResource MetricNameStyle}" Text="HFR" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Hfr, StringFormat={}{0:F2}}" />
-                                <TextBlock Grid.Row="3" Style="{StaticResource MetricNameStyle}" Text="Eccentricity" />
-                                <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Eccentricity, StringFormat={}{0:F3}}" />
+                                <TextBlock Style="{StaticResource MetricNameStyle}" Text="FWHM (px)" Visibility="{Binding DataContext.ShowFwhmMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Fwhm, StringFormat={}{0:F2}}" Visibility="{Binding DataContext.ShowFwhmMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                <TextBlock Grid.Row="1" Style="{StaticResource MetricNameStyle}" Text="FWHM (arcsec)" Visibility="{Binding DataContext.ShowFwhmArcsecMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding FwhmArcsecDisplay}" Visibility="{Binding DataContext.ShowFwhmArcsecMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                <TextBlock Grid.Row="2" Style="{StaticResource MetricNameStyle}" Text="HFR" Visibility="{Binding DataContext.ShowHfrMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Hfr, StringFormat={}{0:F2}}" Visibility="{Binding DataContext.ShowHfrMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                <TextBlock Grid.Row="3" Style="{StaticResource MetricNameStyle}" Text="Eccentricity" Visibility="{Binding DataContext.ShowEccentricityMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Eccentricity, StringFormat={}{0:F3}}" Visibility="{Binding DataContext.ShowEccentricityMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -231,14 +231,14 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource MetricNameStyle}" Text="Mean BG" />
-                                <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.MeanBackground, StringFormat={}{0:F1}}" />
+                                <TextBlock Style="{StaticResource MetricNameStyle}" Text="Mean BG" Visibility="{Binding DataContext.ShowMeanBackgroundMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.MeanBackground, StringFormat={}{0:F1}}" Visibility="{Binding DataContext.ShowMeanBackgroundMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
                                 <TextBlock Grid.Row="1" Style="{StaticResource MetricNameStyle}" Text="Median" />
                                 <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Median, StringFormat={}{0:F1}}" />
                                 <TextBlock Grid.Row="2" Style="{StaticResource MetricNameStyle}" Text="MAD" />
                                 <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.Mad, StringFormat={}{0:F1}}" />
-                                <TextBlock Grid.Row="3" Style="{StaticResource MetricNameStyle}" Text="SQM" />
-                                <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding SqmDisplay}" />
+                                <TextBlock Grid.Row="3" Style="{StaticResource MetricNameStyle}" Text="SQM" Visibility="{Binding DataContext.ShowSqmMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding SqmDisplay}" Visibility="{Binding DataContext.ShowSqmMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -257,10 +257,10 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource MetricNameStyle}" Text="Stars" />
-                            <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.StarCount}" />
-                            <TextBlock Grid.Row="1" Style="{StaticResource MetricNameStyle}" Text="Sky temp" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding SkyTempDisplay}" />
+                            <TextBlock Style="{StaticResource MetricNameStyle}" Text="Stars" Visibility="{Binding DataContext.ShowStarsMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                            <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding Metrics.StarCount}" Visibility="{Binding DataContext.ShowStarsMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                            <TextBlock Grid.Row="1" Style="{StaticResource MetricNameStyle}" Text="Sky temp" Visibility="{Binding DataContext.ShowSkyTempMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding SkyTempDisplay}" Visibility="{Binding DataContext.ShowSkyTempMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
                             <TextBlock Grid.Row="2" Style="{StaticResource MetricNameStyle}" Text="Min / count" />
                             <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetricValueStyle}">
                                 <Run Text="{Binding Metrics.Min, StringFormat={}{0:F0}}" />
@@ -280,12 +280,15 @@
 
             <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="4" Background="#1B1D20" BorderBrush="#303338" BorderThickness="1" CornerRadius="4" Padding="12,10">
                 <StackPanel>
-                    <TextBlock Text="SCORE" FontSize="11" Foreground="#9A9A9A" />
-                    <StackPanel Orientation="Horizontal" Margin="0,6,0,2">
+                    <TextBlock Text="SCORE" FontSize="11" Foreground="#9A9A9A"
+                               Visibility="{Binding DataContext.ShowScoreMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,2"
+                                Visibility="{Binding DataContext.ShowScoreMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
                         <TextBlock Text="{Binding ScoreValueText}" FontSize="34" FontWeight="Bold" Foreground="{Binding QualityBrush}" />
                         <TextBlock Text=" / 5" FontSize="16" Foreground="#C8C8C8" VerticalAlignment="Bottom" Margin="4,0,0,4" />
                     </StackPanel>
-                    <ProgressBar Height="12" Margin="0,10,0,14" Minimum="0" Maximum="100" Value="{Binding ScoreProgressPercent, Mode=OneWay}" Foreground="{Binding QualityBrush}" Background="#303338" />
+                    <ProgressBar Height="12" Margin="0,10,0,14" Minimum="0" Maximum="100" Value="{Binding ScoreProgressPercent, Mode=OneWay}" Foreground="{Binding QualityBrush}" Background="#303338"
+                                 Visibility="{Binding DataContext.ShowScoreMetric, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}" />
                     <Button Command="{Binding DataContext.ToggleRejectCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                             CommandParameter="{Binding}"
                             FontWeight="SemiBold"
