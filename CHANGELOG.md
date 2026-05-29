@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.33
+- Improved visibility of the currently selected frame.
+
 ## 1.0.32
 
 ###  Orientation detection overhaul

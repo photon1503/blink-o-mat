@@ -1046,6 +1046,37 @@
                       VirtualizingPanel.ScrollUnit="Pixel"
                       VirtualizingPanel.CacheLengthUnit="Item"
                       VirtualizingPanel.CacheLength="1" BorderBrush="{DynamicResource WindowBackgroundBrush}">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="SnapsToDevicePixels" Value="True" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListViewItem">
+                                        <Border x:Name="Bd"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                Padding="{TemplateBinding Padding}"
+                                                SnapsToDevicePixels="True">
+                                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                              SnapsToDevicePixels="True" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <!-- No background change on the container itself.
+                                                 Selection / hover are visualised by the
+                                                 FrameListItemView panel, which binds to its
+                                                 parent ListViewItem's IsSelected / IsMouseOver. -->
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListView.ItemContainerStyle>
                     <ListView.ItemsPanel>
                         <ItemsPanelTemplate>
                             <VirtualizingStackPanel />
