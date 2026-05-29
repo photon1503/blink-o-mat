@@ -958,6 +958,27 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private Thresholds GetSettingsThresholds() => SelectedSettingsProfile?.Thresholds ?? GetThresholdsForKey(string.Empty);
 
+    private void ApplySettingsThresholdsToRuntime()
+    {
+        var settingsThresholds = CloneThresholds(GetSettingsThresholds());
+
+        if (_filterThresholds.Count == 0)
+        {
+            _filterThresholds[string.Empty] = CloneThresholds(settingsThresholds);
+            return;
+        }
+
+        foreach (var key in _filterThresholds.Keys.ToList())
+        {
+            _filterThresholds[key] = CloneThresholds(settingsThresholds);
+        }
+
+        if (!_filterThresholds.ContainsKey(string.Empty))
+        {
+            _filterThresholds[string.Empty] = CloneThresholds(settingsThresholds);
+        }
+    }
+
     public bool SettingsAutoCalcTrailThreshold
     {
         get => GetSettingsThresholds().AutoCalcTrailThreshold;
@@ -2571,6 +2592,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SessionFocalLengthMm = null;
         SessionPixelSizeUm = null;
 
+        ApplySettingsThresholdsToRuntime();
+
         try
         {
             var stopwatch = Stopwatch.StartNew();
@@ -3262,6 +3285,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     AutoCalcScoreThreshold = true,
                 };
             }
+            ApplySettingsThresholdsToRuntime();
             _rejectSatelliteTrail = session.RejectSatelliteTrail;
             OnPropertyChanged(nameof(RejectSatelliteTrail));
             RaiseAllThresholdPropertiesChanged();
