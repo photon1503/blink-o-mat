@@ -261,12 +261,22 @@ Each profile stores:
 
 When a profile is selected, those defaults are applied immediately.
 
-### Metric visibility controls
+### Metric settings table (visibility, thresholds, score)
 
-The visibility matrix in settings lets you control each metric independently:
+The settings overlay now uses one harmonized table row per metric with grouped controls:
 
-- **Slider** column: show/hide the corresponding threshold slider in *Automatic rejection*.
-- **Metric** column: show/hide that metric in the frame list display.
+- **Visibility**: `Slider` and `Metric`
+- **Thresholds**: `Auto` and manual threshold slider
+- **Score**: `Use` and score `Weight` (for score-contributing metrics)
+
+Visibility behavior:
+
+- Threshold controls are hidden when both visibility toggles (`Slider` and `Metric`) are off.
+- The threshold slider is hidden while `Auto` is enabled.
+- Score controls are hidden when metric visibility is off.
+- Score weight is hidden when `Use` is off.
+
+Rows have fixed heights to avoid layout jumping while toggling controls.
 
 The **Keep / Reject** row action remains available even if the score metric display is hidden.
 
@@ -289,7 +299,7 @@ The score is **relative within the session, per filter**. That means:
 - The best frame in your session for a given filter scores near **5.0**, the worst near **0.0** — the full scale is always used.
 - Ha frames are ranked against other Ha frames, OIII against OIII, L against L, and so on, so narrowband and broadband subs are always judged against their true peers.
 
-Internally each metric is rank-percentiled (1.0 = best in its group, 0.0 = worst), then combined with these weights:
+Internally each metric is rank-percentiled (1.0 = best in its group, 0.0 = worst), then combined with configurable weights:
 
 | Metric | Weight | Why |
 |---|---|---|
@@ -302,11 +312,16 @@ Internally each metric is rank-percentiled (1.0 = best in its group, 0.0 = worst
 
 The weighted percentiles are averaged and scaled to 0–5.
 
-In **Settings → Score**, you can adjust these weights directly and use **Reset to defaults** to return to the baseline values shown above.
+In **Settings → Metric settings**, you can control per score metric:
+- **Use** (include/exclude metric from score computation), and
+- **Weight** (impact when Use is enabled).
+
+Use **Reset score defaults** to return weights to baseline values.
 
 Score updates immediately for all loaded frames when:
-- score weights change, or
-- a score-contributing metric is hidden in both **Slider** and **Metric** visibility columns.
+- score weights change,
+- a score metric `Use` toggle changes, or
+- metric visibility changes.
 
 > **Caveat:** because the score is relative, the same physical frame can score differently in different sessions — just like a podium spot depends on who else is competing. Scores are not comparable across sessions.
 

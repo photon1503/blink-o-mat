@@ -226,6 +226,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _showMeanBackgroundMetric = true;
     private bool _showStarsMetric = true;
     private bool _showScoreMetric = true;
+    private bool _useScoreFwhm = true;
+    private bool _useScoreEccentricity = true;
+    private bool _useScoreTrail = true;
+    private bool _useScoreHfr = true;
+    private bool _useScoreStars = true;
+    private bool _useScoreMeanBackground = true;
     private double _scoreWeightFwhm = 3.0;
     private double _scoreWeightEccentricity = 2.5;
     private double _scoreWeightTrail = 2.0;
@@ -763,6 +769,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool ShowStarsMetric { get => _showStarsMetric; set { if (_showStarsMetric == value) return; _showStarsMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
     public bool ShowScoreMetric { get => _showScoreMetric; set { if (_showScoreMetric == value) return; _showScoreMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
 
+    public bool UseScoreTrail { get => _useScoreTrail; set { if (_useScoreTrail == value) return; _useScoreTrail = value; OnPropertyChanged(); OnScoreSettingsChanged(); } }
+    public bool UseScoreFwhm { get => _useScoreFwhm; set { if (_useScoreFwhm == value) return; _useScoreFwhm = value; OnPropertyChanged(); OnScoreSettingsChanged(); } }
+    public bool UseScoreHfr { get => _useScoreHfr; set { if (_useScoreHfr == value) return; _useScoreHfr = value; OnPropertyChanged(); OnScoreSettingsChanged(); } }
+    public bool UseScoreEccentricity { get => _useScoreEccentricity; set { if (_useScoreEccentricity == value) return; _useScoreEccentricity = value; OnPropertyChanged(); OnScoreSettingsChanged(); } }
+    public bool UseScoreStars { get => _useScoreStars; set { if (_useScoreStars == value) return; _useScoreStars = value; OnPropertyChanged(); OnScoreSettingsChanged(); } }
+    public bool UseScoreMeanBackground { get => _useScoreMeanBackground; set { if (_useScoreMeanBackground == value) return; _useScoreMeanBackground = value; OnPropertyChanged(); OnScoreSettingsChanged(); } }
+
     public double ScoreWeightFwhm
     {
         get => _scoreWeightFwhm;
@@ -1118,6 +1131,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ShowMeanBackgroundMetric = profile.ShowMeanBackgroundMetric,
             ShowStarsMetric = profile.ShowStarsMetric,
             ShowScoreMetric = profile.ShowScoreMetric,
+            UseScoreFwhm = profile.UseScoreFwhm,
+            UseScoreEccentricity = profile.UseScoreEccentricity,
+            UseScoreTrail = profile.UseScoreTrail,
+            UseScoreHfr = profile.UseScoreHfr,
+            UseScoreStars = profile.UseScoreStars,
+            UseScoreMeanBackground = profile.UseScoreMeanBackground,
             ScoreWeightFwhm = profile.ScoreWeightFwhm,
             ScoreWeightEccentricity = profile.ScoreWeightEccentricity,
             ScoreWeightTrail = profile.ScoreWeightTrail,
@@ -1173,6 +1192,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ShowMeanBackgroundMetric = ShowMeanBackgroundMetric,
             ShowStarsMetric = ShowStarsMetric,
             ShowScoreMetric = ShowScoreMetric,
+            UseScoreFwhm = UseScoreFwhm,
+            UseScoreEccentricity = UseScoreEccentricity,
+            UseScoreTrail = UseScoreTrail,
+            UseScoreHfr = UseScoreHfr,
+            UseScoreStars = UseScoreStars,
+            UseScoreMeanBackground = UseScoreMeanBackground,
             ScoreWeightFwhm = ScoreWeightFwhm,
             ScoreWeightEccentricity = ScoreWeightEccentricity,
             ScoreWeightTrail = ScoreWeightTrail,
@@ -1240,6 +1265,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ShowMeanBackgroundMetric = profile.ShowMeanBackgroundMetric;
             ShowStarsMetric = profile.ShowStarsMetric;
             ShowScoreMetric = profile.ShowScoreMetric;
+            UseScoreFwhm = profile.UseScoreFwhm;
+            UseScoreEccentricity = profile.UseScoreEccentricity;
+            UseScoreTrail = profile.UseScoreTrail;
+            UseScoreHfr = profile.UseScoreHfr;
+            UseScoreStars = profile.UseScoreStars;
+            UseScoreMeanBackground = profile.UseScoreMeanBackground;
             ScoreWeightFwhm = profile.ScoreWeightFwhm;
             ScoreWeightEccentricity = profile.ScoreWeightEccentricity;
             ScoreWeightTrail = profile.ScoreWeightTrail;
@@ -1286,6 +1317,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SelectedSettingsProfile.ShowMeanBackgroundMetric = ShowMeanBackgroundMetric;
         SelectedSettingsProfile.ShowStarsMetric = ShowStarsMetric;
         SelectedSettingsProfile.ShowScoreMetric = ShowScoreMetric;
+        SelectedSettingsProfile.UseScoreFwhm = UseScoreFwhm;
+        SelectedSettingsProfile.UseScoreEccentricity = UseScoreEccentricity;
+        SelectedSettingsProfile.UseScoreTrail = UseScoreTrail;
+        SelectedSettingsProfile.UseScoreHfr = UseScoreHfr;
+        SelectedSettingsProfile.UseScoreStars = UseScoreStars;
+        SelectedSettingsProfile.UseScoreMeanBackground = UseScoreMeanBackground;
         SelectedSettingsProfile.ScoreWeightFwhm = ScoreWeightFwhm;
         SelectedSettingsProfile.ScoreWeightEccentricity = ScoreWeightEccentricity;
         SelectedSettingsProfile.ScoreWeightTrail = ScoreWeightTrail;
@@ -2358,7 +2395,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Status = "Building filter chips...";
             RebuildFilterChips();
             Status = "Initializing rejection thresholds...";
-            InitializeThresholdsFromLoadedFrames();
+            InitializeThresholdsFromLoadedFrames(preserveExisting: true);
             Status = "Applying rejection thresholds...";
             ApplyThresholds();
             stopwatch.Stop();
@@ -3161,13 +3198,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (Frames.Count == 0) return;
 
-        // FWHM (px) is intentionally score-relevant even when its slider is hidden.
-        var fwhmWeight  = ShowFwhmMetric ? Math.Max(0.0, ScoreWeightFwhm) : 0.0;
-        var eccWeight   = ShowEccentricitySlider && ShowEccentricityMetric ? Math.Max(0.0, ScoreWeightEccentricity) : 0.0;
-        var hfrWeight   = ShowHfrSlider && ShowHfrMetric ? Math.Max(0.0, ScoreWeightHfr) : 0.0;
-        var starsWeight = ShowStarsSlider && ShowStarsMetric ? Math.Max(0.0, ScoreWeightStars) : 0.0;
-        var bgWeight    = ShowMeanBackgroundSlider && ShowMeanBackgroundMetric ? Math.Max(0.0, ScoreWeightMeanBackground) : 0.0;
-        var trailWeight = ShowTrailSlider && ShowTrailMetric ? Math.Max(0.0, ScoreWeightTrail) : 0.0;
+        var fwhmWeight  = ShowFwhmMetric && UseScoreFwhm ? Math.Max(0.0, ScoreWeightFwhm) : 0.0;
+        var eccWeight   = ShowEccentricityMetric && UseScoreEccentricity ? Math.Max(0.0, ScoreWeightEccentricity) : 0.0;
+        var hfrWeight   = ShowHfrMetric && UseScoreHfr ? Math.Max(0.0, ScoreWeightHfr) : 0.0;
+        var starsWeight = ShowStarsMetric && UseScoreStars ? Math.Max(0.0, ScoreWeightStars) : 0.0;
+        var bgWeight    = ShowMeanBackgroundMetric && UseScoreMeanBackground ? Math.Max(0.0, ScoreWeightMeanBackground) : 0.0;
+        var trailWeight = ShowTrailMetric && UseScoreTrail ? Math.Max(0.0, ScoreWeightTrail) : 0.0;
         var totalWeight = fwhmWeight + eccWeight + hfrWeight + starsWeight + bgWeight + trailWeight;
 
         static double[] RankPercentile(double[] values, bool lowerIsBetter)
@@ -3282,7 +3318,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return yellow;
     }
 
-    private void InitializeThresholdsFromLoadedFrames()
+    private void InitializeThresholdsFromLoadedFrames(bool preserveExisting = false)
     {
         if (Frames.Count == 0)
         {
@@ -3297,6 +3333,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             var frames = group.ToList();
             if (frames.Count == 0) continue;
+
+            if (preserveExisting && _filterThresholds.ContainsKey(group.Key))
+            {
+                continue;
+            }
 
             var t = GetThresholdsForKey(group.Key);
             if (t.AutoCalcFwhmThreshold)
