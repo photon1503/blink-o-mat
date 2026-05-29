@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.35
+### Added
+- Added configurable score weights.
 ## 1.0.34
 ### Changed
 - Main window title now includes the active settings profile next to the app version, e.g. `Rejector 1.0.34 (Profile: Default)`.

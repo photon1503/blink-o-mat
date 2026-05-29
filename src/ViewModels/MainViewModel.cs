@@ -226,12 +226,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _showMeanBackgroundMetric = true;
     private bool _showStarsMetric = true;
     private bool _showScoreMetric = true;
+    private double _scoreWeightFwhm = 3.0;
+    private double _scoreWeightEccentricity = 2.5;
+    private double _scoreWeightTrail = 2.0;
+    private double _scoreWeightHfr = 1.5;
+    private double _scoreWeightStars = 1.5;
+    private double _scoreWeightMeanBackground = 0.5;
 
     private string _newProfileName = string.Empty;
     private string _defaultProfileName = "Default";
     private SettingsProfile? _selectedSettingsProfile;
     private bool _isApplyingProfile;
     private bool _isLoadingInitialSettings;
+    private bool _isApplyingScoreWeightPreset;
     private bool _hasManualRoi;
     private bool _autoStretchPerFrame = true;
     private bool _skipRejectedInPreview;
@@ -734,27 +741,147 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool ShowTrailSlider { get => _showTrailSlider; set { if (_showTrailSlider == value) return; _showTrailSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
-    public bool ShowFwhmSlider { get => _showFwhmSlider; set { if (_showFwhmSlider == value) return; _showFwhmSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowTrailSlider { get => _showTrailSlider; set { if (_showTrailSlider == value) return; _showTrailSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
+    public bool ShowFwhmSlider { get => _showFwhmSlider; set { if (_showFwhmSlider == value) return; _showFwhmSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
     public bool ShowFwhmArcsecSlider { get => _showFwhmArcsecSlider; set { if (_showFwhmArcsecSlider == value) return; _showFwhmArcsecSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
     public bool ShowSqmSlider { get => _showSqmSlider; set { if (_showSqmSlider == value) return; _showSqmSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
     public bool ShowSkyTempSlider { get => _showSkyTempSlider; set { if (_showSkyTempSlider == value) return; _showSkyTempSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
-    public bool ShowHfrSlider { get => _showHfrSlider; set { if (_showHfrSlider == value) return; _showHfrSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
-    public bool ShowEccentricitySlider { get => _showEccentricitySlider; set { if (_showEccentricitySlider == value) return; _showEccentricitySlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
-    public bool ShowMeanBackgroundSlider { get => _showMeanBackgroundSlider; set { if (_showMeanBackgroundSlider == value) return; _showMeanBackgroundSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
-    public bool ShowStarsSlider { get => _showStarsSlider; set { if (_showStarsSlider == value) return; _showStarsSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowHfrSlider { get => _showHfrSlider; set { if (_showHfrSlider == value) return; _showHfrSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
+    public bool ShowEccentricitySlider { get => _showEccentricitySlider; set { if (_showEccentricitySlider == value) return; _showEccentricitySlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
+    public bool ShowMeanBackgroundSlider { get => _showMeanBackgroundSlider; set { if (_showMeanBackgroundSlider == value) return; _showMeanBackgroundSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
+    public bool ShowStarsSlider { get => _showStarsSlider; set { if (_showStarsSlider == value) return; _showStarsSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
     public bool ShowScoreSlider { get => _showScoreSlider; set { if (_showScoreSlider == value) return; _showScoreSlider = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
 
-    public bool ShowTrailMetric { get => _showTrailMetric; set { if (_showTrailMetric == value) return; _showTrailMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
-    public bool ShowFwhmMetric { get => _showFwhmMetric; set { if (_showFwhmMetric == value) return; _showFwhmMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowTrailMetric { get => _showTrailMetric; set { if (_showTrailMetric == value) return; _showTrailMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
+    public bool ShowFwhmMetric { get => _showFwhmMetric; set { if (_showFwhmMetric == value) return; _showFwhmMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
     public bool ShowFwhmArcsecMetric { get => _showFwhmArcsecMetric; set { if (_showFwhmArcsecMetric == value) return; _showFwhmArcsecMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
     public bool ShowSqmMetric { get => _showSqmMetric; set { if (_showSqmMetric == value) return; _showSqmMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
     public bool ShowSkyTempMetric { get => _showSkyTempMetric; set { if (_showSkyTempMetric == value) return; _showSkyTempMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
-    public bool ShowHfrMetric { get => _showHfrMetric; set { if (_showHfrMetric == value) return; _showHfrMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
-    public bool ShowEccentricityMetric { get => _showEccentricityMetric; set { if (_showEccentricityMetric == value) return; _showEccentricityMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
-    public bool ShowMeanBackgroundMetric { get => _showMeanBackgroundMetric; set { if (_showMeanBackgroundMetric == value) return; _showMeanBackgroundMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
-    public bool ShowStarsMetric { get => _showStarsMetric; set { if (_showStarsMetric == value) return; _showStarsMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+    public bool ShowHfrMetric { get => _showHfrMetric; set { if (_showHfrMetric == value) return; _showHfrMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
+    public bool ShowEccentricityMetric { get => _showEccentricityMetric; set { if (_showEccentricityMetric == value) return; _showEccentricityMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
+    public bool ShowMeanBackgroundMetric { get => _showMeanBackgroundMetric; set { if (_showMeanBackgroundMetric == value) return; _showMeanBackgroundMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
+    public bool ShowStarsMetric { get => _showStarsMetric; set { if (_showStarsMetric == value) return; _showStarsMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); OnScoreSettingsChanged(); } }
     public bool ShowScoreMetric { get => _showScoreMetric; set { if (_showScoreMetric == value) return; _showScoreMetric = value; OnPropertyChanged(); OnRejectionCriteriaVisibilityChanged(); } }
+
+    public double ScoreWeightFwhm
+    {
+        get => _scoreWeightFwhm;
+        set
+        {
+            if (Math.Abs(_scoreWeightFwhm - value) < double.Epsilon) return;
+            _scoreWeightFwhm = value;
+            OnPropertyChanged();
+            if (!_isApplyingScoreWeightPreset)
+            {
+                OnScoreSettingsChanged();
+            }
+        }
+    }
+
+    public double ScoreWeightEccentricity
+    {
+        get => _scoreWeightEccentricity;
+        set
+        {
+            if (Math.Abs(_scoreWeightEccentricity - value) < double.Epsilon) return;
+            _scoreWeightEccentricity = value;
+            OnPropertyChanged();
+            if (!_isApplyingScoreWeightPreset)
+            {
+                OnScoreSettingsChanged();
+            }
+        }
+    }
+
+    public double ScoreWeightTrail
+    {
+        get => _scoreWeightTrail;
+        set
+        {
+            if (Math.Abs(_scoreWeightTrail - value) < double.Epsilon) return;
+            _scoreWeightTrail = value;
+            OnPropertyChanged();
+            if (!_isApplyingScoreWeightPreset)
+            {
+                OnScoreSettingsChanged();
+            }
+        }
+    }
+
+    public double ScoreWeightHfr
+    {
+        get => _scoreWeightHfr;
+        set
+        {
+            if (Math.Abs(_scoreWeightHfr - value) < double.Epsilon) return;
+            _scoreWeightHfr = value;
+            OnPropertyChanged();
+            if (!_isApplyingScoreWeightPreset)
+            {
+                OnScoreSettingsChanged();
+            }
+        }
+    }
+
+    public double ScoreWeightStars
+    {
+        get => _scoreWeightStars;
+        set
+        {
+            if (Math.Abs(_scoreWeightStars - value) < double.Epsilon) return;
+            _scoreWeightStars = value;
+            OnPropertyChanged();
+            if (!_isApplyingScoreWeightPreset)
+            {
+                OnScoreSettingsChanged();
+            }
+        }
+    }
+
+    public double ScoreWeightMeanBackground
+    {
+        get => _scoreWeightMeanBackground;
+        set
+        {
+            if (Math.Abs(_scoreWeightMeanBackground - value) < double.Epsilon) return;
+            _scoreWeightMeanBackground = value;
+            OnPropertyChanged();
+            if (!_isApplyingScoreWeightPreset)
+            {
+                OnScoreSettingsChanged();
+            }
+        }
+    }
+
+    public void ResetScoreWeightsToDefaults()
+    {
+        _isApplyingScoreWeightPreset = true;
+        try
+        {
+            ScoreWeightFwhm = 3.0;
+            ScoreWeightEccentricity = 2.5;
+            ScoreWeightTrail = 2.0;
+            ScoreWeightHfr = 1.5;
+            ScoreWeightStars = 1.5;
+            ScoreWeightMeanBackground = 0.5;
+        }
+        finally
+        {
+            _isApplyingScoreWeightPreset = false;
+        }
+
+        OnScoreSettingsChanged();
+    }
+
+    private void OnScoreSettingsChanged()
+    {
+        PersistProfileUiFlags();
+        if (!_isApplyingProfile && !_isLoadingInitialSettings)
+        {
+            UpdateFrameComparisons();
+            ApplyThresholds();
+        }
+    }
 
     public bool AutoCalcTrailThreshold
     {
@@ -969,6 +1096,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ShowMeanBackgroundMetric = profile.ShowMeanBackgroundMetric,
             ShowStarsMetric = profile.ShowStarsMetric,
             ShowScoreMetric = profile.ShowScoreMetric,
+            ScoreWeightFwhm = profile.ScoreWeightFwhm,
+            ScoreWeightEccentricity = profile.ScoreWeightEccentricity,
+            ScoreWeightTrail = profile.ScoreWeightTrail,
+            ScoreWeightHfr = profile.ScoreWeightHfr,
+            ScoreWeightStars = profile.ScoreWeightStars,
+            ScoreWeightMeanBackground = profile.ScoreWeightMeanBackground,
             AutoCalcTrailThreshold = profile.AutoCalcTrailThreshold,
             AutoCalcFwhmThreshold = profile.AutoCalcFwhmThreshold,
             AutoCalcFwhmArcsecThreshold = profile.AutoCalcFwhmArcsecThreshold,
@@ -1023,6 +1156,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ShowMeanBackgroundMetric = ShowMeanBackgroundMetric,
             ShowStarsMetric = ShowStarsMetric,
             ShowScoreMetric = ShowScoreMetric,
+            ScoreWeightFwhm = ScoreWeightFwhm,
+            ScoreWeightEccentricity = ScoreWeightEccentricity,
+            ScoreWeightTrail = ScoreWeightTrail,
+            ScoreWeightHfr = ScoreWeightHfr,
+            ScoreWeightStars = ScoreWeightStars,
+            ScoreWeightMeanBackground = ScoreWeightMeanBackground,
             AutoCalcTrailThreshold = AutoCalcTrailThreshold,
             AutoCalcFwhmThreshold = AutoCalcFwhmThreshold,
             AutoCalcFwhmArcsecThreshold = AutoCalcFwhmArcsecThreshold,
@@ -1077,6 +1216,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ShowMeanBackgroundMetric = profile.ShowMeanBackgroundMetric;
             ShowStarsMetric = profile.ShowStarsMetric;
             ShowScoreMetric = profile.ShowScoreMetric;
+            ScoreWeightFwhm = profile.ScoreWeightFwhm;
+            ScoreWeightEccentricity = profile.ScoreWeightEccentricity;
+            ScoreWeightTrail = profile.ScoreWeightTrail;
+            ScoreWeightHfr = profile.ScoreWeightHfr;
+            ScoreWeightStars = profile.ScoreWeightStars;
+            ScoreWeightMeanBackground = profile.ScoreWeightMeanBackground;
             AutoCalcTrailThreshold = profile.AutoCalcTrailThreshold;
             AutoCalcFwhmThreshold = profile.AutoCalcFwhmThreshold;
             AutoCalcFwhmArcsecThreshold = profile.AutoCalcFwhmArcsecThreshold;
@@ -1089,6 +1234,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             AutoCalcScoreThreshold = profile.AutoCalcScoreThreshold;
 
             RaiseAllThresholdPropertiesChanged();
+            UpdateFrameComparisons();
             ApplyThresholds();
         }
         finally
@@ -1126,6 +1272,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SelectedSettingsProfile.ShowMeanBackgroundMetric = ShowMeanBackgroundMetric;
         SelectedSettingsProfile.ShowStarsMetric = ShowStarsMetric;
         SelectedSettingsProfile.ShowScoreMetric = ShowScoreMetric;
+        SelectedSettingsProfile.ScoreWeightFwhm = ScoreWeightFwhm;
+        SelectedSettingsProfile.ScoreWeightEccentricity = ScoreWeightEccentricity;
+        SelectedSettingsProfile.ScoreWeightTrail = ScoreWeightTrail;
+        SelectedSettingsProfile.ScoreWeightHfr = ScoreWeightHfr;
+        SelectedSettingsProfile.ScoreWeightStars = ScoreWeightStars;
+        SelectedSettingsProfile.ScoreWeightMeanBackground = ScoreWeightMeanBackground;
         SelectedSettingsProfile.AutoCalcTrailThreshold = AutoCalcTrailThreshold;
         SelectedSettingsProfile.AutoCalcFwhmThreshold = AutoCalcFwhmThreshold;
         SelectedSettingsProfile.AutoCalcFwhmArcsecThreshold = AutoCalcFwhmArcsecThreshold;
@@ -2989,25 +3141,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// This guarantees the best frame in the session always scores near 5.0 and
     /// the distribution spans the full range, making it actually useful for culling.
     ///
-    /// Weights reflect typical astro importance:
-    ///   FWHM (3.0)  — sharpness / seeing, most critical
-    ///   Eccentricity (2.5) — star roundness (tracking, tilt)
-    ///   HFR (1.5)   — correlated with FWHM, secondary confirmation
-    ///   Stars (1.5) — cloud coverage / transparency
-    ///   Mean BG (0.5) — light pollution / gradient, less decisive alone
-    ///   Trail (2.0) — satellite/aircraft contamination, binary-ish
+    /// Weights reflect typical astro importance by default and can be customized in Settings.
     /// </summary>
     private void ComputePercentileScores()
     {
         if (Frames.Count == 0) return;
 
-        const double fwhmWeight  = 3.0;
-        const double eccWeight   = 2.5;
-        const double hfrWeight   = 1.5;
-        const double starsWeight = 1.5;
-        const double bgWeight    = 0.5;
-        const double trailWeight = 2.0;
-        const double totalWeight = fwhmWeight + eccWeight + hfrWeight + starsWeight + bgWeight + trailWeight;
+        // FWHM (px) is intentionally score-relevant even when its slider is hidden.
+        var fwhmWeight  = ShowFwhmMetric ? Math.Max(0.0, ScoreWeightFwhm) : 0.0;
+        var eccWeight   = ShowEccentricitySlider && ShowEccentricityMetric ? Math.Max(0.0, ScoreWeightEccentricity) : 0.0;
+        var hfrWeight   = ShowHfrSlider && ShowHfrMetric ? Math.Max(0.0, ScoreWeightHfr) : 0.0;
+        var starsWeight = ShowStarsSlider && ShowStarsMetric ? Math.Max(0.0, ScoreWeightStars) : 0.0;
+        var bgWeight    = ShowMeanBackgroundSlider && ShowMeanBackgroundMetric ? Math.Max(0.0, ScoreWeightMeanBackground) : 0.0;
+        var trailWeight = ShowTrailSlider && ShowTrailMetric ? Math.Max(0.0, ScoreWeightTrail) : 0.0;
+        var totalWeight = fwhmWeight + eccWeight + hfrWeight + starsWeight + bgWeight + trailWeight;
 
         static double[] RankPercentile(double[] values, bool lowerIsBetter)
         {
@@ -3015,24 +3162,44 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (n == 0) return [];
             if (n == 1) return [1.0];
 
-            var indexed = values.Select((v, i) => (v, i)).ToArray();
-            var sorted = lowerIsBetter
-                ? indexed.OrderBy(x => x.v).ToArray()
-                : indexed.OrderByDescending(x => x.v).ToArray();
-
+            // Missing / invalid values are considered worst and therefore rank at 0.
             var percentiles = new double[n];
-            var rank = 0;
-            while (rank < n)
+            var indexed = values
+                .Select((v, i) => (v, i))
+                .Where(x => double.IsFinite(x.v))
+                .OrderBy(x => x.v)
+                .ToArray();
+
+            if (indexed.Length == 0)
             {
-                var val = sorted[rank].v;
+                return percentiles;
+            }
+
+            if (indexed.Length == 1)
+            {
+                percentiles[indexed[0].i] = 1.0;
+                return percentiles;
+            }
+
+            var rank = 0;
+            while (rank < indexed.Length)
+            {
+                var val = indexed[rank].v;
                 var tieEnd = rank;
-                while (tieEnd + 1 < n && sorted[tieEnd + 1].v == val) tieEnd++;
+                while (tieEnd + 1 < indexed.Length && indexed[tieEnd + 1].v == val) tieEnd++;
+
                 var avgRank = (rank + tieEnd) / 2.0;
-                var pct = 1.0 - avgRank / (n - 1.0);
+                var normalized = avgRank / (indexed.Length - 1.0);
+                var pct = lowerIsBetter ? (1.0 - normalized) : normalized;
+
                 for (var t = rank; t <= tieEnd; t++)
-                    percentiles[sorted[t].i] = pct;
+                {
+                    percentiles[indexed[t].i] = pct;
+                }
+
                 rank = tieEnd + 1;
             }
+
             return percentiles;
         }
 
@@ -3053,6 +3220,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             for (var i = 0; i < members.Length; i++)
             {
+                if (totalWeight <= double.Epsilon)
+                {
+                    members[i].Frame.OverallScore = 0.0;
+                    continue;
+                }
+
                 var weighted = fwhmPct[i]  * fwhmWeight
                              + eccPct[i]   * eccWeight
                              + hfrPct[i]   * hfrWeight

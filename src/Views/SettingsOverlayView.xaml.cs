@@ -69,5 +69,13 @@ namespace blink_o_mat.Views
                 }
             }
         }
+
+        private void ResetScoreWeightsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                vm.ResetScoreWeightsToDefaults();
+            }
+        }
     }
 }

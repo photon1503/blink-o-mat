@@ -302,6 +302,12 @@ Internally each metric is rank-percentiled (1.0 = best in its group, 0.0 = worst
 
 The weighted percentiles are averaged and scaled to 0–5.
 
+In **Settings → Score**, you can adjust these weights directly and use **Reset to defaults** to return to the baseline values shown above.
+
+Score updates immediately for all loaded frames when:
+- score weights change, or
+- a score-contributing metric is hidden in both **Slider** and **Metric** visibility columns.
+
 > **Caveat:** because the score is relative, the same physical frame can score differently in different sessions — just like a podium spot depends on who else is competing. Scores are not comparable across sessions.
 
 ---

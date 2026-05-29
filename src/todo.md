@@ -33,7 +33,7 @@ ok * dass man die selektionparameter an/abhaken kann (ich brauche zb fast aussch
 ok * Monitor folder for new files and automatically load them into the software. This would be especially useful for users who are capturing images in real-time and want to see the results immediately without having to manually refresh or reload the folder.
 
 •	Optische Elemente – Lesbarkeit/Größe der Bewertungsparameter
-•	Ampelsystem: Gewichtung einstellbar?
+ok •	Ampelsystem: Gewichtung einstellbar?
 •	Optional – bereich für werteberechnung definierbar (crop) – z.b. für FWHM, Eccentricity, etc
 
 ok .) BewertungsProfil anlegen/speichern mit:

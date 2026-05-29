@@ -298,6 +298,76 @@
                         <CheckBox Grid.Column="1" Grid.Row="10" IsChecked="{Binding ShowScoreSlider}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1" />
                         <CheckBox Grid.Column="2" Grid.Row="10" IsChecked="{Binding ShowScoreMetric}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1" />
                     </Grid>
+
+                    <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,10,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="SCORE" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Content="Reset to defaults"
+                                    Padding="10,2"
+                                    Margin="12,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Click="ResetScoreWeightsButton_Click" />
+                        </Grid>
+                    </Border>
+                    <Grid HorizontalAlignment="Left" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="320" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Column="0" Grid.Row="0" Text="Metric" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Grid.Row="0" Text="Weight" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" HorizontalAlignment="Left" VerticalAlignment="Center" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="1" Text="Trail confidence" Margin="0,4,8,4" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="1" Grid.Row="1" Width="210"
+                                                      Value="{Binding ScoreWeightTrail, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="5" TickFrequency="0.1" LargeChange="0.5"
+                                                      Decimals="1" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="2" Text="FWHM (px)" Margin="0,4,8,4" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="1" Grid.Row="2" Width="210"
+                                                      Value="{Binding ScoreWeightFwhm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="5" TickFrequency="0.1" LargeChange="0.5"
+                                                      Decimals="1" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="3" Text="HFR" Margin="0,4,8,4" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="1" Grid.Row="3" Width="210"
+                                                      Value="{Binding ScoreWeightHfr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="5" TickFrequency="0.1" LargeChange="0.5"
+                                                      Decimals="1" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="4" Text="Eccentricity" Margin="0,4,8,4" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="1" Grid.Row="4" Width="210"
+                                                      Value="{Binding ScoreWeightEccentricity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="5" TickFrequency="0.1" LargeChange="0.5"
+                                                      Decimals="1" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="5" Text="Stars" Margin="0,4,8,4" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="1" Grid.Row="5" Width="210"
+                                                      Value="{Binding ScoreWeightStars, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="5" TickFrequency="0.1" LargeChange="0.5"
+                                                      Decimals="1" />
+
+                        <TextBlock Grid.Column="0" Grid.Row="6" Text="Mean background" Margin="0,4,8,4" VerticalAlignment="Center" />
+                        <controls:MetricSliderControl Grid.Column="1" Grid.Row="6" Width="210"
+                                                      Value="{Binding ScoreWeightMeanBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Minimum="0" Maximum="5" TickFrequency="0.1" LargeChange="0.5"
+                                                      Decimals="1" />
+                    </Grid>
                 </StackPanel>
                 </ScrollViewer>
             </Border>

@@ -47,6 +47,13 @@ public sealed class SettingsProfile
     public bool AutoCalcStarsThreshold { get; set; } = true;
     public bool AutoCalcScoreThreshold { get; set; } = true;
 
+    public double ScoreWeightFwhm { get; set; } = 3.0;
+    public double ScoreWeightEccentricity { get; set; } = 2.5;
+    public double ScoreWeightTrail { get; set; } = 2.0;
+    public double ScoreWeightHfr { get; set; } = 1.5;
+    public double ScoreWeightStars { get; set; } = 1.5;
+    public double ScoreWeightMeanBackground { get; set; } = 0.5;
+
     public static string NormalizeName(string? raw)
     {
         var n = (raw ?? string.Empty).Trim();
