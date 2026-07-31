@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Rejector.Avalonia/Rejector.Avalonia.csproj" />
+    <Project Path="src/Rejector.Cli/Rejector.Cli.csproj" />
+    <Project Path="src/Rejector.Core/Rejector.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Rejector.Core.Tests/Rejector.Core.Tests.csproj" />
+  </Folder>
+</Solution>

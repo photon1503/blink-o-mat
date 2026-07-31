@@ -1,0 +1,501 @@
+<Window
+    x:Class="Rejector.Avalonia.Views.MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Rejector.Avalonia.ViewModels"
+    x:DataType="vm:MainWindowViewModel"
+    Background="{DynamicResource WindowBackgroundBrush}"
+    Width="1550"
+    Height="1000"
+    MinWidth="1200"
+    MinHeight="800"
+    Title="{Binding Title}">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="12" Background="{DynamicResource WindowBackgroundBrush}">
+    <Grid Grid.Row="0" Margin="0,0,0,12">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="8">
+        <ToggleButton Grid.Column="0"
+                      Padding="10,8"
+                      IsChecked="{Binding IsSettingsOpen}">
+          <Path Width="14" Height="14" Stretch="Uniform" Fill="#FFFFFF" Data="M19.14,12.94A7.43,7.43 0 0,0 19.19,12A7.43,7.43 0 0,0 19.14,11.06L21.19,9.47C21.37,9.33 21.42,9.07 21.3,8.87L19.3,5.13C19.18,4.93 18.93,4.85 18.72,4.93L16.31,5.9C15.79,5.5 15.21,5.17 14.57,4.93L14.2,2.37C14.17,2.15 14,2 13.78,2H10.22C10,2 9.83,2.15 9.8,2.37L9.43,4.93C8.79,5.17 8.21,5.5 7.69,5.9L5.28,4.93C5.07,4.85 4.82,4.93 4.7,5.13L2.7,8.87C2.58,9.07 2.63,9.33 2.81,9.47L4.86,11.06C4.81,11.37 4.78,11.68 4.78,12C4.78,12.32 4.81,12.63 4.86,12.94L2.81,14.53C2.63,14.67 2.58,14.93 2.7,15.13L4.7,18.87C4.82,19.07 5.07,19.15 5.28,19.07L7.69,18.1C8.21,18.5 8.79,18.83 9.43,19.07L9.8,21.63C9.83,21.85 10,22 10.22,22H13.78C14,22 14.17,21.85 14.2,21.63L14.57,19.07C15.21,18.83 15.79,18.5 16.31,18.1L18.72,19.07C18.93,19.15 19.18,19.07 19.3,18.87L21.3,15.13C21.42,14.93 21.37,14.67 21.19,14.53L19.14,12.94M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5Z" />
+        </ToggleButton>
+
+        <Button Grid.Column="1" Padding="16,8" Background="#5D9A65" BorderBrush="#74B27C" Foreground="#FFFFFF" Click="OpenFolderPanel_Click">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Path Width="16" Height="16" Stretch="Uniform" Fill="#FFFFFF" Data="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+            <TextBlock Text="Open Folder" Foreground="#FFFFFF" />
+          </StackPanel>
+        </Button>
+
+        <Button Grid.Column="2" Padding="10,8" Click="SaveSession_Click">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Save" />
+          </StackPanel>
+        </Button>
+
+        <Button Grid.Column="3" Padding="10,8" Click="LoadSession_Click">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Load" />
+          </StackPanel>
+        </Button>
+
+        <Border Grid.Column="4" Margin="8,0,8,0" Padding="10,8" Background="{DynamicResource WindowBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="4">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock FontSize="11" Text="{Binding SessionFocalLengthText}" />
+            <TextBlock FontSize="11" Foreground="{DynamicResource MutedTextBrush}" Text="|" />
+            <TextBlock FontSize="11" Text="{Binding SessionPixelSizeText}" />
+            <TextBlock FontSize="11" Foreground="{DynamicResource MutedTextBrush}" Text="|" />
+            <TextBlock FontSize="11" Text="{Binding IncludeSubfoldersText}" />
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Column="5" />
+
+        <Button Grid.Column="6" Padding="14,8" Background="#C0392B" BorderBrush="#E74C3C" Foreground="#FFFFFF" Command="{Binding MoveRejectedCommand}">
+          <TextBlock Text="Reject" Foreground="#FFFFFF" FontWeight="SemiBold" />
+        </Button>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="1" Margin="0,0,0,8" Padding="10,8" Background="#14171A" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="4">
+      <StackPanel Spacing="6">
+        <Border Background="#3E5B93" BorderBrush="#87A9E6" BorderThickness="1" Padding="8,5" CornerRadius="4" IsVisible="{Binding IsUpdateBannerVisible}">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <TextBlock Text="{Binding UpdateBannerText}" Foreground="#F4F8FF" FontSize="12" TextWrapping="Wrap" />
+            <Button Grid.Column="1" Command="{Binding DismissUpdateBannerCommand}" Content="Close" Padding="10,2" />
+          </Grid>
+        </Border>
+        <TextBlock FontSize="12" Text="{Binding StatusText}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="2" Margin="0,0,0,10" ColumnDefinitions="310,*">
+      <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,8,0">
+        <StackPanel Spacing="10">
+          <Border Padding="10" Margin="0,0,0,10" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="#FF27292C" BorderThickness="1">
+            <StackPanel>
+              <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Frame summary" />
+              <Grid Margin="0,0,0,4" ColumnDefinitions="*,Auto">
+                <TextBlock Text="Total frames" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
+                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding TotalFrameCount}" FontSize="11" />
+              </Grid>
+              <Grid Height="7" Margin="0,0,0,3" ColumnDefinitions="*,*">
+                <Border Grid.Column="0" Background="#5CA36E" CornerRadius="3,0,0,3" />
+                <Border Grid.Column="1" Background="#B85C5C" CornerRadius="0,3,3,0" />
+              </Grid>
+              <ProgressBar Height="7" Minimum="0" Maximum="1" Value="{Binding OverallAcceptedRatio}" Foreground="#5CA36E" Background="#B85C5C" Margin="0,0,0,6" />
+              <Grid Margin="0,0,0,2" ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="✓ " Foreground="#5CA36E" FontSize="11" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text="{Binding ApprovedFrameCount, StringFormat={}{0} accepted (}" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text="{Binding ApprovedFramePercentageText}" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text=")" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" FontWeight="SemiBold" FontSize="11" Text="{Binding AcceptedIntegrationTimeText}" />
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="✕ " Foreground="#B85C5C" FontSize="11" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text="{Binding RejectedFrameCount, StringFormat={}{0} rejected (}" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text="{Binding RejectedFramePercentageText}" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text=")" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text="{Binding TotalIntegrationTimeText, StringFormat=total: {0}}" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding FilterSummaries}" Margin="0,8,0,0" IsVisible="{Binding HasMultipleFilterChips}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:FilterSummaryViewModel">
+                    <Grid Margin="0,3,0,0" Height="16" ColumnDefinitions="18,*,Auto">
+                      <TextBlock Grid.Column="0" Text="{Binding FilterName}" FontSize="10" FontWeight="SemiBold" Foreground="#8FB3FF" VerticalAlignment="Center" />
+                      <Grid Grid.Column="1" Margin="4,0,6,0" ColumnDefinitions="*,*">
+                        <Border Grid.Column="0" Background="#5CA36E" CornerRadius="2,0,0,2" />
+                        <Border Grid.Column="1" Background="#B85C5C" CornerRadius="0,2,2,0" />
+                        <TextBlock Grid.Column="0" FontSize="9" Foreground="#DDFFFFFF" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0,0,0" Text="{Binding Accepted}" />
+                        <TextBlock Grid.Column="1" FontSize="9" Foreground="#DDFFFFFF" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,3,0" Text="{Binding Rejected}" />
+                      </Grid>
+                      <TextBlock Grid.Column="2" FontSize="10" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" Text="{Binding IntegrationTimeText}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <Border Padding="10" Margin="0,0,0,10" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="#FF27292C" BorderThickness="1">
+            <StackPanel>
+              <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Automatic rejection" />
+              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+            <TextBlock VerticalAlignment="Center" Text="Max FWHM" />
+            <NumericUpDown Grid.Column="1" Minimum="0" Maximum="50" Increment="0.1" Value="{Binding MaxFwhm}" FormatString="F2" />
+            <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Max HFR" />
+            <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="50" Increment="0.1" Value="{Binding MaxHfr}" FormatString="F2" />
+            <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Max Ecc" />
+            <NumericUpDown Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="1" Increment="0.01" Value="{Binding MaxEccentricity}" FormatString="F3" />
+            <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Max Background" />
+            <NumericUpDown Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="100000" Increment="50" Value="{Binding MaxMeanBackground}" FormatString="F0" />
+            <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="Min Stars" />
+            <NumericUpDown Grid.Row="4" Grid.Column="1" Minimum="0" Maximum="50000" Increment="10" Value="{Binding MinStars}" FormatString="F0" />
+            <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="Min Trail %" />
+            <NumericUpDown Grid.Row="5" Grid.Column="1" Minimum="0" Maximum="100" Increment="1" Value="{Binding MinSatelliteConfidence}" FormatString="F0" />
+          </Grid>
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,10,0,0">
+                <Button Command="{Binding ApplyThresholdsCommand}" Content="Apply Thresholds" />
+                <Button Grid.Column="1" Command="{Binding MoveRejectedCommand}" Content="Move Rejected" />
+              </Grid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <Grid Grid.Column="1">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,8" ColumnDefinitions="Auto,Auto,*,Auto">
+          <Border Grid.Column="0" Margin="0,0,8,0" Padding="8,4,8,6" BorderThickness="1" BorderBrush="{DynamicResource PanelBorderBrush}" CornerRadius="6" Background="{DynamicResource PanelBackgroundBrush}">
+            <StackPanel>
+              <TextBlock Text="VISIBILITY" FontSize="9" FontWeight="Bold" Foreground="#666" Margin="0,0,0,4" />
+              <WrapPanel>
+                <ToggleButton IsChecked="{Binding ShowAccepted}" Margin="0,0,6,0" Padding="12,4" BorderThickness="1" FontWeight="SemiBold" Background="#223A6B46" BorderBrush="#5CA36E">
+                  <TextBlock Text="Accepted" />
+                </ToggleButton>
+                <ToggleButton IsChecked="{Binding ShowRejected}" Padding="12,4" BorderThickness="1" FontWeight="SemiBold" Background="#224E2A2A" BorderBrush="#B85C5C">
+                  <TextBlock Text="Rejected" />
+                </ToggleButton>
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Grid.Column="1" Margin="0,0,8,0" Padding="8,4,8,6" BorderThickness="1" BorderBrush="{DynamicResource PanelBorderBrush}" CornerRadius="6" Background="{DynamicResource PanelBackgroundBrush}" IsVisible="{Binding HasFilterChips}">
+            <StackPanel>
+              <TextBlock Text="FILTERS" FontSize="9" FontWeight="Bold" Foreground="#666" Margin="0,0,0,4" />
+              <ItemsControl ItemsSource="{Binding FilterChips}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:FilterChipViewModel">
+                    <ToggleButton IsChecked="{Binding IsSelected}" Margin="0,0,6,0" Padding="10,4" BorderThickness="1" FontWeight="SemiBold">
+                      <TextBlock Text="{Binding DisplayName}" />
+                    </ToggleButton>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <Border Grid.Column="3" Padding="8,4,8,6" BorderThickness="1" BorderBrush="{DynamicResource PanelBorderBrush}" CornerRadius="6" Background="{DynamicResource PanelBackgroundBrush}">
+            <StackPanel>
+              <TextBlock Text="SORT" FontSize="9" FontWeight="Bold" Foreground="#666" Margin="0,0,0,4" />
+              <ItemsControl ItemsSource="{Binding SortRules}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SortRuleViewModel">
+                    <Grid ColumnDefinitions="140,92,Auto" ColumnSpacing="6" Margin="0,0,0,4">
+                      <ComboBox Grid.Column="0" ItemsSource="{Binding $parent[Window].DataContext.SortFieldOptions}" SelectedItem="{Binding Field}" Width="136" />
+                      <ToggleButton Grid.Column="1" IsChecked="{Binding IsAscending}" Content="{Binding DirectionLabel}" Width="88" />
+                      <Button Grid.Column="2" Content="-" Width="24" Command="{Binding $parent[Window].DataContext.RemoveSortRuleCommand}" CommandParameter="{Binding}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Button Command="{Binding AddSortRuleCommand}" Content="Add rule" HorizontalAlignment="Left" Padding="8,3" />
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <ListBox Grid.Row="1" Background="Transparent" BorderThickness="0" ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResult}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:FrameSummaryViewModel">
+              <Border Margin="0,0,0,8" Padding="6" CornerRadius="4" Background="#FF3A3A3A" BorderBrush="#FF555555" BorderThickness="1" Tapped="ResultRow_Tapped">
+                <Grid RowDefinitions="Auto,*" ColumnDefinitions="310,163*,521*,82*,150" ColumnSpacing="10">
+                  <DockPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,0,10,6">
+                    <Border DockPanel.Dock="Right" Background="{Binding QualityBackgroundColor}" CornerRadius="5" Padding="10,3" VerticalAlignment="Center" Margin="12,0,0,0">
+                      <TextBlock Text="{Binding QualityLabel}" Foreground="{Binding QualityColor}" FontWeight="Bold" FontSize="12" />
+                    </Border>
+                    <TextBlock DockPanel.Dock="Left" FontSize="20" FontWeight="SemiBold" Foreground="#F0F0F0" TextTrimming="CharacterEllipsis" Text="{Binding FileName}" ToolTip.Tip="{Binding FileName}" VerticalAlignment="Center" />
+                  </DockPanel>
+
+                  <Grid Grid.Row="1" Grid.Column="0" ColumnDefinitions="150,150">
+                    <Border Grid.Column="0" Width="145" Height="145" Margin="0,0,6,0" BorderBrush="#3B3E42" BorderThickness="1" Background="#151618" CornerRadius="4" ClipToBounds="True">
+                      <Grid>
+                        <Image Stretch="UniformToFill" Source="{Binding Thumbnail}" />
+                        <Border Background="#AA1C1C1C" CornerRadius="3" Padding="5,2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6">
+                          <TextBlock Text="Frame" FontSize="11" FontWeight="SemiBold" Foreground="#EEEEEE" />
+                        </Border>
+                      </Grid>
+                    </Border>
+                    <Border Grid.Column="1" Width="145" Height="145" BorderBrush="#3B3E42" BorderThickness="1" Background="#151618" CornerRadius="4" ClipToBounds="True">
+                      <Grid>
+                        <Image Stretch="UniformToFill" Source="{Binding RoiImage}" />
+                        <Border Background="#AA1C1C1C" CornerRadius="3" Padding="5,2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6">
+                          <TextBlock Text="ROI" FontSize="11" FontWeight="SemiBold" Foreground="#EEEEEE" />
+                        </Border>
+                      </Grid>
+                    </Border>
+                  </Grid>
+
+                  <Grid Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" RowDefinitions="Auto,Auto,*">
+                    <WrapPanel Grid.Row="0" Margin="0,0,0,8">
+                      <TextBlock Text="{Binding TimestampDisplay}" Foreground="#BBBBBB" FontSize="12" Margin="0,0,12,0" />
+                      <TextBlock Text="•" Foreground="#666666" Margin="0,0,12,0" />
+                      <TextBlock Text="{Binding ExposureDisplay}" Foreground="#BBBBBB" FontSize="12" Margin="0,0,12,0" />
+                      <TextBlock Text="•" Foreground="#666666" Margin="0,0,12,0" />
+                      <TextBlock Text="Filter: " Foreground="#888888" FontSize="12" />
+                      <Border Width="9" Height="9" CornerRadius="5" VerticalAlignment="Center" Margin="0,0,5,0" Background="{Binding FilterIndicatorColor}" />
+                      <TextBlock Text="{Binding FilterDisplay}" Foreground="#BBBBBB" FontSize="12" Margin="0,0,12,0" />
+                    </WrapPanel>
+
+                    <WrapPanel Grid.Row="1">
+                      <Border Background="#202224" BorderBrush="{Binding FwhmIndicatorColor}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,8" IsVisible="{Binding $parent[Window].DataContext.ShowFwhmArcsecMetric}">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="FWHM" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                          <TextBlock Text="{Binding FwhmArcsecDisplay}" Foreground="{Binding FwhmIndicatorColor}" FontWeight="SemiBold" />
+                        </StackPanel>
+                      </Border>
+                      <Border Background="#202224" BorderBrush="{Binding EccentricityIndicatorColor}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,8" IsVisible="{Binding $parent[Window].DataContext.ShowEccentricityMetric}">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="ECC" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                          <TextBlock Text="{Binding EccentricityDisplay}" Foreground="{Binding EccentricityIndicatorColor}" FontWeight="SemiBold" />
+                        </StackPanel>
+                      </Border>
+                      <Border Background="#202224" BorderBrush="{Binding HfrIndicatorColor}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,8" IsVisible="{Binding $parent[Window].DataContext.ShowHfrMetric}">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="HFR" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                          <TextBlock Text="{Binding HfrDisplay}" Foreground="{Binding HfrIndicatorColor}" FontWeight="SemiBold" />
+                        </StackPanel>
+                      </Border>
+                      <Border Background="#202224" BorderBrush="{Binding StarsIndicatorColor}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,8" IsVisible="{Binding $parent[Window].DataContext.ShowStarsMetric}">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="STARS" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                          <TextBlock Text="{Binding StarCount}" Foreground="{Binding StarsIndicatorColor}" FontWeight="SemiBold" />
+                        </StackPanel>
+                      </Border>
+                      <Border Background="#202224" BorderBrush="{Binding TrailIndicatorColor}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,8" IsVisible="{Binding $parent[Window].DataContext.ShowTrailMetric}">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="TRAIL" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                          <TextBlock Text="{Binding TrailText}" Foreground="{Binding TrailIndicatorColor}" FontWeight="SemiBold" />
+                        </StackPanel>
+                      </Border>
+                      <Border Background="#202224" BorderBrush="#4C9AFF" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,8" IsVisible="{Binding $parent[Window].DataContext.ShowSqmMetric}">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="SQM" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                          <TextBlock Text="{Binding SqmDisplay}" Foreground="#DDEBFF" FontWeight="SemiBold" />
+                        </StackPanel>
+                      </Border>
+                    </WrapPanel>
+
+                    <Grid Grid.Row="2" Margin="0,4,0,0" ColumnDefinitions="*,14,*,14,*">
+                      <Border Grid.Column="0" BorderBrush="#2E3134" BorderThickness="0,0,1,0" Padding="0,4,8,0">
+                        <StackPanel>
+                          <TextBlock Text="OPTICS" FontSize="11" FontWeight="SemiBold" Foreground="#7AA7FF" Margin="0,0,0,6" />
+                          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+                            <TextBlock Text="FWHM (px)" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                            <TextBlock Grid.Column="1" Text="{Binding FwhmPixelDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                            <TextBlock Grid.Row="1" Text="FWHM (arcsec)" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding FwhmArcsecDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                            <TextBlock Grid.Row="2" Text="HFR" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding HfrDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                            <TextBlock Grid.Row="3" Text="Eccentricity" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding EccentricityDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                          </Grid>
+                        </StackPanel>
+                      </Border>
+
+                      <Border Grid.Column="2" BorderBrush="#2E3134" BorderThickness="0,0,1,0" Padding="0,4,8,0">
+                        <StackPanel>
+                          <TextBlock Text="BACKGROUND" FontSize="11" FontWeight="SemiBold" Foreground="#7AA7FF" Margin="0,0,0,6" />
+                          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+                            <TextBlock Text="Mean BG" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                            <TextBlock Grid.Column="1" Text="{Binding MeanBackgroundDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                            <TextBlock Grid.Row="1" Text="Median" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MedianDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                            <TextBlock Grid.Row="2" Text="MAD" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding MadDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                            <TextBlock Grid.Row="3" Text="SQM" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SqmDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                          </Grid>
+                        </StackPanel>
+                      </Border>
+
+                      <StackPanel Grid.Column="4" Margin="0,4,0,0">
+                        <TextBlock Text="FRAME" FontSize="11" FontWeight="SemiBold" Foreground="#7AA7FF" Margin="0,0,0,6" />
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+                          <TextBlock Text="Stars" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                          <TextBlock Grid.Column="1" Text="{Binding StarCount}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                          <TextBlock Grid.Row="1" Text="Sky temp" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                          <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SkyTempDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                          <TextBlock Grid.Row="2" Text="Min / count" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                          <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding MinDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                          <TextBlock Grid.Row="3" Text="Max / count" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
+                          <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding MaxDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                        </Grid>
+                      </StackPanel>
+                    </Grid>
+                  </Grid>
+
+                  <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="4" Background="#1B1D20" BorderBrush="#303338" BorderThickness="1" CornerRadius="4" Padding="12,10">
+                    <StackPanel>
+                      <TextBlock Text="SCORE" FontSize="11" Foreground="#9A9A9A" />
+                      <StackPanel Orientation="Horizontal" Margin="0,6,0,2">
+                        <TextBlock Text="{Binding ScoreValueText}" FontSize="34" FontWeight="Bold" Foreground="{Binding QualityColor}" />
+                        <TextBlock Text=" / 5" FontSize="16" Foreground="#C8C8C8" VerticalAlignment="Bottom" Margin="4,0,0,4" />
+                      </StackPanel>
+                      <ProgressBar Height="12" Margin="0,10,0,14" Minimum="0" Maximum="100" Value="{Binding ScoreProgressPercent}" Foreground="{Binding QualityColor}" Background="#303338" />
+                      <Button Command="{Binding ToggleRejectCommand}" CommandParameter="{Binding}" FontWeight="SemiBold" Foreground="#F5F5F5" HorizontalContentAlignment="Center" Padding="10,7" BorderThickness="0" Background="{Binding RejectionStateColor}">
+                        <TextBlock Text="{Binding RejectionStateLabel}" FontWeight="SemiBold" Foreground="#F5F5F5" HorizontalAlignment="Center" />
+                      </Button>
+                      <Border Margin="0,6,0,0" HorizontalAlignment="Center" IsVisible="{Binding HasRejectionReasons}">
+                        <Border Background="#2A2D31" BorderBrush="#FF6B6B" BorderThickness="1" CornerRadius="10" Width="20" Height="20">
+                          <ToolTip.Tip>
+                            <StackPanel>
+                              <TextBlock Text="REJECTION REASONS" FontSize="10" FontWeight="Bold" Foreground="#FF9A9A" Margin="0,0,0,8" />
+                              <ItemsControl ItemsSource="{Binding RejectionReasons}">
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate>
+                                    <DockPanel Margin="0,3,0,0">
+                                      <TextBlock Text="▸" Foreground="#FF6B6B" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                      <TextBlock Text="{Binding}" Foreground="#F0F0F0" FontSize="12" TextWrapping="Wrap" />
+                                    </DockPanel>
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                            </StackPanel>
+                          </ToolTip.Tip>
+                          <TextBlock Text="?" FontSize="11" FontWeight="Bold" Foreground="#FF9A9A" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                      </Border>
+                    </StackPanel>
+                  </Border>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="2" Width="440" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,0,0,10" Padding="14" Background="#DD1A1C1F" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding IsFolderPanelOpen}" ZIndex="51">
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="Open Folder" FontSize="18" FontWeight="SemiBold" />
+          <Button Grid.Column="1" Padding="8,4" Click="CloseFolderPanel_Click" Content="Close" />
+        </Grid>
+        <TextBlock Text="Input Folder" FontSize="11" FontWeight="SemiBold" />
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+          <TextBox Text="{Binding InputFolder}" MinHeight="30" />
+          <Button Grid.Column="1" Width="34" Height="30" Click="BrowseFolder_Click" Content="..." />
+        </Grid>
+        <CheckBox Content="Include Subfolders" IsChecked="{Binding IncludeSubfolders}" />
+        <TextBlock Text="Rejected Folder" FontSize="11" FontWeight="SemiBold" />
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+          <TextBox Text="{Binding RejectedFolder}" MinHeight="30" />
+          <Button Grid.Column="1" Width="34" Height="30" Click="BrowseRejectedFolder_Click" Content="..." />
+        </Grid>
+        <Button HorizontalAlignment="Stretch" Background="#5D9A65" BorderBrush="#74B27C" Foreground="#FFFFFF" Command="{Binding AnalyzeCommand}" Content="{Binding AnalyzeButtonText}" />
+      </StackPanel>
+    </Border>
+
+    <Border Grid.Row="2" Margin="0,0,0,10" Padding="14" Background="#DD1A1C1F" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding IsSettingsOpen}" ZIndex="50">
+      <Grid RowDefinitions="Auto,*">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="Settings" FontSize="18" FontWeight="SemiBold" />
+          <Button Grid.Column="1" Padding="8,4" Click="CloseSettings_Click" Content="Close" />
+        </Grid>
+        <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Thresholds" FontSize="12" FontWeight="SemiBold" Foreground="#D7E8FF" />
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+            <TextBlock VerticalAlignment="Center" Text="Max FWHM" />
+            <NumericUpDown Grid.Column="1" Minimum="0" Maximum="50" Increment="0.1" Value="{Binding MaxFwhm}" FormatString="F2" />
+            <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Max HFR" />
+            <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="50" Increment="0.1" Value="{Binding MaxHfr}" FormatString="F2" />
+            <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Max Ecc" />
+            <NumericUpDown Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="1" Increment="0.01" Value="{Binding MaxEccentricity}" FormatString="F3" />
+            <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Max Background" />
+            <NumericUpDown Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="100000" Increment="50" Value="{Binding MaxMeanBackground}" FormatString="F0" />
+            <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="Min Stars" />
+            <NumericUpDown Grid.Row="4" Grid.Column="1" Minimum="0" Maximum="50000" Increment="10" Value="{Binding MinStars}" FormatString="F0" />
+            <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="Min Trail %" />
+            <NumericUpDown Grid.Row="5" Grid.Column="1" Minimum="0" Maximum="100" Increment="1" Value="{Binding MinSatelliteConfidence}" FormatString="F0" />
+          </Grid>
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,10,0,0">
+            <Button Command="{Binding ApplyThresholdsCommand}" Content="Apply Thresholds" />
+            <Button Grid.Column="1" Command="{Binding MoveRejectedCommand}" Content="Move Rejected" />
+          </Grid>
+
+          <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">
+            <TextBlock Text="STRETCH" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
+          </Border>
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" RowDefinitions="Auto" RowSpacing="8">
+            <TextBlock VerticalAlignment="Center" Text="STF target background" />
+            <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="0.50" Increment="0.01" Value="{Binding StfTargetBackground}" FormatString="F2" />
+          </Grid>
+
+          <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">
+            <TextBlock Text="PREVIEW OVERLAYS" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
+          </Border>
+          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+            <CheckBox Content="ROI overlay" IsChecked="{Binding IsRoiOverlayVisible}" />
+            <CheckBox Grid.Column="1" Content="Star debug" IsChecked="{Binding IsStarDebugOverlayVisible}" />
+            <CheckBox Grid.Row="1" Content="Orientation debug" IsChecked="{Binding IsOrientationDebugOverlayVisible}" />
+            <CheckBox Grid.Row="1" Grid.Column="1" Content="Curvature view" IsChecked="{Binding IsCurvatureViewVisible}" />
+          </Grid>
+
+          <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">
+            <TextBlock Text="METRICS VISIBILITY" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
+          </Border>
+          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+            <CheckBox Content="FWHM px" IsChecked="{Binding ShowFwhmMetric}" />
+            <CheckBox Grid.Column="1" Content="FWHM arcsec" IsChecked="{Binding ShowFwhmArcsecMetric}" />
+            <CheckBox Grid.Row="1" Content="HFR" IsChecked="{Binding ShowHfrMetric}" />
+            <CheckBox Grid.Row="1" Grid.Column="1" Content="Stars" IsChecked="{Binding ShowStarsMetric}" />
+            <CheckBox Grid.Row="2" Content="Eccentricity" IsChecked="{Binding ShowEccentricityMetric}" />
+            <CheckBox Grid.Row="2" Grid.Column="1" Content="Trail" IsChecked="{Binding ShowTrailMetric}" />
+            <CheckBox Grid.Row="3" Content="SQM" IsChecked="{Binding ShowSqmMetric}" />
+          </Grid>
+
+          <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">
+            <TextBlock Text="SCORE WEIGHTS" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
+          </Border>
+          <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+            <CheckBox Content="FWHM" IsChecked="{Binding UseScoreFwhm}" />
+            <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
+            <NumericUpDown Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightFwhm}" FormatString="F1" />
+
+            <CheckBox Grid.Row="1" Content="HFR" IsChecked="{Binding UseScoreHfr}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
+            <NumericUpDown Grid.Row="1" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightHfr}" FormatString="F1" />
+
+            <CheckBox Grid.Row="2" Content="Stars" IsChecked="{Binding UseScoreStars}" />
+            <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
+            <NumericUpDown Grid.Row="2" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightStars}" FormatString="F1" />
+
+            <CheckBox Grid.Row="3" Content="Eccentricity" IsChecked="{Binding UseScoreEccentricity}" />
+            <TextBlock Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
+            <NumericUpDown Grid.Row="3" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightEccentricity}" FormatString="F1" />
+
+            <CheckBox Grid.Row="4" Content="Background" IsChecked="{Binding UseScoreBackground}" />
+            <TextBlock Grid.Row="4" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
+            <NumericUpDown Grid.Row="4" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightBackground}" FormatString="F1" />
+
+            <CheckBox Grid.Row="5" Content="Trail" IsChecked="{Binding UseScoreTrail}" />
+            <TextBlock Grid.Row="5" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
+            <NumericUpDown Grid.Row="5" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightTrail}" FormatString="F1" />
+          </Grid>
+        </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="3" Margin="0,10,0,0" Padding="10,8" Background="#14171A" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="4">
+      <Grid ColumnDefinitions="2*,1.4*,2*" ColumnSpacing="10">
+        <TextBlock FontSize="11" Foreground="{DynamicResource MutedTextBrush}" Text="{Binding BottomStatusText}" TextTrimming="CharacterEllipsis" />
+        <TextBlock Grid.Column="1" FontSize="11" Foreground="#9DB0C2" Text="{Binding PerformanceText}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" />
+        <TextBlock Grid.Column="2" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" Text="{Binding SettingsPath}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>
