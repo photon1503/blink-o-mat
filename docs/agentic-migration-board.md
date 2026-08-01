@@ -72,30 +72,31 @@ Goal: Match WPF preview interaction and visualization behavior.
   - Remaining delta listed: Yes
 
 ### Task 1.4: Curvature Overlay Detail Parity
-- Status: IN_PROGRESS
+- Status: DONE
 - Objective: Match curvature overlay behavior and visual feedback.
 - Baseline: src/PreviewWindow.xaml.cs (curvature overlay and tooltip paths)
 - Target: src/Rejector.Avalonia/Views/FramePreviewWindow.cs
 - Files expected: 1-3
 - Report: docs/reports/1.4-curvature-overlay-detail-parity.md
 - Acceptance Matrix:
-  - Behavior matched: No
-  - Build passed: No
-  - Tests passed: No
-  - Screenshot captured: No
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: Yes
   - Remaining delta listed: No
 
 ### Task 1.5: Cache Visualization and Jump Parity
-- Status: IN_PROGRESS
+- Status: DONE
 - Objective: Match score strip, cache dots, active marker, and click navigation behavior.
 - Baseline: src/PreviewWindow.xaml.cs (RedrawCacheIndicators)
 - Target: src/Rejector.Avalonia/Views/FramePreviewWindow.cs
 - Files expected: 1-3
+- Report: docs/reports/1.5-cache-visualization-jump-parity.md
 - Acceptance Matrix:
-  - Behavior matched: No
+  - Behavior matched: Yes
   - Build passed: Yes
   - Tests passed: Yes
-  - Screenshot captured: No
+  - Screenshot captured: Yes
   - Remaining delta listed: No
 
 ### Task 1.6: FITS Viewer Aspect Ratio Parity

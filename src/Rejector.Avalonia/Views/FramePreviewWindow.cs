@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using System.Runtime.InteropServices;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -31,6 +32,7 @@ public sealed class FramePreviewWindow : Window
     private readonly Canvas _orientationOverlayCanvas;
     private readonly Canvas _curvatureOverlayCanvas;
     private readonly Rectangle _roiRect;
+    private readonly Rectangle _roiDragRect;
     private readonly Rectangle[] _roiHandles = new Rectangle[4];
     private readonly Canvas _cacheIndicatorCanvas;
     private readonly Button _playButton;
@@ -51,9 +53,13 @@ public sealed class FramePreviewWindow : Window
     private Rect _curvatureImageRect;
     private bool _isLoupeActive;
     private bool _isPanning;
+    private bool _isRoiDragging;
+    private Point _roiDragOriginImage;
+    private IPointer? _roiDragPointer;
     private Point _panStartPoint;
     private Vector _panStartOffset;
     private RoiEditMode _roiEditMode;
+    private IPointer? _roiEditPointer;
     private int _roiActiveHandleIndex = -1;
     private Point _roiEditStartPointer;
     private (double Left, double Top, double Width, double Height) _roiEditStartRect;
@@ -84,7 +90,7 @@ public sealed class FramePreviewWindow : Window
 
         var root = new Grid
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*"),
             Margin = new Thickness(12),
         };
 
@@ -335,6 +341,17 @@ public sealed class FramePreviewWindow : Window
         _roiRect.PointerPressed += RoiBodyOnPointerPressed;
         _overlayCanvas.Children.Add(_roiRect);
 
+        _roiDragRect = new Rectangle
+        {
+            Stroke = SolidColorBrush.Parse("#FFA500"),
+            StrokeThickness = 1.5,
+            StrokeDashArray = [4, 2],
+            Fill = SolidColorBrush.Parse("#1EFFA500"),
+            IsVisible = false,
+            IsHitTestVisible = false,
+        };
+        _overlayCanvas.Children.Add(_roiDragRect);
+
         for (var index = 0; index < _roiHandles.Length; index++)
         {
             var handle = new Rectangle
@@ -483,7 +500,7 @@ public sealed class FramePreviewWindow : Window
         DataContextChanged += (_, _) => AttachVmSubscriptions();
         AttachVmSubscriptions();
 
-        KeyDown += OnKeyDown;
+        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
         Opened += (_, _) =>
         {
             Dispatcher.UIThread.Post(FitToView, DispatcherPriority.Background);
@@ -496,6 +513,20 @@ public sealed class FramePreviewWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+                if (e.Key == Key.Escape && (_isRoiDragging || _roiEditMode != RoiEditMode.None))
+                {
+                    if (_isRoiDragging)
+                    {
+                        CancelRoiDrag();
+                    }
+                    else
+                    {
+                        CancelRoiEdit();
+                    }
+                    e.Handled = true;
+                    return;
+                }
+
         if (DataContext is not MainWindowViewModel vm)
         {
             return;
@@ -523,27 +554,6 @@ public sealed class FramePreviewWindow : Window
             return;
         }
 
-        if (e.Key == Key.Add || e.Key == Key.OemPlus)
-        {
-            ZoomAroundViewportCenter(1.25);
-            e.Handled = true;
-            return;
-        }
-
-        if (e.Key == Key.Subtract || e.Key == Key.OemMinus)
-        {
-            ZoomAroundViewportCenter(1.0 / 1.25);
-            e.Handled = true;
-            return;
-        }
-
-        if (e.Key == Key.D0)
-        {
-            FitToView();
-            e.Handled = true;
-            return;
-        }
-
         if (e.Key == Key.R)
         {
             vm.ToggleSelectedReject();
@@ -551,25 +561,20 @@ public sealed class FramePreviewWindow : Window
             return;
         }
 
-        if (e.Key == Key.S)
+        if (e.Key == Key.F && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             vm.IsStarDebugOverlayVisible = !vm.IsStarDebugOverlayVisible;
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.O)
+        if (e.Key == Key.O && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             vm.IsOrientationDebugOverlayVisible = !vm.IsOrientationDebugOverlayVisible;
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.C)
-        {
-            vm.IsCurvatureViewVisible = !vm.IsCurvatureViewVisible;
-            e.Handled = true;
-        }
     }
 
     private void AttachVmSubscriptions()
@@ -692,6 +697,18 @@ public sealed class FramePreviewWindow : Window
             return;
         }
 
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            _isRoiDragging = true;
+            _roiDragOriginImage = e.GetPosition(_previewImage);
+            _roiDragPointer = e.Pointer;
+            _previewImage.Cursor = new Cursor(StandardCursorType.Cross);
+            e.Pointer.Capture(_previewScroll);
+            UpdateRoiDrag(_roiDragOriginImage);
+            e.Handled = true;
+            return;
+        }
+
         _isPanning = true;
         _panStartPoint = e.GetPosition(_previewScroll);
         _panStartOffset = _previewScroll.Offset;
@@ -702,6 +719,21 @@ public sealed class FramePreviewWindow : Window
 
     private void PreviewScrollOnPointerMoved(object? sender, PointerEventArgs e)
     {
+        if (_isRoiDragging)
+        {
+            if (!e.GetCurrentPoint(_previewScroll).Properties.IsLeftButtonPressed
+                || !e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            {
+                CancelRoiDrag();
+                e.Pointer.Capture(null);
+                return;
+            }
+
+            UpdateRoiDrag(e.GetPosition(_previewImage));
+            e.Handled = true;
+            return;
+        }
+
         if (_isLoupeActive)
         {
             if (!e.GetCurrentPoint(_previewScroll).Properties.IsRightButtonPressed)
@@ -737,6 +769,14 @@ public sealed class FramePreviewWindow : Window
 
     private void PreviewScrollOnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_isRoiDragging)
+        {
+            CommitRoiDrag(e.GetPosition(_previewImage));
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+
         if (_isLoupeActive)
         {
             HideLoupe();
@@ -759,6 +799,60 @@ public sealed class FramePreviewWindow : Window
         _isPanning = false;
         _previewImage.Cursor = null;
         pointer.Capture(null);
+    }
+
+    private void UpdateRoiDrag(Point currentImage)
+    {
+        if (_previewImage.Bounds.Width <= 0 || _previewImage.Bounds.Height <= 0 || !TryGetImageDisplayRect(out var imageRect))
+        {
+            return;
+        }
+
+        var deltaX = currentImage.X - _roiDragOriginImage.X;
+        var deltaY = currentImage.Y - _roiDragOriginImage.Y;
+        var side = Math.Min(Math.Abs(deltaX), Math.Abs(deltaY));
+        var endX = Math.Clamp(_roiDragOriginImage.X + (deltaX >= 0 ? side : -side), 0, _previewImage.Bounds.Width);
+        var endY = Math.Clamp(_roiDragOriginImage.Y + (deltaY >= 0 ? side : -side), 0, _previewImage.Bounds.Height);
+        var left = Math.Min(Math.Clamp(_roiDragOriginImage.X, 0, _previewImage.Bounds.Width), endX);
+        var top = Math.Min(Math.Clamp(_roiDragOriginImage.Y, 0, _previewImage.Bounds.Height), endY);
+        var width = Math.Abs(endX - _roiDragOriginImage.X);
+        var height = Math.Abs(endY - _roiDragOriginImage.Y);
+
+        _roiDragRect.Width = width / _previewImage.Bounds.Width * imageRect.Width;
+        _roiDragRect.Height = height / _previewImage.Bounds.Height * imageRect.Height;
+        Canvas.SetLeft(_roiDragRect, imageRect.Left + (left / _previewImage.Bounds.Width * imageRect.Width));
+        Canvas.SetTop(_roiDragRect, imageRect.Top + (top / _previewImage.Bounds.Height * imageRect.Height));
+        _roiDragRect.IsVisible = true;
+    }
+
+    private void CommitRoiDrag(Point currentImage)
+    {
+        var deltaX = currentImage.X - _roiDragOriginImage.X;
+        var deltaY = currentImage.Y - _roiDragOriginImage.Y;
+        var side = Math.Min(Math.Abs(deltaX), Math.Abs(deltaY));
+        if (side >= 4 && _previewImage.Bounds.Width > 0 && _previewImage.Bounds.Height > 0 && DataContext is MainWindowViewModel vm)
+        {
+            var originX = Math.Clamp(_roiDragOriginImage.X, 0, _previewImage.Bounds.Width);
+            var originY = Math.Clamp(_roiDragOriginImage.Y, 0, _previewImage.Bounds.Height);
+            var endX = Math.Clamp(originX + (deltaX >= 0 ? side : -side), 0, _previewImage.Bounds.Width);
+            var endY = Math.Clamp(originY + (deltaY >= 0 ? side : -side), 0, _previewImage.Bounds.Height);
+            vm.SetManualRoi((
+                Math.Min(originX, endX) / _previewImage.Bounds.Width,
+                Math.Min(originY, endY) / _previewImage.Bounds.Height,
+                Math.Abs(endX - originX) / _previewImage.Bounds.Width,
+                Math.Abs(endY - originY) / _previewImage.Bounds.Height));
+        }
+
+        CancelRoiDrag();
+    }
+
+    private void CancelRoiDrag()
+    {
+        _isRoiDragging = false;
+        _roiDragPointer?.Capture(null);
+        _roiDragPointer = null;
+        _roiDragRect.IsVisible = false;
+        _previewImage.Cursor = null;
     }
 
     private static TextBlock CreateLoupeText(string text)
@@ -907,6 +1001,10 @@ public sealed class FramePreviewWindow : Window
         var availableHeight = Math.Max(20.0, _cacheIndicatorCanvas.Bounds.Height - 8.0);
         var gap = availableHeight / vm.Results.Count;
         var activeIndex = vm.SelectedResult is null ? -1 : vm.Results.IndexOf(vm.SelectedResult);
+        var positiveScores = vm.Results.Where(item => item.OverallScore > 0).Select(item => item.OverallScore).ToArray();
+        var scoreMin = positiveScores.Length > 0 ? positiveScores.Min() : 0.0;
+        var scoreMax = positiveScores.Length > 0 ? positiveScores.Max() : 0.0;
+        var scoreRange = scoreMax > scoreMin ? scoreMax - scoreMin : 1.0;
 
         for (var index = 0; index < vm.Results.Count; index++)
         {
@@ -914,40 +1012,47 @@ public sealed class FramePreviewWindow : Window
             var isActive = index == activeIndex;
             var isCached = vm.IsPreviewCached(item.FilePath);
             var top = 4 + (index * gap);
-            var markerHeight = Math.Max(6.0, gap - 2.0);
+            var markerHeight = Math.Clamp(availableHeight / vm.Results.Count, 2.0, 6.0);
+            var normalizedScore = item.OverallScore > 0
+                ? Math.Clamp((item.OverallScore - scoreMin) / scoreRange, 0.0, 1.0)
+                : 0.5;
+            var scoreColor = normalizedScore >= 0.5
+                ? InterpolateColor(Color.FromRgb(0xFF, 0xD7, 0x00), Color.FromRgb(0x39, 0xD3, 0x53), (normalizedScore - 0.5) * 2.0)
+                : InterpolateColor(Color.FromRgb(0xE5, 0x3E, 0x3E), Color.FromRgb(0xFF, 0xD7, 0x00), normalizedScore * 2.0);
 
-            var scoreColor = item.OverallScore switch
+            var bar = new Rectangle
             {
-                >= 4.0 => "#39D353",
-                >= 2.0 => "#FFD700",
-                _ => "#E53E3E",
-            };
-
-            var bar = new Border
-            {
-                Width = 10,
+                Width = 6,
                 Height = markerHeight,
-                CornerRadius = new CornerRadius(2),
-                Background = SolidColorBrush.Parse(scoreColor),
-                Opacity = isCached ? 0.95 : 0.35,
+                RadiusX = 1,
+                RadiusY = 1,
+                Fill = new SolidColorBrush(scoreColor),
             };
-            Canvas.SetLeft(bar, 1);
+            Canvas.SetLeft(bar, 4);
             Canvas.SetTop(bar, top);
             _cacheIndicatorCanvas.Children.Add(bar);
 
+            if (item.IsRejected)
+            {
+                _cacheIndicatorCanvas.Children.Add(new Line
+                {
+                    StartPoint = new Point(3, top + (markerHeight / 2.0)),
+                    EndPoint = new Point(11, top + (markerHeight / 2.0)),
+                    Stroke = Brushes.White,
+                    StrokeThickness = 2,
+                });
+            }
+
             if (isActive)
             {
-                var activeFrame = new Border
+                var activeMarker = new Polygon
                 {
-                    Width = 12,
-                    Height = markerHeight + 2,
-                    BorderBrush = SolidColorBrush.Parse("#DDEBFF"),
-                    BorderThickness = new Thickness(1),
-                    Background = Brushes.Transparent,
+                    Fill = SolidColorBrush.Parse("#FFD87A"),
+                    Stroke = SolidColorBrush.Parse("#C9A752"),
+                    StrokeThickness = 1,
+                    Points = [new Point(4, top + (markerHeight / 2.0)), new Point(0, top - 0.5), new Point(0, top + markerHeight + 0.5)],
                 };
-                Canvas.SetLeft(activeFrame, 0);
-                Canvas.SetTop(activeFrame, top - 1);
-                _cacheIndicatorCanvas.Children.Add(activeFrame);
+                _cacheIndicatorCanvas.Children.Add(activeMarker);
             }
 
             if (isCached)
@@ -980,6 +1085,15 @@ public sealed class FramePreviewWindow : Window
             Canvas.SetTop(hitArea, top - 2);
             _cacheIndicatorCanvas.Children.Add(hitArea);
         }
+    }
+
+    private static Color InterpolateColor(Color from, Color to, double amount)
+    {
+        amount = Math.Clamp(amount, 0.0, 1.0);
+        return Color.FromRgb(
+            (byte)(from.R + ((to.R - from.R) * amount)),
+            (byte)(from.G + ((to.G - from.G) * amount)),
+            (byte)(from.B + ((to.B - from.B) * amount)));
     }
 
     private void OverlayCanvasOnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -1019,6 +1133,7 @@ public sealed class FramePreviewWindow : Window
         (double Left, double Top, double Width, double Height) startRect)
     {
         _roiEditMode = mode;
+        _roiEditPointer = e.Pointer;
         _roiActiveHandleIndex = handleIndex;
         _roiEditStartPointer = e.GetPosition(_overlayCanvas);
         _roiEditStartRect = startRect;
@@ -1076,8 +1191,22 @@ public sealed class FramePreviewWindow : Window
 
         _roiEditMode = RoiEditMode.None;
         _roiActiveHandleIndex = -1;
+        _roiEditPointer = null;
         e.Pointer.Capture(null);
         e.Handled = true;
+    }
+
+    private void CancelRoiEdit()
+    {
+        _roiLeft = _roiEditStartRect.Left;
+        _roiTop = _roiEditStartRect.Top;
+        _roiWidth = _roiEditStartRect.Width;
+        _roiHeight = _roiEditStartRect.Height;
+        _roiEditMode = RoiEditMode.None;
+        _roiActiveHandleIndex = -1;
+        _roiEditPointer?.Capture(null);
+        _roiEditPointer = null;
+        UpdateRoiRect();
     }
 
     private void ResizeRoiFromHandle(
