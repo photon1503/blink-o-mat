@@ -134,6 +134,20 @@ public sealed class RustafitsService
         }, cancellationToken);
     }
 
+    public Task<RenderedImage> RenderFullPreviewImageAsync(LoadedFrame frame, StfParameters stf, CancellationToken cancellationToken)
+    {
+        return Task.Run(() =>
+        {
+            if (frame.IsOsc && frame.ColorChannels is { Length: 3 } cc)
+            {
+                var oscStf = ComputeAutoStretchOsc(frame);
+                return CreateFullFrameBitmapColor(cc[0], cc[1], cc[2], frame.Width, frame.Height, oscStf[0], oscStf[1], oscStf[2], frame.NormalizationMax);
+            }
+
+            return CreateFullFrameBitmap(frame.Pixels, frame.Width, frame.Height, stf, frame.NormalizationMax);
+        }, cancellationToken);
+    }
+
     public (double X, double Y) DetectRoiNormalizedCenter(LoadedFrame frame)
     {
         var (x, y) = DetectRoiCenter(GetLuminance(frame), frame.Width, frame.Height);

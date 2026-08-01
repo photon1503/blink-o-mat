@@ -50,6 +50,23 @@ public sealed class RustafitsServiceTests
         Assert.Equal(width / (double)height, preview.Width / (double)preview.Height, precision: 6);
     }
 
+    [Fact]
+    public async Task RenderFullPreviewImageAsync_KeepsOriginalResolution()
+    {
+        const int width = 1234;
+        const int height = 777;
+        var frame = new RustafitsService.LoadedFrame(new float[width * height], width, height);
+        var service = new RustafitsService();
+
+        var preview = await service.RenderFullPreviewImageAsync(
+            frame,
+            new Rejector.Core.Models.StfParameters(0, 0.5, 1),
+            CancellationToken.None);
+
+        Assert.Equal(width, preview.Width);
+        Assert.Equal(height, preview.Height);
+    }
+
     private static short[] BuildSyntheticPixels(int width, int height)
     {
         var pixels = new short[width * height];

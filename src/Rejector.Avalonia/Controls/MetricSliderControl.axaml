@@ -1,0 +1,78 @@
+<UserControl
+    x:Class="Rejector.Avalonia.Controls.MetricSliderControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Rejector.Avalonia.Controls"
+    x:Name="Root">
+  <UserControl.Styles>
+    <Style Selector="controls|MetricSliderControl Slider#TheSlider">
+      <Setter Property="Height" Value="18" />
+      <Setter Property="Margin" Value="0,2,0,0" />
+    </Style>
+    <Style Selector="controls|MetricSliderControl TextBox#ValueEditor">
+      <Setter Property="Background" Value="#252525" />
+      <Setter Property="BorderBrush" Value="#569CD6" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="Foreground" Value="#F0C060" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalContentAlignment" Value="Right" />
+      <Setter Property="Padding" Value="2,1" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Margin="0,0,0,6">
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBlock Grid.Column="0"
+                 Text="{Binding Label, ElementName=Root}"
+                 FontSize="11"
+                 Foreground="#B8B8B8"
+                 VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1"
+                 FontSize="10"
+                 Foreground="#888"
+                 VerticalAlignment="Center"
+                 IsVisible="{Binding ShowRejectCount, ElementName=Root}"
+                 Text="{Binding RejectCount, ElementName=Root, StringFormat=Rejects: {0}}" />
+    </Grid>
+
+    <Grid Margin="0,2,0,0" ColumnDefinitions="*,64">
+      <Slider Grid.Column="0"
+              x:Name="TheSlider"
+              Minimum="{Binding Minimum, ElementName=Root}"
+              Maximum="{Binding Maximum, ElementName=Root}"
+              TickFrequency="{Binding TickFrequency, ElementName=Root}"
+              SmallChange="{Binding TickFrequency, ElementName=Root}"
+              LargeChange="{Binding LargeChange, ElementName=Root}"
+              Value="{Binding Value, ElementName=Root, Mode=TwoWay}" />
+
+      <Border Grid.Column="1"
+              x:Name="ValueBorder"
+              Margin="6,0,0,1"
+              Padding="4,0"
+              Height="24"
+              VerticalAlignment="Center"
+              Background="#252525"
+              BorderBrush="#569CD6"
+              BorderThickness="0,0,0,1"
+              Cursor="Ibeam"
+              PointerPressed="ValueBorder_PointerPressed">
+        <Grid>
+          <TextBlock x:Name="ValueDisplay"
+                     HorizontalAlignment="Right"
+                     VerticalAlignment="Center"
+                     FontSize="13"
+                     FontWeight="SemiBold"
+                     Foreground="#F0C060"
+                     Text="{Binding DisplayText, ElementName=Root}" />
+          <TextBox x:Name="ValueEditor"
+                   IsVisible="False"
+                   VerticalAlignment="Center"
+                   TextAlignment="Right"
+                   LostFocus="ValueEditor_LostFocus"
+                   KeyDown="ValueEditor_KeyDown" />
+        </Grid>
+      </Border>
+    </Grid>
+  </StackPanel>
+</UserControl>

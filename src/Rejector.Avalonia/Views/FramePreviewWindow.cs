@@ -53,6 +53,7 @@ public sealed class FramePreviewWindow : Window
     private Rect _curvatureImageRect;
     private bool _isLoupeActive;
     private bool _isPanning;
+    private PanMouseButton _activePanButton = PanMouseButton.None;
     private bool _isRoiDragging;
     private Point _roiDragOriginImage;
     private IPointer? _roiDragPointer;
@@ -72,6 +73,16 @@ public sealed class FramePreviewWindow : Window
     private static readonly double[] PlaybackIntervals = [0.1, 0.2, 0.5, 1.0, 2.0, 3.0, 5.0, 10.0];
     private int _playbackIntervalIndex = 3;
     private MainWindowViewModel? _attachedVm;
+    private bool _hasInitializedView;
+    private bool _overlayRedrawQueued;
+    private ViewState? _pendingViewState;
+
+    private enum PanMouseButton
+    {
+        None,
+        Left,
+        Middle,
+    }
 
     private enum RoiEditMode
     {
@@ -486,16 +497,25 @@ public sealed class FramePreviewWindow : Window
         {
             if (e.Property == Image.SourceProperty)
             {
+                var viewState = _pendingViewState ?? CaptureViewState();
+                _pendingViewState = null;
                 HideLoupe();
-                Dispatcher.UIThread.Post(FitToView, DispatcherPriority.Background);
+                if (!_hasInitializedView || viewState is null)
+                {
+                    Dispatcher.UIThread.Post(FitToView, DispatcherPriority.Background);
+                }
+                else
+                {
+                    Dispatcher.UIThread.Post(() => RestoreViewState(viewState), DispatcherPriority.Background);
+                }
                 Dispatcher.UIThread.Post(UpdateCacheIndicators, DispatcherPriority.Background);
-                Dispatcher.UIThread.Post(RedrawOverlays, DispatcherPriority.Background);
+                ScheduleOverlayRedraw();
             }
         };
 
         _overlayCanvas.SizeChanged += (_, _) => UpdateRoiRect();
-        _overlayCanvas.SizeChanged += (_, _) => RedrawOverlays();
-        _previewScroll.ScrollChanged += (_, _) => RedrawOverlays();
+        _overlayCanvas.SizeChanged += (_, _) => ScheduleOverlayRedraw();
+        _previewScroll.ScrollChanged += (_, _) => ScheduleOverlayRedraw();
 
         DataContextChanged += (_, _) => AttachVmSubscriptions();
         AttachVmSubscriptions();
@@ -503,9 +523,10 @@ public sealed class FramePreviewWindow : Window
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
         Opened += (_, _) =>
         {
+            _hasInitializedView = true;
             Dispatcher.UIThread.Post(FitToView, DispatcherPriority.Background);
             Dispatcher.UIThread.Post(UpdateCacheIndicators, DispatcherPriority.Background);
-            Dispatcher.UIThread.Post(RedrawOverlays, DispatcherPriority.Background);
+            ScheduleOverlayRedraw();
         };
 
         SetPlaybackInterval(_playbackIntervalIndex);
@@ -595,7 +616,7 @@ public sealed class FramePreviewWindow : Window
         SyncRoiFromViewModel();
         UpdateRoiRect();
         UpdateCacheIndicators();
-        RedrawOverlays();
+        ScheduleOverlayRedraw();
     }
 
     private void VmOnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -614,13 +635,17 @@ public sealed class FramePreviewWindow : Window
                  || e.PropertyName == nameof(MainWindowViewModel.PreviewFrameSliderValue)
                  || e.PropertyName == nameof(MainWindowViewModel.PreviewFrameSliderMaximum))
         {
+            if (e.PropertyName == nameof(MainWindowViewModel.SelectedResult))
+            {
+                _pendingViewState = CaptureViewState();
+            }
             UpdateCacheIndicators();
-            RedrawOverlays();
+            ScheduleOverlayRedraw();
         }
         else if (e.PropertyName == nameof(MainWindowViewModel.IsRoiOverlayVisible))
         {
             UpdateRoiRect();
-            RedrawOverlays();
+            ScheduleOverlayRedraw();
         }
         else if (e.PropertyName == nameof(MainWindowViewModel.CurrentManualRoi))
         {
@@ -631,7 +656,7 @@ public sealed class FramePreviewWindow : Window
                  || e.PropertyName == nameof(MainWindowViewModel.IsOrientationDebugOverlayVisible)
                  || e.PropertyName == nameof(MainWindowViewModel.IsCurvatureViewVisible))
         {
-            RedrawOverlays();
+            ScheduleOverlayRedraw();
         }
     }
 
@@ -692,12 +717,12 @@ public sealed class FramePreviewWindow : Window
             return;
         }
 
-        if (!point.Properties.IsLeftButtonPressed)
+        if (!(point.Properties.IsLeftButtonPressed || point.Properties.IsMiddleButtonPressed))
         {
             return;
         }
 
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        if (point.Properties.IsLeftButtonPressed && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             _isRoiDragging = true;
             _roiDragOriginImage = e.GetPosition(_previewImage);
@@ -710,6 +735,7 @@ public sealed class FramePreviewWindow : Window
         }
 
         _isPanning = true;
+    _activePanButton = point.Properties.IsMiddleButtonPressed ? PanMouseButton.Middle : PanMouseButton.Left;
         _panStartPoint = e.GetPosition(_previewScroll);
         _panStartOffset = _previewScroll.Offset;
         _previewImage.Cursor = new Cursor(StandardCursorType.SizeAll);
@@ -753,7 +779,14 @@ public sealed class FramePreviewWindow : Window
             return;
         }
 
-        if (!e.GetCurrentPoint(_previewScroll).Properties.IsLeftButtonPressed)
+        var panStillPressed = _activePanButton switch
+        {
+            PanMouseButton.Middle => e.GetCurrentPoint(_previewScroll).Properties.IsMiddleButtonPressed,
+            PanMouseButton.Left => e.GetCurrentPoint(_previewScroll).Properties.IsLeftButtonPressed,
+            _ => false,
+        };
+
+        if (!panStillPressed)
         {
             StopPanning(e.Pointer);
             return;
@@ -797,6 +830,7 @@ public sealed class FramePreviewWindow : Window
     private void StopPanning(IPointer pointer)
     {
         _isPanning = false;
+        _activePanButton = PanMouseButton.None;
         _previewImage.Cursor = null;
         pointer.Capture(null);
     }
@@ -977,7 +1011,7 @@ public sealed class FramePreviewWindow : Window
             _previewScroll.Offset = new Vector(
                 Math.Max(0, (imageX * newZoom) - viewerPoint.X),
                 Math.Max(0, (imageY * newZoom) - viewerPoint.Y));
-            RedrawOverlays();
+            ScheduleOverlayRedraw();
         }, DispatcherPriority.Background);
     }
 
@@ -987,6 +1021,56 @@ public sealed class FramePreviewWindow : Window
         _previewScale.ScaleX = clamped;
         _previewScale.ScaleY = clamped;
         _zoomText.Text = $"Zoom: {clamped:F2}x";
+    }
+
+    private ViewState? CaptureViewState()
+    {
+        if (_previewImage.Source is null || _previewScroll.Bounds.Width <= 0 || _previewScroll.Bounds.Height <= 0)
+        {
+            return null;
+        }
+
+        var extentWidth = _previewScroll.Extent.Width;
+        var extentHeight = _previewScroll.Extent.Height;
+        var centerX = _previewScroll.Offset.X + (_previewScroll.Bounds.Width / 2.0);
+        var centerY = _previewScroll.Offset.Y + (_previewScroll.Bounds.Height / 2.0);
+
+        return new ViewState(
+            _previewScale.ScaleX,
+            extentWidth > 0 ? centerX / extentWidth : 0.5,
+            extentHeight > 0 ? centerY / extentHeight : 0.5);
+    }
+
+    private void RestoreViewState(ViewState viewState)
+    {
+        SetZoom(viewState.Zoom);
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            var targetCenterX = _previewScroll.Extent.Width * viewState.CenterXRatio;
+            var targetCenterY = _previewScroll.Extent.Height * viewState.CenterYRatio;
+            _previewScroll.Offset = new Vector(
+                Math.Max(0, targetCenterX - (_previewScroll.Bounds.Width / 2.0)),
+                Math.Max(0, targetCenterY - (_previewScroll.Bounds.Height / 2.0)));
+            ScheduleOverlayRedraw();
+        }, DispatcherPriority.Background);
+    }
+
+    private sealed record ViewState(double Zoom, double CenterXRatio, double CenterYRatio);
+
+    private void ScheduleOverlayRedraw()
+    {
+        if (_overlayRedrawQueued)
+        {
+            return;
+        }
+
+        _overlayRedrawQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _overlayRedrawQueued = false;
+            RedrawOverlays();
+        }, DispatcherPriority.Render);
     }
 
     private void UpdateCacheIndicators()
@@ -1173,7 +1257,7 @@ public sealed class FramePreviewWindow : Window
         }
 
         UpdateRoiRect();
-        RedrawOverlays();
+        ScheduleOverlayRedraw();
         e.Handled = true;
     }
 

@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using Rejector.Avalonia.Infrastructure;
 using Rejector.Core.Models;
 using Rejector.Core.Services;
@@ -31,10 +33,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly RelayCommand _showDebugUpdateBannerCommand;
     private readonly List<FrameResultContext> _resultContexts = [];
     private readonly HashSet<string> _cachedPreviewPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _watchReloadGate = new();
     private string _inputFolder = string.Empty;
     private string _rejectedFolder = string.Empty;
     private string _statusText = "Enter a folder path to analyze frames with the shared core.";
     private bool _includeSubfolders;
+    private bool _watchFolderEnabled;
+    private bool _isWatchingFolder;
     private bool _isSettingsOpen;
     private bool _isFolderPanelOpen;
     private bool _isAnalyzing;
@@ -88,6 +93,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private double _scoreWeightTrail = 2.0;
     private double _previewFrameSliderValue;
     private bool _isSynchronizingPreviewSlider;
+    private List<FileSystemWatcher>? _folderWatchers;
+    private CancellationTokenSource? _watchReloadCts;
     private (double Left, double Top, double Width, double Height) _manualRoi = (0.35, 0.35, 0.3, 0.3);
 
     public MainWindowViewModel()
@@ -96,6 +103,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _inputFolder = settings.InputFolder ?? string.Empty;
         _rejectedFolder = settings.RejectedFolder ?? string.Empty;
         _includeSubfolders = settings.IncludeSubfolders;
+        _watchFolderEnabled = settings.WatchFolder;
         _thresholds = settings.Profiles.FirstOrDefault()?.Thresholds ?? new Thresholds();
         _analyzeCommand = new RelayCommand(StartAnalyze, () => !_isAnalyzing && !string.IsNullOrWhiteSpace(InputFolder));
         _applyThresholdsCommand = new RelayCommand(ApplyThresholds, () => Results.Count > 0 && !_isAnalyzing);
@@ -187,6 +195,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public string IncludeSubfoldersText => IncludeSubfolders ? "Subfolders: on" : "Subfolders: off";
 
+    public string WatchFolderText => WatchFolderEnabled ? "Watch: on" : "Watch: off";
+
     public bool ShowAccepted
     {
         get => _showAccepted;
@@ -232,6 +242,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _inputFolder = value;
             OnPropertyChanged();
             _analyzeCommand.RaiseCanExecuteChanged();
+            PersistFolderSettings();
+            RestartFolderWatchIfEnabled();
         }
     }
 
@@ -248,6 +260,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _rejectedFolder = value;
             OnPropertyChanged();
             _moveRejectedCommand.RaiseCanExecuteChanged();
+            PersistFolderSettings();
         }
     }
 
@@ -264,6 +277,50 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _includeSubfolders = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(IncludeSubfoldersText));
+            PersistFolderSettings();
+            RestartFolderWatchIfEnabled();
+        }
+    }
+
+    public bool WatchFolderEnabled
+    {
+        get => _watchFolderEnabled;
+        set
+        {
+            if (_watchFolderEnabled == value)
+            {
+                return;
+            }
+
+            _watchFolderEnabled = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(WatchFolderText));
+            OnPropertyChanged(nameof(AnalyzeButtonText));
+            PersistFolderSettings();
+
+            if (!value)
+            {
+                StopFolderWatch();
+            }
+            else
+            {
+                RestartFolderWatchIfEnabled();
+            }
+        }
+    }
+
+    public bool IsWatchingFolder
+    {
+        get => _isWatchingFolder;
+        private set
+        {
+            if (_isWatchingFolder == value)
+            {
+                return;
+            }
+
+            _isWatchingFolder = value;
+            OnPropertyChanged();
         }
     }
 
@@ -286,7 +343,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    public string AnalyzeButtonText => IsAnalyzing ? "Loading..." : "Load Frames";
+    public string AnalyzeButtonText => IsAnalyzing
+        ? "Loading..."
+        : (WatchFolderEnabled ? "Load Frames & Watch Folder" : "Load Frames");
 
     public ObservableCollection<FrameSummaryViewModel> Results { get; } = [];
 
@@ -940,73 +999,189 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         try
         {
             var files = _discoveryService.Discover(InputFolder, IncludeSubfolders);
-            RustafitsService.LoadedFrame? orientationReference = null;
-            AstroMetrics? orientationReferenceMetrics = null;
+            var totalFiles = files.Count;
+            var completedFiles = 0;
+            long bytesRead = 0;
             StatusText = files.Count == 0
-                ? "No FITS/XISF files found in the selected folder."
+                ? (WatchFolderEnabled
+                    ? "Watching folder for new FITS/XISF frames..."
+                    : "No FITS/XISF files found in the selected folder.")
                 : $"Discovered {files.Count} file(s). Running shared-core analysis...";
 
-            foreach (var file in files)
+            if (files.Count > 0)
             {
-                var raw = await _analysisService.LoadRawFrameAsync(file, CancellationToken.None);
-                if (!raw.IsLightFrame)
-                {
-                    StatusText = $"Skipped non-light frame: {Path.GetFileName(file)}";
-                    continue;
-                }
+                var indexedFiles = files.Select((file, index) => (FilePath: file, Index: index)).ToList();
+                var prepared = new List<(int SourceIndex, FrameResultContext Context, double? FocalLengthMm, double? PixelSizeUm)>();
+                RustafitsService.LoadedFrame? orientationReference = null;
+                AstroMetrics? orientationReferenceMetrics = null;
+                var skippedCount = 0;
+                var firstLightFileIndex = -1;
 
-                var metrics = _analysisService.AnalyzeFrame(raw);
-                OrientationDebugInfo orientationDebug;
-                if (orientationReference is null || orientationReferenceMetrics is null)
+                // Build the orientation reference frame first so downstream frame work can run in parallel.
+                foreach (var candidate in indexedFiles)
                 {
+                    var raw = await _analysisService.LoadRawFrameAsync(candidate.FilePath, CancellationToken.None);
+                    completedFiles++;
+                    if (File.Exists(candidate.FilePath))
+                    {
+                        try
+                        {
+                            bytesRead += new FileInfo(candidate.FilePath).Length;
+                        }
+                        catch
+                        {
+                        }
+                    }
+                    StatusText = $"Loading frames {completedFiles}/{totalFiles}: {Path.GetFileName(candidate.FilePath)}";
+                    if (!raw.IsLightFrame)
+                    {
+                        skippedCount++;
+                        continue;
+                    }
+
+                    var metrics = _analysisService.AnalyzeFrame(raw);
+                    var orientationDebug = _analysisService.CreateOrientationReferenceDebugInfo(raw, metrics);
+                    var stf = _analysisService.ComputeAutoStretch(raw);
+                    var roiRect = _analysisService.DetectRoiNormalizedRect(raw);
+                    SetManualRoi(roiRect);
+                    var previews = await _analysisService.RenderPreviewImagesAsync(raw, stf, roiRect, metrics, CancellationToken.None);
+
+                    var frame = new ProcessedFrame
+                    {
+                        FilePath = candidate.FilePath,
+                        FileName = Path.GetFileName(candidate.FilePath),
+                        RelativePath = ComputeRelativePath(candidate.FilePath),
+                        ExposureDateTime = raw.ExposureDateTime,
+                        ExposureSeconds = raw.ExposureSeconds,
+                        FilterName = raw.FilterName,
+                        Metrics = metrics,
+                    };
+                    frame.SetAutomaticRejected(_rejectionService.ShouldReject(frame, _thresholds));
+
+                    var thumbnailPayload = PreviewPayloadCodec.Encode(previews.Full);
+                    var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
+                    prepared.Add((
+                        candidate.Index,
+                        new FrameResultContext(frame, raw.Width, raw.Height, raw.NormalizationMax, thumbnailPayload, roiPayload, orientationDebug),
+                        raw.FocalLengthMm,
+                        raw.PixelSizeUm));
+
                     orientationReference = raw;
                     orientationReferenceMetrics = metrics;
-                    orientationDebug = _analysisService.CreateOrientationReferenceDebugInfo(raw, metrics);
+                    firstLightFileIndex = candidate.Index;
+                    break;
                 }
-                else
+
+                if (orientationReference is not null && orientationReferenceMetrics is not null)
                 {
-                    orientationDebug = _analysisService.AnalyzeOrientation(raw, metrics, orientationReference, orientationReferenceMetrics).CandidateDebug;
+                    var maxParallelism = Math.Min(GetAnalyzeParallelism(), Math.Max(1, files.Count - 1));
+                    using var gate = new SemaphoreSlim(Math.Max(1, maxParallelism));
+
+                    var pending = indexedFiles
+                        .Where(entry => entry.Index > firstLightFileIndex)
+                        .Select(async entry =>
+                        {
+                            await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                            try
+                            {
+                                var raw = await _analysisService.LoadRawFrameAsync(entry.FilePath, CancellationToken.None).ConfigureAwait(false);
+                                long fileSize = 0;
+                                if (File.Exists(entry.FilePath))
+                                {
+                                    try
+                                    {
+                                        fileSize = new FileInfo(entry.FilePath).Length;
+                                    }
+                                    catch
+                                    {
+                                    }
+                                }
+                                if (!raw.IsLightFrame)
+                                {
+                                    return (HasValue: false, SourceIndex: entry.Index, Context: (FrameResultContext?)null, Focal: (double?)null, Pixel: (double?)null, FileName: Path.GetFileName(entry.FilePath), FileSize: fileSize);
+                                }
+
+                                var metrics = _analysisService.AnalyzeFrame(raw);
+                                var orientationDebug = _analysisService.AnalyzeOrientation(raw, metrics, orientationReference, orientationReferenceMetrics).CandidateDebug;
+                                var stf = _analysisService.ComputeAutoStretch(raw);
+                                var roiRect = _analysisService.DetectRoiNormalizedRect(raw);
+                                var previews = await _analysisService.RenderPreviewImagesAsync(raw, stf, roiRect, metrics, CancellationToken.None).ConfigureAwait(false);
+
+                                var frame = new ProcessedFrame
+                                {
+                                    FilePath = entry.FilePath,
+                                    FileName = Path.GetFileName(entry.FilePath),
+                                    RelativePath = ComputeRelativePath(entry.FilePath),
+                                    ExposureDateTime = raw.ExposureDateTime,
+                                    ExposureSeconds = raw.ExposureSeconds,
+                                    FilterName = raw.FilterName,
+                                    Metrics = metrics,
+                                };
+                                frame.SetAutomaticRejected(_rejectionService.ShouldReject(frame, _thresholds));
+
+                                var thumbnailPayload = PreviewPayloadCodec.Encode(previews.Full);
+                                var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
+                                var context = new FrameResultContext(frame, raw.Width, raw.Height, raw.NormalizationMax, thumbnailPayload, roiPayload, orientationDebug);
+                                return (HasValue: true, SourceIndex: entry.Index, Context: (FrameResultContext?)context, Focal: raw.FocalLengthMm, Pixel: raw.PixelSizeUm, FileName: frame.FileName, FileSize: fileSize);
+                            }
+                            finally
+                            {
+                                gate.Release();
+                            }
+                        })
+                        .ToList<Task<(bool HasValue, int SourceIndex, FrameResultContext? Context, double? Focal, double? Pixel, string FileName, long FileSize)>>();
+
+                    while (pending.Count > 0)
+                    {
+                        var completedTask = await Task.WhenAny(pending);
+                        pending.Remove(completedTask);
+                        var item = await completedTask;
+
+                        completedFiles++;
+                        bytesRead += item.FileSize;
+                        StatusText = $"Loading frames {completedFiles}/{totalFiles}: {item.FileName}";
+
+                        if (!item.HasValue || item.Context is null)
+                        {
+                            skippedCount++;
+                            continue;
+                        }
+
+                        prepared.Add((item.SourceIndex, item.Context, item.Focal, item.Pixel));
+                    }
                 }
-                var stf = _analysisService.ComputeAutoStretch(raw);
-                var roiRect = _analysisService.DetectRoiNormalizedRect(raw);
-                if (Results.Count == 0)
+
+                foreach (var item in prepared.OrderBy(item => item.SourceIndex))
                 {
-                    SetManualRoi(roiRect);
+                    _resultContexts.Add(item.Context);
+                    _sessionFocalLengthMm ??= item.FocalLengthMm;
+                    _sessionPixelSizeUm ??= item.PixelSizeUm;
                 }
-                var previews = await _analysisService.RenderPreviewImagesAsync(raw, stf, roiRect, metrics, CancellationToken.None);
-                var frame = new ProcessedFrame
-                {
-                    FilePath = file,
-                    FileName = Path.GetFileName(file),
-                    RelativePath = ComputeRelativePath(file),
-                    ExposureDateTime = raw.ExposureDateTime,
-                    ExposureSeconds = raw.ExposureSeconds,
-                    FilterName = raw.FilterName,
-                    Metrics = metrics,
-                };
-                frame.SetAutomaticRejected(_rejectionService.ShouldReject(frame, _thresholds));
-
-                var thumbnail = previews.Full.ToBitmap();
-                var roiImage = previews.Roi.ToBitmap();
-                var thumbnailPayload = PreviewPayloadCodec.Encode(previews.Full);
-                var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
-
-                _resultContexts.Add(new FrameResultContext(frame, raw.Width, raw.Height, raw.NormalizationMax, thumbnailPayload, roiPayload, orientationDebug));
-                Results.Add(CreateFrameSummary(_resultContexts[^1]));
-
-                _sessionFocalLengthMm ??= raw.FocalLengthMm;
-                _sessionPixelSizeUm ??= raw.PixelSizeUm;
-                OnPropertyChanged(nameof(SessionFocalLengthText));
-                OnPropertyChanged(nameof(SessionPixelSizeText));
 
                 RefreshFilterChips();
-
-                StatusText = $"Analyzed {Results.Count}/{files.Count}: {frame.FileName}";
+                ApplyThresholds();
+                SelectedResult = Results.FirstOrDefault();
+                OnPropertyChanged(nameof(SessionFocalLengthText));
+                OnPropertyChanged(nameof(SessionPixelSizeText));
                 OnPropertyChanged(nameof(ResultCountText));
 
-                if (SelectedResult is null)
+                if (_resultContexts.Count == 0)
                 {
-                    SelectedResult = Results[^1];
+                    StatusText = skippedCount > 0
+                        ? $"No light frames found ({skippedCount} file(s) skipped)."
+                        : "No FITS/XISF files found in the selected folder.";
+                }
+
+                stopwatch.Stop();
+                var elapsedSeconds = Math.Max(0.001, stopwatch.Elapsed.TotalSeconds);
+                var gibRead = bytesRead / (1024.0 * 1024.0 * 1024.0);
+                var gibPerSecond = gibRead / elapsedSeconds;
+
+                if (_resultContexts.Count > 0)
+                {
+                    StatusText = skippedCount > 0
+                        ? $"Analysis complete. {_resultContexts.Count} light frame(s) processed, {skippedCount} file(s) skipped. {elapsedSeconds:F1}s, {gibPerSecond:F2} GB/s read."
+                        : $"Analysis complete. {_resultContexts.Count} frame(s) processed using the shared core. {elapsedSeconds:F1}s, {gibPerSecond:F2} GB/s read.";
                 }
             }
 
@@ -1014,6 +1189,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             settings.InputFolder = InputFolder;
             settings.RejectedFolder = RejectedFolder;
             settings.IncludeSubfolders = IncludeSubfolders;
+            settings.WatchFolder = WatchFolderEnabled;
             if (settings.Profiles.Count == 0)
             {
                 settings.Profiles.Add(new SettingsProfile { Name = "Default" });
@@ -1026,16 +1202,24 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 IsFolderPanelOpen = false;
             }
 
-            StatusText = files.Count == 0
-                ? StatusText
-                : $"Analysis complete. {Results.Count} frame(s) processed using the shared core.";
             BottomStatusText = StatusText;
-
-            stopwatch.Stop();
+            if (stopwatch.IsRunning)
+            {
+                stopwatch.Stop();
+            }
             var perSecond = stopwatch.Elapsed.TotalSeconds <= 0.001
-                ? Results.Count
-                : Results.Count / stopwatch.Elapsed.TotalSeconds;
+                ? _resultContexts.Count
+                : _resultContexts.Count / stopwatch.Elapsed.TotalSeconds;
             PerformanceText = $"Analyze: {stopwatch.Elapsed.TotalSeconds:F1}s | Frames/s: {perSecond:F2} | Cached previews: {CachedPreviewCount}";
+
+            if (WatchFolderEnabled)
+            {
+                StartFolderWatch();
+            }
+            else
+            {
+                StopFolderWatch();
+            }
         }
         catch (Exception ex)
         {
@@ -1051,6 +1235,181 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private async void StartAnalyze()
     {
         await AnalyzeAsync();
+    }
+
+    private static int GetAnalyzeParallelism()
+    {
+        var cores = Math.Max(2, Environment.ProcessorCount);
+        var isAppleSilicon = OperatingSystem.IsMacOS() && RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
+
+        // Apple Silicon can sustain more decode/render workers without UI starvation.
+        if (isAppleSilicon)
+        {
+            return Math.Clamp((int)Math.Round(cores * 0.75), 4, 10);
+        }
+
+        return Math.Clamp(cores / 2, 2, 8);
+    }
+
+    private void PersistFolderSettings()
+    {
+        var settings = _appSettingsService.Load();
+        settings.InputFolder = InputFolder;
+        settings.RejectedFolder = RejectedFolder;
+        settings.IncludeSubfolders = IncludeSubfolders;
+        settings.WatchFolder = WatchFolderEnabled;
+        _appSettingsService.Save(settings);
+    }
+
+    private void RestartFolderWatchIfEnabled()
+    {
+        if (IsAnalyzing)
+        {
+            return;
+        }
+
+        if (WatchFolderEnabled)
+        {
+            StartFolderWatch();
+        }
+        else
+        {
+            StopFolderWatch();
+        }
+    }
+
+    private void StartFolderWatch()
+    {
+        StopFolderWatch();
+
+        if (!WatchFolderEnabled || string.IsNullOrWhiteSpace(InputFolder))
+        {
+            return;
+        }
+
+        var folders = InputFolder.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(Directory.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (folders.Count == 0)
+        {
+            return;
+        }
+
+        _folderWatchers = [];
+        foreach (var folder in folders)
+        {
+            var watcher = new FileSystemWatcher(folder)
+            {
+                IncludeSubdirectories = IncludeSubfolders,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+                EnableRaisingEvents = true,
+            };
+
+            foreach (var ext in new[] { "*.fit", "*.fits", "*.xisf" })
+            {
+                watcher.Filters.Add(ext);
+            }
+
+            watcher.Created += OnWatchFilesystemChanged;
+            watcher.Deleted += OnWatchFilesystemChanged;
+            watcher.Renamed += OnWatchFilesystemRenamed;
+            watcher.Error += OnWatchFilesystemError;
+            _folderWatchers.Add(watcher);
+        }
+
+        IsWatchingFolder = _folderWatchers.Count > 0;
+        if (IsWatchingFolder)
+        {
+            BottomStatusText = $"Watching {folders.Count} folder(s) for new FITS/XISF frames.";
+        }
+    }
+
+    private void StopFolderWatch()
+    {
+        lock (_watchReloadGate)
+        {
+            _watchReloadCts?.Cancel();
+            _watchReloadCts?.Dispose();
+            _watchReloadCts = null;
+        }
+
+        if (_folderWatchers is null)
+        {
+            IsWatchingFolder = false;
+            return;
+        }
+
+        foreach (var watcher in _folderWatchers)
+        {
+            watcher.EnableRaisingEvents = false;
+            watcher.Created -= OnWatchFilesystemChanged;
+            watcher.Deleted -= OnWatchFilesystemChanged;
+            watcher.Renamed -= OnWatchFilesystemRenamed;
+            watcher.Error -= OnWatchFilesystemError;
+            watcher.Dispose();
+        }
+
+        _folderWatchers = null;
+        IsWatchingFolder = false;
+    }
+
+    private void OnWatchFilesystemChanged(object sender, FileSystemEventArgs e)
+    {
+        QueueWatchReload($"{e.ChangeType}: {Path.GetFileName(e.FullPath)}");
+    }
+
+    private void OnWatchFilesystemRenamed(object sender, RenamedEventArgs e)
+    {
+        QueueWatchReload($"Renamed: {Path.GetFileName(e.OldFullPath)} -> {Path.GetFileName(e.FullPath)}");
+    }
+
+    private void OnWatchFilesystemError(object sender, ErrorEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            BottomStatusText = "Watch folder error. Restarting watcher.";
+            RestartFolderWatchIfEnabled();
+        });
+    }
+
+    private void QueueWatchReload(string reason)
+    {
+        CancellationTokenSource cts;
+        lock (_watchReloadGate)
+        {
+            _watchReloadCts?.Cancel();
+            _watchReloadCts?.Dispose();
+            _watchReloadCts = new CancellationTokenSource();
+            cts = _watchReloadCts;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(1200, cts.Token);
+                if (cts.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                await Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    if (IsAnalyzing || !WatchFolderEnabled)
+                    {
+                        return;
+                    }
+
+                    BottomStatusText = $"Watch: change detected ({reason}). Reloading frame list...";
+                    await AnalyzeAsync();
+                });
+            }
+            catch (TaskCanceledException)
+            {
+                // Intentionally ignored: rapid filesystem events are debounced.
+            }
+        });
     }
 
     private void ApplyThresholds()
@@ -1101,9 +1460,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private async void StartLoadSelectedPreview()
     {
         var selected = SelectedResult;
-        _selectedPreviewRenderedImage = null;
         if (selected is null)
         {
+            _selectedPreviewRenderedImage = null;
             SelectedPreviewImage = null;
             SelectedPreviewCaption = "Select a frame to preview it here.";
             BottomStatusText = SelectedPreviewCaption;
@@ -1111,7 +1470,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         SelectedPreviewCaption = $"Loading preview for {selected.FileName}...";
-        SelectedPreviewImage = selected.Thumbnail ?? DemoPreview;
 
         var context = _resultContexts.FirstOrDefault(item => string.Equals(item.Frame.FilePath, selected.FilePath, StringComparison.OrdinalIgnoreCase));
         if (context is null)
@@ -1123,7 +1481,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         if (!File.Exists(context.Frame.FilePath))
         {
-            SelectedPreviewCaption = $"{selected.FileName} (source file unavailable; showing cached preview)";
+            SelectedPreviewCaption = $"{selected.FileName} (source file unavailable)";
             BottomStatusText = SelectedPreviewCaption;
             return;
         }
@@ -1132,7 +1490,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             var raw = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, CancellationToken.None);
             var stf = _analysisService.ComputeAutoStretch(raw);
-            var preview = await _analysisService.RenderScaledPreviewImageAsync(raw, 720, 720, stf, CancellationToken.None);
+            var preview = await _analysisService.RenderFullPreviewImageAsync(raw, stf, CancellationToken.None);
 
             if (!ReferenceEquals(selected, SelectedResult))
             {

@@ -37,7 +37,7 @@ Goal: Match WPF preview interaction and visualization behavior.
 - Files expected: 1-3
 - Report: docs/reports/1.1-roi-handle-editing-parity.md
 - Acceptance Matrix:
-  - Behavior matched: Yes
+  - Behavior matched: No
   - Build passed: Yes
   - Tests passed: Yes
   - Screenshot captured: Yes
@@ -114,6 +114,35 @@ Goal: Match WPF preview interaction and visualization behavior.
   - Tests passed: Yes
   - Screenshot captured: Yes
   - Remaining delta listed: No
+
+### Task 1.7: 1:1 Full-Resolution Preview Parity
+- Status: IN_PROGRESS
+- Priority: HIGH
+- Objective: Ensure 1:1 in preview uses original FITS resolution rather than a scaled-down intermediate image.
+- Baseline: src/PreviewWindow.xaml.cs (OneToOne_Click, SetZoomAroundViewerPoint, RefreshActivePreviewFullResolutionAsync)
+- Targets: src/Rejector.Core/Services/RustafitsService.cs, src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs, tests/Rejector.Core.Tests/RustafitsServiceTests.cs
+- Files expected: 2-4
+- Report: docs/reports/1.7-one-to-one-full-resolution-parity.md
+- Acceptance Matrix:
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: No
+  - Remaining delta listed: Yes
+
+### Task 1.8: Left Sidebar Slider Controls Parity
+- Status: IN_PROGRESS
+- Objective: Restore WPF-style value sliders in the left sidebar for rejection threshold controls.
+- Baseline: src/PreviewWindow.xaml and src/Views/SettingsOverlayView.xaml (MetricSliderControl threshold rows)
+- Targets: src/Rejector.Avalonia/Views/MainWindow.axaml
+- Files expected: 1-2
+- Report: docs/reports/1.8-left-sidebar-slider-parity.md
+- Acceptance Matrix:
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: No
+  - Remaining delta listed: Yes
 
 ## Epic 2: Settings and Profile Parity
 Goal: Match WPF settings overlay behavior and persistence profile model.
@@ -218,16 +247,16 @@ Goal: Match rule precedence and status/performance semantics.
 Goal: Match runtime lifecycle helpers and background workflows.
 
 ### Task 4.1: Watch Folder Lifecycle Parity
-- Status: TODO
+- Status: DONE
 - Objective: Port watcher start/stop/dedupe/add-file behavior.
 - Baseline: src/ViewModels/MainViewModel.cs (StartFolderWatch and related)
 - Target: src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
 - Files expected: 2-8
 - Acceptance Matrix:
-  - Behavior matched: No
-  - Build passed: No
-  - Tests passed: No
-  - Screenshot captured: No
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: Yes
   - Remaining delta listed: No
 
 ### Task 4.2: Update Check Pipeline Parity
