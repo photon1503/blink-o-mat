@@ -804,6 +804,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
             _thresholds.MinSatelliteConfidence = value;
             OnPropertyChanged();
+            ReapplyThresholdsFromSidebar();
         }
     }
 
@@ -1414,15 +1415,33 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private void ApplyThresholds()
     {
+        ApplyThresholds(updateStatus: true);
+    }
+
+    private void ApplyThresholds(bool updateStatus)
+    {
         foreach (var context in _resultContexts)
         {
             context.Frame.SetAutomaticRejected(_rejectionService.ShouldReject(context.Frame, _thresholds));
         }
 
         RebuildResults();
-        StatusText = Results.Count == 0
-            ? StatusText
-            : $"Applied thresholds to {Results.Count} frame(s). {Results.Count(result => result.IsRejected)} currently rejected.";
+        if (updateStatus)
+        {
+            StatusText = Results.Count == 0
+                ? StatusText
+                : $"Applied thresholds to {Results.Count} frame(s). {Results.Count(result => result.IsRejected)} currently rejected.";
+        }
+    }
+
+    private void ReapplyThresholdsFromSidebar()
+    {
+        if (IsAnalyzing || _resultContexts.Count == 0)
+        {
+            return;
+        }
+
+        ApplyThresholds(updateStatus: false);
     }
 
     private async void StartMoveRejected()
@@ -2123,6 +2142,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         setter(nextValue);
         OnPropertyChanged(propertyName);
+        ReapplyThresholdsFromSidebar();
     }
 
     private static Bitmap CreateDemoPreview()

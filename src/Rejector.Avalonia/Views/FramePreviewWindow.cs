@@ -299,8 +299,8 @@ public sealed class FramePreviewWindow : Window
         {
             Child = _previewImage,
             LayoutTransform = _previewScale,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
         };
 
         _previewScroll = new ScrollViewer
@@ -1025,7 +1025,7 @@ public sealed class FramePreviewWindow : Window
 
     private ViewState? CaptureViewState()
     {
-        if (_previewImage.Source is null || _previewScroll.Bounds.Width <= 0 || _previewScroll.Bounds.Height <= 0)
+        if (_previewImage.Source is not IImage image || _previewScroll.Bounds.Width <= 0 || _previewScroll.Bounds.Height <= 0)
         {
             return null;
         }
@@ -1047,6 +1047,11 @@ public sealed class FramePreviewWindow : Window
 
         Dispatcher.UIThread.Post(() =>
         {
+            if (_previewImage.Source is not IImage image)
+            {
+                return;
+            }
+
             var targetCenterX = _previewScroll.Extent.Width * viewState.CenterXRatio;
             var targetCenterY = _previewScroll.Extent.Height * viewState.CenterYRatio;
             _previewScroll.Offset = new Vector(
