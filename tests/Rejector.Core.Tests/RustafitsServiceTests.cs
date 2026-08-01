@@ -30,6 +30,26 @@ public sealed class RustafitsServiceTests
         }
     }
 
+    [Fact]
+    public async Task RenderScaledPreviewImageAsync_PreservesAspectRatio()
+    {
+        const int width = 1200;
+        const int height = 600;
+        var frame = new RustafitsService.LoadedFrame(new float[width * height], width, height);
+        var service = new RustafitsService();
+
+        var preview = await service.RenderScaledPreviewImageAsync(
+            frame,
+            720,
+            720,
+            new Rejector.Core.Models.StfParameters(0, 0.5, 1),
+            CancellationToken.None);
+
+        Assert.Equal(720, preview.Width);
+        Assert.Equal(360, preview.Height);
+        Assert.Equal(width / (double)height, preview.Width / (double)preview.Height, precision: 6);
+    }
+
     private static short[] BuildSyntheticPixels(int width, int height)
     {
         var pixels = new short[width * height];

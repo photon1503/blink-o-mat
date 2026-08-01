@@ -2773,8 +2773,7 @@ public sealed class RustafitsService
         StfParameters stfR, StfParameters stfG, StfParameters stfB,
         double normalizationMax)
     {
-        var tw = Math.Max(1, Math.Min(width, targetWidth));
-        var th = Math.Max(1, Math.Min(height, targetHeight));
+        var (tw, th) = GetFittedDimensions(width, height, targetWidth, targetHeight);
         var sample = DownsampleAndStretchColor(rCh, gCh, bCh, width, height, tw, th, stfR, stfG, stfB, normalizationMax);
         return new RenderedImage(tw, th, sample, tw * 3);
     }
@@ -2943,11 +2942,23 @@ public sealed class RustafitsService
 
     private static RenderedImage CreateScaledFrameBitmap(float[] pixels, int width, int height, int targetWidth, int targetHeight, StfParameters stf, double normalizationMax)
     {
-        var safeTargetWidth = Math.Max(1, Math.Min(width, targetWidth));
-        var safeTargetHeight = Math.Max(1, Math.Min(height, targetHeight));
+        var (safeTargetWidth, safeTargetHeight) = GetFittedDimensions(width, height, targetWidth, targetHeight);
         var sample = DownsampleAndStretch(pixels, width, height, safeTargetWidth, safeTargetHeight, stf, normalizationMax);
         var stride = safeTargetWidth * 3;
         return new RenderedImage(safeTargetWidth, safeTargetHeight, sample, stride);
+    }
+
+    private static (int Width, int Height) GetFittedDimensions(int width, int height, int targetWidth, int targetHeight)
+    {
+        var safeWidth = Math.Max(1, width);
+        var safeHeight = Math.Max(1, height);
+        var scale = Math.Min(
+            Math.Max(1, targetWidth) / (double)safeWidth,
+            Math.Max(1, targetHeight) / (double)safeHeight);
+        scale = Math.Min(1.0, scale);
+        return (
+            Math.Max(1, (int)Math.Round(safeWidth * scale)),
+            Math.Max(1, (int)Math.Round(safeHeight * scale)));
     }
 
     private static (int X, int Y) DetectRoiCenter(float[] pixels, int width, int height)

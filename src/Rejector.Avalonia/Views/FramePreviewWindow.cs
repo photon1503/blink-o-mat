@@ -1,10 +1,12 @@
 using Avalonia;
 using Avalonia.Controls;
+using System.Runtime.InteropServices;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
 using Avalonia.Threading;
@@ -32,6 +34,22 @@ public sealed class FramePreviewWindow : Window
     private readonly Rectangle[] _roiHandles = new Rectangle[4];
     private readonly Canvas _cacheIndicatorCanvas;
     private readonly Button _playButton;
+    private readonly Border _loupeBorder;
+    private readonly Image _loupeImage;
+    private readonly TextBlock _loupeXText;
+    private readonly TextBlock _loupeYText;
+    private readonly TextBlock _loupeKText;
+    private readonly TextBlock _loupeMinText;
+    private readonly TextBlock _loupeMaxText;
+    private readonly TextBlock _loupeMeanText;
+    private readonly Border _curvatureTooltip;
+    private readonly TextBlock _curvatureTooltipText;
+    private double[]? _curvatureGrid;
+    private int _curvatureGridWidth;
+    private int _curvatureGridHeight;
+    private double _curvatureArcsecPerPixel;
+    private Rect _curvatureImageRect;
+    private bool _isLoupeActive;
     private bool _isPanning;
     private Point _panStartPoint;
     private Vector _panStartOffset;
@@ -40,6 +58,7 @@ public sealed class FramePreviewWindow : Window
     private Point _roiEditStartPointer;
     private (double Left, double Top, double Width, double Height) _roiEditStartRect;
     private const double DefaultRoiSize = 0.3;
+        private const int LoupeSampleSize = 31;
     private double _roiLeft = 0.35;
     private double _roiTop = 0.35;
     private double _roiWidth = DefaultRoiSize;
@@ -287,6 +306,24 @@ public sealed class FramePreviewWindow : Window
         _overlayCanvas.Children.Add(_orientationOverlayCanvas);
         _overlayCanvas.Children.Add(_starTrailOverlayCanvas);
 
+        _curvatureTooltipText = new TextBlock
+        {
+            Foreground = Brushes.White,
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 11,
+        };
+        _curvatureTooltip = new Border
+        {
+            Background = SolidColorBrush.Parse("#CC101014"),
+            BorderBrush = SolidColorBrush.Parse("#80FFFFFF"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            Padding = new Thickness(6, 3),
+            IsVisible = false,
+            IsHitTestVisible = false,
+            Child = _curvatureTooltipText,
+        };
+
         _roiRect = new Rectangle
         {
             Stroke = SolidColorBrush.Parse("#FFD700"),
@@ -314,6 +351,48 @@ public sealed class FramePreviewWindow : Window
             _roiHandles[index] = handle;
             _overlayCanvas.Children.Add(handle);
         }
+
+        _loupeImage = new Image { Width = 124, Height = 140, Stretch = Stretch.Fill };
+        RenderOptions.SetBitmapInterpolationMode(_loupeImage, BitmapInterpolationMode.None);
+        _loupeXText = CreateLoupeText("X    0");
+        _loupeYText = CreateLoupeText("Y    0");
+        _loupeKText = CreateLoupeText("K    0");
+        _loupeMinText = CreateLoupeText("Min  0");
+        _loupeMinText.Margin = new Thickness(0, 6, 0, 0);
+        _loupeMaxText = CreateLoupeText("Max  0");
+        _loupeMeanText = CreateLoupeText("Mean 0.00");
+
+        var loupeValues = new StackPanel { Margin = new Thickness(8, 6), Spacing = 0 };
+        loupeValues.Children.Add(_loupeXText);
+        loupeValues.Children.Add(_loupeYText);
+        loupeValues.Children.Add(_loupeKText);
+        loupeValues.Children.Add(_loupeMinText);
+        loupeValues.Children.Add(_loupeMaxText);
+        loupeValues.Children.Add(_loupeMeanText);
+
+        var loupeGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("124,*") };
+        loupeGrid.Children.Add(new Border
+        {
+            Background = SolidColorBrush.Parse("#1A1A1A"),
+            BorderBrush = SolidColorBrush.Parse("#33000000"),
+            BorderThickness = new Thickness(0, 0, 1, 0),
+            Child = _loupeImage,
+        });
+        Grid.SetColumn(loupeValues, 1);
+        loupeGrid.Children.Add(loupeValues);
+
+        _loupeBorder = new Border
+        {
+            Width = 204,
+            Height = 140,
+            Background = SolidColorBrush.Parse("#24323C"),
+            BorderBrush = SolidColorBrush.Parse("#3A4148"),
+            BorderThickness = new Thickness(1),
+            IsVisible = false,
+            IsHitTestVisible = false,
+            Child = loupeGrid,
+        };
+        _overlayCanvas.Children.Add(_loupeBorder);
 
         var starOverlayBadge = new Border
         {
@@ -357,6 +436,7 @@ public sealed class FramePreviewWindow : Window
         _overlayCanvas.PointerPressed += OverlayCanvasOnPointerPressed;
         _overlayCanvas.PointerMoved += OverlayCanvasOnPointerMoved;
         _overlayCanvas.PointerReleased += OverlayCanvasOnPointerReleased;
+        _overlayCanvas.PointerExited += (_, _) => _curvatureTooltip.IsVisible = false;
 
         var previewLayer = new Grid();
         previewLayer.Children.Add(_previewScroll);
@@ -389,6 +469,7 @@ public sealed class FramePreviewWindow : Window
         {
             if (e.Property == Image.SourceProperty)
             {
+                HideLoupe();
                 Dispatcher.UIThread.Post(FitToView, DispatcherPriority.Background);
                 Dispatcher.UIThread.Post(UpdateCacheIndicators, DispatcherPriority.Background);
                 Dispatcher.UIThread.Post(RedrawOverlays, DispatcherPriority.Background);
@@ -591,7 +672,22 @@ public sealed class FramePreviewWindow : Window
 
     private void PreviewImageOnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_previewImage.Source is null || !e.GetCurrentPoint(_previewImage).Properties.IsLeftButtonPressed)
+        if (_previewImage.Source is null)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(_previewImage);
+        if (point.Properties.IsRightButtonPressed)
+        {
+            _isLoupeActive = true;
+            e.Pointer.Capture(_previewScroll);
+            ShowLoupeAt(e.GetPosition(_previewImage));
+            e.Handled = true;
+            return;
+        }
+
+        if (!point.Properties.IsLeftButtonPressed)
         {
             return;
         }
@@ -606,6 +702,20 @@ public sealed class FramePreviewWindow : Window
 
     private void PreviewScrollOnPointerMoved(object? sender, PointerEventArgs e)
     {
+        if (_isLoupeActive)
+        {
+            if (!e.GetCurrentPoint(_previewScroll).Properties.IsRightButtonPressed)
+            {
+                HideLoupe();
+                e.Pointer.Capture(null);
+                return;
+            }
+
+            ShowLoupeAt(e.GetPosition(_previewImage));
+            e.Handled = true;
+            return;
+        }
+
         if (!_isPanning)
         {
             return;
@@ -627,6 +737,14 @@ public sealed class FramePreviewWindow : Window
 
     private void PreviewScrollOnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_isLoupeActive)
+        {
+            HideLoupe();
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+
         if (!_isPanning)
         {
             return;
@@ -641,6 +759,95 @@ public sealed class FramePreviewWindow : Window
         _isPanning = false;
         _previewImage.Cursor = null;
         pointer.Capture(null);
+    }
+
+    private static TextBlock CreateLoupeText(string text)
+        {
+            return new TextBlock
+            {
+                Text = text,
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 12,
+                Foreground = SolidColorBrush.Parse("#EEFFFFFF"),
+            };
+        }
+
+    private void ShowLoupeAt(Point imagePoint)
+        {
+            if (DataContext is not MainWindowViewModel vm
+                || _previewImage.Bounds.Width <= 0
+                || _previewImage.Bounds.Height <= 0
+                || !TryGetImageDisplayRect(out var imageRect))
+            {
+                return;
+            }
+
+            var source = vm.SelectedPreviewImage;
+            if (source is null || source.PixelSize.Width <= 0 || source.PixelSize.Height <= 0)
+            {
+                return;
+            }
+
+            var pixelX = Math.Clamp(
+                (int)Math.Round((imagePoint.X / _previewImage.Bounds.Width) * Math.Max(0, source.PixelSize.Width - 1)),
+                0,
+                Math.Max(0, source.PixelSize.Width - 1));
+            var pixelY = Math.Clamp(
+                (int)Math.Round((imagePoint.Y / _previewImage.Bounds.Height) * Math.Max(0, source.PixelSize.Height - 1)),
+                0,
+                Math.Max(0, source.PixelSize.Height - 1));
+            var sample = vm.BuildPreviewLoupeSample(pixelX, pixelY, LoupeSampleSize);
+            if (sample is null)
+            {
+                return;
+            }
+
+            if (_loupeImage.Source is Bitmap oldBitmap)
+            {
+                oldBitmap.Dispose();
+            }
+
+            var bitmap = new WriteableBitmap(
+                new PixelSize(sample.Width, sample.Height),
+                new Vector(96, 96),
+                PixelFormats.Gray8,
+                AlphaFormat.Opaque);
+            using (var locked = bitmap.Lock())
+            {
+                for (var row = 0; row < sample.Height; row++)
+                {
+                    Marshal.Copy(
+                        sample.Pixels,
+                        row * sample.Width,
+                        IntPtr.Add(locked.Address, row * locked.RowBytes),
+                        sample.Width);
+                }
+            }
+
+            _loupeImage.Source = bitmap;
+            _loupeXText.Text = $"X    {sample.PixelX}";
+            _loupeYText.Text = $"Y    {sample.PixelY}";
+            _loupeKText.Text = $"K    {sample.CenterValue}";
+            _loupeMinText.Text = $"Min  {sample.MinValue}";
+            _loupeMaxText.Text = $"Max  {sample.MaxValue}";
+            _loupeMeanText.Text = $"Mean {sample.MeanValue:F2}";
+
+            var hostX = imageRect.Left + ((imagePoint.X / _previewImage.Bounds.Width) * imageRect.Width);
+            var hostY = imageRect.Top + ((imagePoint.Y / _previewImage.Bounds.Height) * imageRect.Height);
+            Canvas.SetLeft(_loupeBorder, Math.Clamp(hostX + 16, 0, Math.Max(0, _overlayCanvas.Bounds.Width - _loupeBorder.Width)));
+            Canvas.SetTop(_loupeBorder, Math.Clamp(hostY + 16, 0, Math.Max(0, _overlayCanvas.Bounds.Height - _loupeBorder.Height)));
+            _loupeBorder.IsVisible = true;
+        }
+
+    private void HideLoupe()
+        {
+            _isLoupeActive = false;
+            _loupeBorder.IsVisible = false;
+            if (_loupeImage.Source is Bitmap bitmap)
+            {
+                _loupeImage.Source = null;
+                bitmap.Dispose();
+            }
     }
 
     private Point GetViewportCenter()
@@ -821,6 +1028,8 @@ public sealed class FramePreviewWindow : Window
 
     private void OverlayCanvasOnPointerMoved(object? sender, PointerEventArgs e)
     {
+        UpdateCurvatureTooltip(e.GetPosition(_overlayCanvas));
+
         if (_roiEditMode == RoiEditMode.None || DataContext is not MainWindowViewModel vm || !vm.IsRoiOverlayVisible)
         {
             return;
@@ -990,11 +1199,24 @@ public sealed class FramePreviewWindow : Window
         _starTrailOverlayCanvas.Children.Clear();
         _orientationOverlayCanvas.Children.Clear();
         _curvatureOverlayCanvas.Children.Clear();
+        _curvatureGrid = null;
+        _curvatureTooltip.IsVisible = false;
 
         if (DataContext is not MainWindowViewModel vm || vm.SelectedResult is null)
         {
+            _previewScroll.IsVisible = true;
             return;
         }
+
+        _previewScroll.IsVisible = !vm.IsCurvatureViewVisible;
+        if (vm.IsCurvatureViewVisible)
+        {
+            SetRoiControlsVisible(false);
+            RedrawCurvatureView(vm.SelectedResult);
+            return;
+        }
+
+        UpdateRoiRect();
 
         if (!TryGetImageDisplayRect(out var imageRect))
         {
@@ -1053,60 +1275,346 @@ public sealed class FramePreviewWindow : Window
             }
         }
 
-        if (vm.IsOrientationDebugOverlayVisible && selected.Stars.Count >= 3)
+        if (vm.IsOrientationDebugOverlayVisible && selected.OrientationDebug is { Stars.Count: > 0 } debug)
         {
-            var anchors = selected.Stars.OrderByDescending(star => star.Peak).Take(3).ToArray();
-            var points = anchors.Select(star => MapToCanvas(star.X, star.Y)).ToArray();
-
-            for (var i = 0; i < points.Length; i++)
+            var starBrush = SolidColorBrush.Parse("#D066CCFF");
+            var triangleBrush = SolidColorBrush.Parse("#E0FFC833");
+            for (var index = 0; index < debug.Stars.Count; index++)
             {
-                var next = points[(i + 1) % points.Length];
-                var edge = new Line
+                var point = MapToCanvas(debug.Stars[index].X, debug.Stars[index].Y);
+                var marker = new Ellipse
                 {
-                    StartPoint = points[i],
-                    EndPoint = next,
-                    Stroke = SolidColorBrush.Parse("#C9A8FF"),
+                    Width = 8,
+                    Height = 8,
+                    Stroke = starBrush,
                     StrokeThickness = 1.5,
+                    Fill = Brushes.Transparent,
                 };
-                _orientationOverlayCanvas.Children.Add(edge);
-            }
-        }
+                Canvas.SetLeft(marker, point.X - 4);
+                Canvas.SetTop(marker, point.Y - 4);
+                _orientationOverlayCanvas.Children.Add(marker);
 
-        if (vm.IsCurvatureViewVisible)
-        {
-            const int gridX = 12;
-            const int gridY = 8;
-            for (var gy = 0; gy < gridY; gy++)
-            {
-                for (var gx = 0; gx < gridX; gx++)
+                var label = new TextBlock
                 {
-                    var nx = (gx + 0.5) / gridX;
-                    var ny = (gy + 0.5) / gridY;
-                    var px = imageRect.Left + (nx * imageRect.Width);
-                    var py = imageRect.Top + (ny * imageRect.Height);
+                    Text = $"{index + 1}",
+                    Foreground = starBrush,
+                    FontFamily = new FontFamily("Consolas"),
+                    FontSize = 10,
+                };
+                Canvas.SetLeft(label, point.X + 5);
+                Canvas.SetTop(label, point.Y - 8);
+                _orientationOverlayCanvas.Children.Add(label);
+            }
 
-                    var dx = nx - 0.5;
-                    var dy = ny - 0.5;
-                    var r = Math.Sqrt((dx * dx) + (dy * dy));
-                    var t = Math.Clamp(r / 0.72, 0.0, 1.0);
-                    var color = Color.FromRgb(
-                        (byte)(0x4A + ((0xFF - 0x4A) * t)),
-                        (byte)(0xAE - (0x5E * t)),
-                        (byte)(0x7C - (0x4C * t)));
-
-                    var node = new Ellipse
+            if (debug.TriangleIndices.Count == 3)
+            {
+                var trianglePoints = debug.TriangleIndices
+                    .Where(index => index >= 0 && index < debug.Stars.Count)
+                    .Select(index => MapToCanvas(debug.Stars[index].X, debug.Stars[index].Y))
+                    .ToArray();
+                if (trianglePoints.Length == 3)
+                {
+                    for (var index = 0; index < trianglePoints.Length; index++)
                     {
-                        Width = 6,
-                        Height = 6,
-                        Fill = new SolidColorBrush(color),
-                        Opacity = 0.55,
-                    };
-                    Canvas.SetLeft(node, px - 3);
-                    Canvas.SetTop(node, py - 3);
-                    _curvatureOverlayCanvas.Children.Add(node);
+                        _orientationOverlayCanvas.Children.Add(new Line
+                        {
+                            StartPoint = trianglePoints[index],
+                            EndPoint = trianglePoints[(index + 1) % trianglePoints.Length],
+                            Stroke = triangleBrush,
+                            StrokeThickness = 2,
+                        });
+                    }
                 }
             }
+
+            var summary = new Border
+            {
+                Background = SolidColorBrush.Parse("#B0000000"),
+                Padding = new Thickness(6, 3),
+                Child = new TextBlock
+                {
+                    Text = $"Orientation: {(debug.Rotate180 ? "flipped 180°" : "not flipped")}   stars: {debug.Stars.Count}   {debug.StatusText}",
+                    Foreground = triangleBrush,
+                    FontFamily = new FontFamily("Consolas"),
+                    FontSize = 12,
+                },
+            };
+            Canvas.SetLeft(summary, 8);
+            Canvas.SetTop(summary, 8);
+            _orientationOverlayCanvas.Children.Add(summary);
         }
+
+    }
+
+    private void RedrawCurvatureView(FrameSummaryViewModel selected)
+    {
+        var viewportWidth = _overlayCanvas.Bounds.Width;
+        var viewportHeight = _overlayCanvas.Bounds.Height;
+        if (viewportWidth <= 1 || viewportHeight <= 1)
+        {
+            return;
+        }
+
+        var frameWidth = Math.Max(1, selected.FrameWidth);
+        var frameHeight = Math.Max(1, selected.FrameHeight);
+        var frameAspect = frameWidth / (double)frameHeight;
+        var viewportAspect = viewportWidth / viewportHeight;
+        _curvatureImageRect = frameAspect > viewportAspect
+            ? new Rect(0, (viewportHeight - (viewportWidth / frameAspect)) / 2.0, viewportWidth, viewportWidth / frameAspect)
+            : new Rect((viewportWidth - (viewportHeight * frameAspect)) / 2.0, 0, viewportHeight * frameAspect, viewportHeight);
+
+        var stars = selected.Stars.Where(star => star.Fwhm > 0 && !double.IsNaN(star.Fwhm)).ToArray();
+        if (stars.Length == 0)
+        {
+            AddCurvatureStats("No FWHM data");
+            return;
+        }
+
+        const int gridShortSide = 96;
+        var gridWidth = frameWidth >= frameHeight
+            ? gridShortSide
+            : Math.Max(8, (int)Math.Round(gridShortSide * frameWidth / (double)frameHeight));
+        var gridHeight = frameWidth >= frameHeight
+            ? Math.Max(8, (int)Math.Round(gridShortSide * frameHeight / (double)frameWidth))
+            : gridShortSide;
+        var values = new double[gridWidth * gridHeight];
+        var fwhms = stars.Select(star => star.Fwhm).Order().ToArray();
+        var minFwhm = fwhms[0];
+        var maxFwhm = fwhms[^1];
+        var rampMin = Percentile(fwhms, 0.02);
+        var rampMax = Percentile(fwhms, 0.98);
+        if (rampMax - rampMin < 1e-6)
+        {
+            rampMin = minFwhm;
+            rampMax = maxFwhm;
+        }
+
+        var cellWidth = frameWidth / (double)gridWidth;
+        var cellHeight = frameHeight / (double)gridHeight;
+        var diagonal = Math.Sqrt((double)frameWidth * frameWidth + (double)frameHeight * frameHeight);
+        var twoSigmaSquared = 2.0 * Math.Pow(diagonal / 6.0, 2);
+        for (var gridY = 0; gridY < gridHeight; gridY++)
+        {
+            var pixelY = (gridY + 0.5) * cellHeight;
+            for (var gridX = 0; gridX < gridWidth; gridX++)
+            {
+                var pixelX = (gridX + 0.5) * cellWidth;
+                var weightSum = 0.0;
+                var valueSum = 0.0;
+                foreach (var star in stars)
+                {
+                    var deltaX = star.X - pixelX;
+                    var deltaY = star.Y - pixelY;
+                    var weight = Math.Exp(-((deltaX * deltaX) + (deltaY * deltaY)) / twoSigmaSquared);
+                    weightSum += weight;
+                    valueSum += weight * star.Fwhm;
+                }
+
+                values[(gridY * gridWidth) + gridX] = weightSum > 0 ? valueSum / weightSum : minFwhm;
+            }
+        }
+
+        var range = Math.Max(1e-9, rampMax - rampMin);
+        var pixels = new byte[gridWidth * gridHeight * 4];
+        for (var index = 0; index < values.Length; index++)
+        {
+            CurvatureColorRamp(Math.Clamp((values[index] - rampMin) / range, 0.0, 1.0), out var red, out var green, out var blue);
+            var pixelIndex = index * 4;
+            pixels[pixelIndex] = blue;
+            pixels[pixelIndex + 1] = green;
+            pixels[pixelIndex + 2] = red;
+            pixels[pixelIndex + 3] = 255;
+        }
+
+        var bitmap = new WriteableBitmap(
+            new PixelSize(gridWidth, gridHeight),
+            new Vector(96, 96),
+            PixelFormats.Bgra8888,
+            AlphaFormat.Opaque);
+        using (var locked = bitmap.Lock())
+        {
+            Marshal.Copy(pixels, 0, locked.Address, pixels.Length);
+        }
+
+        var heatmap = new Image
+        {
+            Source = bitmap,
+            Width = _curvatureImageRect.Width,
+            Height = _curvatureImageRect.Height,
+            Stretch = Stretch.Fill,
+            IsHitTestVisible = false,
+        };
+        RenderOptions.SetBitmapInterpolationMode(heatmap, BitmapInterpolationMode.HighQuality);
+        Canvas.SetLeft(heatmap, _curvatureImageRect.Left);
+        Canvas.SetTop(heatmap, _curvatureImageRect.Top);
+        _curvatureOverlayCanvas.Children.Add(heatmap);
+
+        _curvatureGrid = values;
+        _curvatureGridWidth = gridWidth;
+        _curvatureGridHeight = gridHeight;
+        _curvatureArcsecPerPixel = selected.Fwhm > 0 && selected.FwhmArcsec is > 0
+            ? selected.FwhmArcsec.Value / selected.Fwhm
+            : 0.0;
+
+        var meanFwhm = fwhms.Average();
+        var (cornerAverage, centerAverage) = CalculateCurvatureAverages(values, gridWidth, gridHeight, minFwhm, maxFwhm);
+        var curvature = centerAverage > 0 ? ((cornerAverage - centerAverage) / centerAverage) * 100.0 : 0.0;
+        string FormatFwhm(double value) => _curvatureArcsecPerPixel > 0
+            ? FormattableString.Invariant($"{value:F2} px / {value * _curvatureArcsecPerPixel:F2}\"")
+            : FormattableString.Invariant($"{value:F2} px");
+
+        AddCurvatureStats(
+            $"Min FWHM:   {FormatFwhm(minFwhm)}\n" +
+            $"Max FWHM:   {FormatFwhm(maxFwhm)}\n" +
+            $"Mean FWHM:  {FormatFwhm(meanFwhm)}\n" +
+            $"Curvature:  {curvature:F1}%\n" +
+            $"Stars Used: {stars.Length}");
+        DrawCurvatureTarget();
+        _curvatureOverlayCanvas.Children.Add(_curvatureTooltip);
+    }
+
+    private void AddCurvatureStats(string text)
+    {
+        var stats = new TextBlock
+        {
+            Text = text,
+            Foreground = Brushes.White,
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 12,
+        };
+        Canvas.SetLeft(stats, _curvatureImageRect.Left + 12);
+        Canvas.SetTop(stats, _curvatureImageRect.Top + 10);
+        _curvatureOverlayCanvas.Children.Add(stats);
+    }
+
+    private void DrawCurvatureTarget()
+    {
+        var center = _curvatureImageRect.Center;
+        var radius = Math.Min(_curvatureImageRect.Width, _curvatureImageRect.Height) * 0.04;
+        var brush = SolidColorBrush.Parse("#E6FFFFFF");
+        var ring = new Ellipse
+        {
+            Width = radius * 2,
+            Height = radius * 2,
+            Stroke = brush,
+            StrokeThickness = 1,
+            StrokeDashArray = [3, 3],
+        };
+        Canvas.SetLeft(ring, center.X - radius);
+        Canvas.SetTop(ring, center.Y - radius);
+        _curvatureOverlayCanvas.Children.Add(ring);
+
+        var armLength = radius * 1.6;
+        _curvatureOverlayCanvas.Children.Add(new Line
+        {
+            StartPoint = new Point(center.X - armLength, center.Y),
+            EndPoint = new Point(center.X + armLength, center.Y),
+            Stroke = brush,
+            StrokeThickness = 1,
+        });
+        _curvatureOverlayCanvas.Children.Add(new Line
+        {
+            StartPoint = new Point(center.X, center.Y - armLength),
+            EndPoint = new Point(center.X, center.Y + armLength),
+            Stroke = brush,
+            StrokeThickness = 1,
+        });
+
+        const double bulletRadius = 2.5;
+        var bullet = new Ellipse { Width = bulletRadius * 2, Height = bulletRadius * 2, Fill = brush };
+        Canvas.SetLeft(bullet, center.X - bulletRadius);
+        Canvas.SetTop(bullet, center.Y - bulletRadius);
+        _curvatureOverlayCanvas.Children.Add(bullet);
+    }
+
+    private void UpdateCurvatureTooltip(Point position)
+    {
+        if (DataContext is not MainWindowViewModel { IsCurvatureViewVisible: true }
+            || _curvatureGrid is null
+            || !_curvatureImageRect.Contains(position))
+        {
+            _curvatureTooltip.IsVisible = false;
+            return;
+        }
+
+        var normalizedX = (position.X - _curvatureImageRect.Left) / _curvatureImageRect.Width;
+        var normalizedY = (position.Y - _curvatureImageRect.Top) / _curvatureImageRect.Height;
+        var gridX = Math.Clamp((int)(normalizedX * _curvatureGridWidth), 0, _curvatureGridWidth - 1);
+        var gridY = Math.Clamp((int)(normalizedY * _curvatureGridHeight), 0, _curvatureGridHeight - 1);
+        var fwhm = _curvatureGrid[(gridY * _curvatureGridWidth) + gridX];
+        _curvatureTooltipText.Text = _curvatureArcsecPerPixel > 0
+            ? FormattableString.Invariant($"{fwhm:F2} px / {fwhm * _curvatureArcsecPerPixel:F2}\"")
+            : FormattableString.Invariant($"{fwhm:F2} px");
+        Canvas.SetLeft(_curvatureTooltip, Math.Min(position.X + 14, _overlayCanvas.Bounds.Width - 150));
+        Canvas.SetTop(_curvatureTooltip, Math.Min(position.Y + 14, _overlayCanvas.Bounds.Height - 35));
+        _curvatureTooltip.IsVisible = true;
+    }
+
+    private static double Percentile(IReadOnlyList<double> sortedValues, double percentile)
+    {
+        var index = Math.Clamp((int)Math.Round((sortedValues.Count - 1) * percentile), 0, sortedValues.Count - 1);
+        return sortedValues[index];
+    }
+
+    private static (double CornerAverage, double CenterAverage) CalculateCurvatureAverages(
+        IReadOnlyList<double> values,
+        int gridWidth,
+        int gridHeight,
+        double minFwhm,
+        double maxFwhm)
+    {
+        var cornerSum = 0.0;
+        var cornerWeightSum = 0.0;
+        var centerSum = 0.0;
+        var centerWeightSum = 0.0;
+        for (var gridY = 0; gridY < gridHeight; gridY++)
+        {
+            var radialY = Math.Abs(((gridY + 0.5) / gridHeight) - 0.5) * 2.0;
+            for (var gridX = 0; gridX < gridWidth; gridX++)
+            {
+                var radialX = Math.Abs(((gridX + 0.5) / gridWidth) - 0.5) * 2.0;
+                var value = values[(gridY * gridWidth) + gridX];
+                var cornerWeight = Math.Max(0, Math.Min(radialX, radialY) - 0.6) / 0.4;
+                cornerSum += cornerWeight * value;
+                cornerWeightSum += cornerWeight;
+                var centerWeight = Math.Max(0, 1 - (Math.Sqrt((radialX * radialX) + (radialY * radialY)) / 0.3));
+                centerSum += centerWeight * value;
+                centerWeightSum += centerWeight;
+            }
+        }
+
+        return (
+            cornerWeightSum > 0 ? cornerSum / cornerWeightSum : maxFwhm,
+            centerWeightSum > 0 ? centerSum / centerWeightSum : minFwhm);
+    }
+
+    private static void CurvatureColorRamp(double value, out byte red, out byte green, out byte blue)
+    {
+        ReadOnlySpan<(double Position, double Red, double Green, double Blue)> stops =
+        [
+            (0.00, 0.125, 0.125, 0.149),
+            (0.10, 0.05, 0.05, 0.55),
+            (0.20, 0.00, 0.20, 1.00),
+            (0.35, 0.00, 0.85, 1.00),
+            (0.50, 0.00, 0.85, 0.10),
+            (0.68, 1.00, 1.00, 0.00),
+            (0.82, 1.00, 0.55, 0.00),
+            (0.93, 1.00, 0.10, 0.10),
+            (1.00, 1.00, 0.55, 0.85),
+        ];
+
+        var upperIndex = 1;
+        while (upperIndex < stops.Length - 1 && value > stops[upperIndex].Position)
+        {
+            upperIndex++;
+        }
+
+        var lower = stops[upperIndex - 1];
+        var upper = stops[upperIndex];
+        var interpolation = (value - lower.Position) / (upper.Position - lower.Position);
+        red = (byte)Math.Round((lower.Red + ((upper.Red - lower.Red) * interpolation)) * 255);
+        green = (byte)Math.Round((lower.Green + ((upper.Green - lower.Green) * interpolation)) * 255);
+        blue = (byte)Math.Round((lower.Blue + ((upper.Blue - lower.Blue) * interpolation)) * 255);
     }
 
     private bool TryGetImageDisplayRect(out Rect rect)

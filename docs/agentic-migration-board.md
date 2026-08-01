@@ -44,37 +44,40 @@ Goal: Match WPF preview interaction and visualization behavior.
   - Remaining delta listed: Yes
 
 ### Task 1.2: Loupe / Pixel Inspector Parity
-- Status: TODO
+- Status: DONE
 - Objective: Implement right-click loupe with pixel readout equivalent to WPF.
 - Baseline: src/PreviewWindow.xaml.cs (ShowLoupeAt, BuildLoupeBitmap, PreviewImage_MouseRightButtonDown/Up)
 - Target: src/Rejector.Avalonia/Views/FramePreviewWindow.cs
 - Files expected: 1-4
+- Report: docs/reports/1.2-loupe-pixel-inspector-parity.md
 - Acceptance Matrix:
-  - Behavior matched: No
-  - Build passed: No
-  - Tests passed: No
-  - Screenshot captured: No
-  - Remaining delta listed: No
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: Yes
+  - Remaining delta listed: Yes
 
 ### Task 1.3: Orientation Debug Overlay Detail Parity
-- Status: TODO
+- Status: DONE
 - Objective: Port orientation debug overlay details (labels, status text, match context).
 - Baseline: src/PreviewWindow.xaml.cs (UpdateOrientationDebugOverlay)
 - Target: src/Rejector.Avalonia/Views/FramePreviewWindow.cs
 - Files expected: 1-3
+- Report: docs/reports/1.3-orientation-debug-overlay-parity.md
 - Acceptance Matrix:
-  - Behavior matched: No
-  - Build passed: No
-  - Tests passed: No
-  - Screenshot captured: No
-  - Remaining delta listed: No
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: Yes
+  - Remaining delta listed: Yes
 
 ### Task 1.4: Curvature Overlay Detail Parity
-- Status: TODO
+- Status: IN_PROGRESS
 - Objective: Match curvature overlay behavior and visual feedback.
 - Baseline: src/PreviewWindow.xaml.cs (curvature overlay and tooltip paths)
 - Target: src/Rejector.Avalonia/Views/FramePreviewWindow.cs
 - Files expected: 1-3
+- Report: docs/reports/1.4-curvature-overlay-detail-parity.md
 - Acceptance Matrix:
   - Behavior matched: No
   - Build passed: No
@@ -93,6 +96,22 @@ Goal: Match WPF preview interaction and visualization behavior.
   - Build passed: Yes
   - Tests passed: Yes
   - Screenshot captured: No
+  - Remaining delta listed: No
+
+### Task 1.6: FITS Viewer Aspect Ratio Parity
+- Status: DONE
+- Priority: HIGH
+- Objective: Preserve the source FITS aspect ratio in scaled viewer previews so images are not squeezed.
+- Baseline: src/ViewModels/MainViewModel.cs (GetInteractivePreviewDimensions), src/PreviewWindow.xaml (PreviewImage)
+- Targets: src/Rejector.Core/Services/RustafitsService.cs, tests/Rejector.Core.Tests/RustafitsServiceTests.cs
+- Validation data: `/Volumes/astronomy/RC/Bubble Nebula/LIGHT/R`
+- Files expected: 2-4
+- Report: docs/reports/1.6-viewer-aspect-ratio-parity.md
+- Acceptance Matrix:
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: Yes
   - Remaining delta listed: No
 
 ## Epic 2: Settings and Profile Parity

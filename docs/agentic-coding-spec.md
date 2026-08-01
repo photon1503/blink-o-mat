@@ -221,6 +221,7 @@ Priority order:
 
 1. Complete preview parity internals.
 - HIGH: Verify FITS viewer pixel fidelity and complete zoom/pan interaction parity.
+- HIGH: Preserve source FITS aspect ratio in every viewer preview; never clamp width and height independently.
 - ROI handle edit modes and constraints.
 - Loupe and pixel inspector.
 - Orientation and curvature overlay detail parity.

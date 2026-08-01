@@ -42,6 +42,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _showRejected = true;
     private FrameSummaryViewModel? _selectedResult;
     private Bitmap? _selectedPreviewImage;
+    private RustafitsService.RenderedImage? _selectedPreviewRenderedImage;
+    public sealed record LoupeSample(
+        int PixelX,
+        int PixelY,
+        int Width,
+        int Height,
+        byte[] Pixels,
+        byte CenterValue,
+        byte MinValue,
+        byte MaxValue,
+        double MeanValue);
     private string _selectedPreviewCaption = "Select a frame to preview it here.";
     private readonly Thresholds _thresholds;
     private string _sortField = "File name";
@@ -580,6 +591,57 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _clearSelectedOverrideCommand.RaiseCanExecuteChanged();
         }
     }
+
+    public LoupeSample? BuildPreviewLoupeSample(int pixelX, int pixelY, int sampleSize = 31)
+    {
+        var source = _selectedPreviewRenderedImage;
+        if (source is null || source.Width <= 0 || source.Height <= 0 || source.Rgb24Data.Length == 0)
+        {
+            return null;
+        }
+
+        pixelX = Math.Clamp(pixelX, 0, source.Width - 1);
+        pixelY = Math.Clamp(pixelY, 0, source.Height - 1);
+        var width = Math.Min(sampleSize, source.Width);
+        var height = Math.Min(sampleSize, source.Height);
+        var half = sampleSize / 2;
+        var startX = Math.Clamp(pixelX - half, 0, Math.Max(0, source.Width - width));
+        var startY = Math.Clamp(pixelY - half, 0, Math.Max(0, source.Height - height));
+        var pixels = new byte[width * height];
+        var minValue = byte.MaxValue;
+        var maxValue = byte.MinValue;
+        long sum = 0;
+
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var sourceIndex = ((startY + y) * source.Stride) + ((startX + x) * 3);
+                var red = source.Rgb24Data[sourceIndex];
+                var green = source.Rgb24Data[sourceIndex + 1];
+                var blue = source.Rgb24Data[sourceIndex + 2];
+                var value = (byte)(((77 * red) + (150 * green) + (29 * blue) + 128) >> 8);
+                pixels[(y * width) + x] = value;
+                minValue = Math.Min(minValue, value);
+                maxValue = Math.Max(maxValue, value);
+                sum += value;
+            }
+        }
+
+        var centerLocalX = Math.Clamp(pixelX - startX, 0, width - 1);
+        var centerLocalY = Math.Clamp(pixelY - startY, 0, height - 1);
+        return new LoupeSample(
+            pixelX,
+            pixelY,
+            width,
+            height,
+            pixels,
+            pixels[(centerLocalY * width) + centerLocalX],
+            minValue,
+            maxValue,
+            sum / (double)Math.Max(1, pixels.Length));
+    }
+
     private void SetSelectedManualOverride(bool rejected)
     {
         var context = GetSelectedContext();
@@ -878,6 +940,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         try
         {
             var files = _discoveryService.Discover(InputFolder, IncludeSubfolders);
+            RustafitsService.LoadedFrame? orientationReference = null;
+            AstroMetrics? orientationReferenceMetrics = null;
             StatusText = files.Count == 0
                 ? "No FITS/XISF files found in the selected folder."
                 : $"Discovered {files.Count} file(s). Running shared-core analysis...";
@@ -892,6 +956,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 }
 
                 var metrics = _analysisService.AnalyzeFrame(raw);
+                OrientationDebugInfo orientationDebug;
+                if (orientationReference is null || orientationReferenceMetrics is null)
+                {
+                    orientationReference = raw;
+                    orientationReferenceMetrics = metrics;
+                    orientationDebug = _analysisService.CreateOrientationReferenceDebugInfo(raw, metrics);
+                }
+                else
+                {
+                    orientationDebug = _analysisService.AnalyzeOrientation(raw, metrics, orientationReference, orientationReferenceMetrics).CandidateDebug;
+                }
                 var stf = _analysisService.ComputeAutoStretch(raw);
                 var roiRect = _analysisService.DetectRoiNormalizedRect(raw);
                 if (Results.Count == 0)
@@ -916,7 +991,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 var thumbnailPayload = PreviewPayloadCodec.Encode(previews.Full);
                 var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
 
-                _resultContexts.Add(new FrameResultContext(frame, raw.Width, raw.Height, raw.NormalizationMax, thumbnailPayload, roiPayload));
+                _resultContexts.Add(new FrameResultContext(frame, raw.Width, raw.Height, raw.NormalizationMax, thumbnailPayload, roiPayload, orientationDebug));
                 Results.Add(CreateFrameSummary(_resultContexts[^1]));
 
                 _sessionFocalLengthMm ??= raw.FocalLengthMm;
@@ -1026,6 +1101,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private async void StartLoadSelectedPreview()
     {
         var selected = SelectedResult;
+        _selectedPreviewRenderedImage = null;
         if (selected is null)
         {
             SelectedPreviewImage = null;
@@ -1063,6 +1139,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 return;
             }
 
+            _selectedPreviewRenderedImage = preview;
             SelectedPreviewImage = preview.ToBitmap();
             SelectedPreviewCaption = selected.FileName;
             _cachedPreviewPaths.Add(selected.FilePath);
@@ -1352,7 +1429,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     context.Frame.Metrics.TrailY1,
                     context.Frame.Metrics.TrailX2,
                     context.Frame.Metrics.TrailY2,
-                    context.Frame.Metrics.Stars);
+                    context.Frame.Metrics.Stars,
+                    context.OrientationDebug);
     }
 
     private Dictionary<string, double> ComputeScores(IReadOnlyList<FrameResultContext> contexts)
@@ -1755,7 +1833,8 @@ public sealed record FrameSummaryViewModel(
     double? TrailY1,
     double? TrailX2,
     double? TrailY2,
-    IReadOnlyList<MeasuredStar> Stars)
+    IReadOnlyList<MeasuredStar> Stars,
+    OrientationDebugInfo? OrientationDebug)
 {
     public string MetricsText => $"FWHM {Fwhm:F2} px   HFR {Hfr:F2}   Stars {StarCount}   Ecc {Eccentricity:F3}";
 
@@ -1799,14 +1878,13 @@ public sealed record FrameSummaryViewModel(
             return IsRejected ? $"{prefix}Rejected" : $"{prefix}Keep";
         }
     }
-
     public string RejectionStateColor => IsRejected ? "#CD5C5C" : "#5D9A65";
 
     public bool HasRejectionReasons => RejectionReasons.Count > 0;
 
     public string ScoreValueText => OverallScore.ToString("F1");
 
-    public string QualityLabel => OverallScore switch
+        public string QualityLabel => OverallScore switch
     {
         >= 4.0 => "GOOD",
         >= 2.0 => "FAIR",
@@ -1962,4 +2040,5 @@ internal sealed record FrameResultContext(
     int Height,
     double NormalizationMax,
     string? ThumbnailPayload,
-    string? RoiPayload);
+    string? RoiPayload,
+    OrientationDebugInfo? OrientationDebug = null);

@@ -17,10 +17,24 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
+            var viewModel = new MainWindowViewModel();
+            var mainWindow = new MainWindow
             {
-                DataContext = new MainWindowViewModel(),
+                DataContext = viewModel,
             };
+            desktop.MainWindow = mainWindow;
+
+            var parityFolder = Environment.GetEnvironmentVariable("REJECTOR_CURVATURE_PARITY_FOLDER");
+            if (!string.IsNullOrWhiteSpace(parityFolder))
+            {
+                mainWindow.Opened += async (_, _) =>
+                {
+                    viewModel.SetInputFolder(parityFolder);
+                    await viewModel.AnalyzeAsync();
+                    viewModel.IsCurvatureViewVisible = true;
+                    new FramePreviewWindow { DataContext = viewModel }.Show(mainWindow);
+                };
+            }
         }
 
         base.OnFrameworkInitializationCompleted();
