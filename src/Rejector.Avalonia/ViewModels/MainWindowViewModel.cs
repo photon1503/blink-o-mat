@@ -75,10 +75,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _showTrailMetric = true;
     private bool _showSqmMetric = true;
     private double _stfTargetBackground = 0.25;
+    private double _stfShadows;
+    private double _stfMidtones = 0.25;
+    private double _stfHighlights = 1.0;
+    private bool _useAutoStretchForPreview = true;
+    private bool _suppressStfPreviewRefresh;
     private bool _isRoiOverlayVisible;
     private bool _isStarDebugOverlayVisible;
     private bool _isOrientationDebugOverlayVisible;
     private bool _isCurvatureViewVisible;
+    private bool _isAlignmentEnabled = true;
     private bool _useScoreFwhm = true;
     private bool _useScoreHfr = true;
     private bool _useScoreStars = true;
@@ -226,6 +232,27 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _showRejected = value;
             OnPropertyChanged();
             RebuildResults();
+        }
+    }
+
+    public bool IsAlignmentEnabled
+    {
+        get => _isAlignmentEnabled;
+        set
+        {
+            if (_isAlignmentEnabled == value)
+            {
+                return;
+            }
+
+            _isAlignmentEnabled = value;
+            OnPropertyChanged();
+            _cachedPreviewPaths.Clear();
+            OnPropertyChanged(nameof(CachedPreviewCount));
+            if (SelectedResult is not null)
+            {
+                StartLoadSelectedPreview();
+            }
         }
     }
 
@@ -475,7 +502,29 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool ShowTrailMetric { get => _showTrailMetric; set => SetBool(ref _showTrailMetric, value); }
     public bool ShowSqmMetric { get => _showSqmMetric; set => SetBool(ref _showSqmMetric, value); }
 
-    public double StfTargetBackground { get => _stfTargetBackground; set => SetDouble(ref _stfTargetBackground, value); }
+    public double StfTargetBackground
+    {
+        get => _stfTargetBackground;
+        set
+        {
+            var clamped = Math.Clamp(value, 0.01, 0.5);
+            if (Math.Abs(_stfTargetBackground - clamped) < 0.0001)
+            {
+                return;
+            }
+
+            _stfTargetBackground = clamped;
+            OnPropertyChanged();
+
+            if (_useAutoStretchForPreview && SelectedResult is not null)
+            {
+                StartLoadSelectedPreview();
+            }
+        }
+    }
+    public double StfShadows { get => _stfShadows; set => SetStfAndRefresh(ref _stfShadows, value, 0.0, 1.0); }
+    public double StfMidtones { get => _stfMidtones; set => SetStfAndRefresh(ref _stfMidtones, value, 0.0, 1.0); }
+    public double StfHighlights { get => _stfHighlights; set => SetStfAndRefresh(ref _stfHighlights, value, 0.0, 1.0); }
     public bool IsRoiOverlayVisible { get => _isRoiOverlayVisible; set => SetBool(ref _isRoiOverlayVisible, value); }
     public bool IsStarDebugOverlayVisible { get => _isStarDebugOverlayVisible; set => SetBool(ref _isStarDebugOverlayVisible, value); }
     public bool IsOrientationDebugOverlayVisible { get => _isOrientationDebugOverlayVisible; set => SetBool(ref _isOrientationDebugOverlayVisible, value); }
@@ -865,6 +914,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 PixelSizeUm = context.Frame.Metrics.PixelSizeUm,
                 Width = context.Width,
                 Height = context.Height,
+                Rotate180 = context.Rotate180,
+                ShiftX = context.ShiftX,
+                ShiftY = context.ShiftY,
                 NormalizationMax = context.NormalizationMax,
                 ThumbnailPng = context.ThumbnailPayload,
                 RoiPng = context.RoiPayload,
@@ -960,7 +1012,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             var thumbnail = PreviewPayloadCodec.DecodeToBitmap(entry.ThumbnailPng);
             var roiImage = PreviewPayloadCodec.DecodeToBitmap(entry.RoiPng);
 
-            _resultContexts.Add(new FrameResultContext(frame, entry.Width, entry.Height, entry.NormalizationMax, entry.ThumbnailPng, entry.RoiPng));
+            _resultContexts.Add(new FrameResultContext(
+                frame,
+                entry.Width,
+                entry.Height,
+                entry.NormalizationMax,
+                entry.ThumbnailPng,
+                entry.RoiPng,
+                null,
+                entry.Rotate180,
+                entry.ShiftX,
+                entry.ShiftY));
             Results.Add(CreateFrameSummary(_resultContexts[^1]));
 
             _sessionFocalLengthMm ??= entry.FocalLengthMm;
@@ -1063,7 +1125,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
                     prepared.Add((
                         candidate.Index,
-                        new FrameResultContext(frame, raw.Width, raw.Height, raw.NormalizationMax, thumbnailPayload, roiPayload, orientationDebug),
+                        new FrameResultContext(frame, raw.Width, raw.Height, raw.NormalizationMax, thumbnailPayload, roiPayload, orientationDebug, false, 0, 0),
                         raw.FocalLengthMm,
                         raw.PixelSizeUm));
 
@@ -1103,7 +1165,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                                 }
 
                                 var metrics = _analysisService.AnalyzeFrame(raw);
-                                var orientationDebug = _analysisService.AnalyzeOrientation(raw, metrics, orientationReference, orientationReferenceMetrics).CandidateDebug;
+                                var orientation = _analysisService.AnalyzeOrientation(raw, metrics, orientationReference, orientationReferenceMetrics);
+                                var orientationDebug = orientation.CandidateDebug;
                                 var stf = _analysisService.ComputeAutoStretch(raw);
                                 var roiRect = _analysisService.DetectRoiNormalizedRect(raw);
                                 var previews = await _analysisService.RenderPreviewImagesAsync(raw, stf, roiRect, metrics, CancellationToken.None).ConfigureAwait(false);
@@ -1122,7 +1185,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
                                 var thumbnailPayload = PreviewPayloadCodec.Encode(previews.Full);
                                 var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
-                                var context = new FrameResultContext(frame, raw.Width, raw.Height, raw.NormalizationMax, thumbnailPayload, roiPayload, orientationDebug);
+                                var context = new FrameResultContext(
+                                    frame,
+                                    raw.Width,
+                                    raw.Height,
+                                    raw.NormalizationMax,
+                                    thumbnailPayload,
+                                    roiPayload,
+                                    orientationDebug,
+                                    orientation.Rotate180,
+                                    orientation.ShiftX,
+                                    orientation.ShiftY);
                                 return (HasValue: true, SourceIndex: entry.Index, Context: (FrameResultContext?)context, Focal: raw.FocalLengthMm, Pixel: raw.PixelSizeUm, FileName: frame.FileName, FileSize: fileSize);
                             }
                             finally
@@ -1508,8 +1581,35 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         try
         {
             var raw = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, CancellationToken.None);
-            var stf = _analysisService.ComputeAutoStretch(raw);
-            var preview = await _analysisService.RenderFullPreviewImageAsync(raw, stf, CancellationToken.None);
+            var renderFrame = raw;
+            if (IsAlignmentEnabled)
+            {
+                renderFrame = _analysisService.ApplyOrientation(renderFrame, context.Rotate180);
+                renderFrame = _analysisService.ApplyShift(renderFrame, context.ShiftX, context.ShiftY);
+            }
+
+            StfParameters stf;
+            if (_useAutoStretchForPreview)
+            {
+                stf = _analysisService.ComputeAutoStretch(renderFrame, StfTargetBackground);
+                _suppressStfPreviewRefresh = true;
+                try
+                {
+                    StfShadows = stf.Shadows;
+                    StfMidtones = stf.Midtones;
+                    StfHighlights = stf.Highlights;
+                }
+                finally
+                {
+                    _suppressStfPreviewRefresh = false;
+                }
+            }
+            else
+            {
+                stf = new StfParameters(StfShadows, StfMidtones, StfHighlights);
+            }
+
+            var preview = await _analysisService.RenderFullPreviewImageAsync(renderFrame, stf, CancellationToken.None);
 
             if (!ReferenceEquals(selected, SelectedResult))
             {
@@ -1539,6 +1639,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool SelectPreviousResult()
     {
         return MoveSelectedResult(-1);
+    }
+
+    public void ApplyAutoStretchToSelectedPreview()
+    {
+        _useAutoStretchForPreview = true;
+        if (SelectedResult is not null)
+        {
+            StartLoadSelectedPreview();
+        }
     }
 
     public bool SelectNextResult()
@@ -1604,6 +1713,29 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         SelectedResult = Results[targetIndex];
         return true;
+    }
+
+    private void SetStfAndRefresh(ref double field, double value, double min, double max, [CallerMemberName] string? propertyName = null)
+    {
+        var clamped = Math.Clamp(value, min, max);
+        if (Math.Abs(field - clamped) < 0.0001)
+        {
+            return;
+        }
+
+        field = clamped;
+        OnPropertyChanged(propertyName);
+
+        if (_suppressStfPreviewRefresh)
+        {
+            return;
+        }
+
+        _useAutoStretchForPreview = false;
+        if (SelectedResult is not null)
+        {
+            StartLoadSelectedPreview();
+        }
     }
 
     private void RebuildResults()
@@ -2419,4 +2551,7 @@ internal sealed record FrameResultContext(
     double NormalizationMax,
     string? ThumbnailPayload,
     string? RoiPayload,
-    OrientationDebugInfo? OrientationDebug = null);
+    OrientationDebugInfo? OrientationDebug = null,
+    bool Rotate180 = false,
+    int ShiftX = 0,
+    int ShiftY = 0);

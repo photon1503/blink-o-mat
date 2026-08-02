@@ -144,6 +144,21 @@ Goal: Match WPF preview interaction and visualization behavior.
   - Screenshot captured: No
   - Remaining delta listed: Yes
 
+### Task 1.9: FITS Viewer Remaining Feature Gap Closure
+- Status: DONE
+- Priority: HIGH
+- Objective: Systematically compare WPF preview window feature set against Avalonia and close remaining missing viewer functions/items.
+- Baseline: src/PreviewWindow.xaml, src/PreviewWindow.xaml.cs
+- Targets: src/Rejector.Avalonia/Views/FramePreviewWindow.cs, src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
+- Files expected: 2-8
+- Report: docs/reports/1.9-fits-viewer-gap-closure.md
+- Acceptance Matrix:
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: Yes
+  - Remaining delta listed: Yes
+
 ## Epic 2: Settings and Profile Parity
 Goal: Match WPF settings overlay behavior and persistence profile model.
 

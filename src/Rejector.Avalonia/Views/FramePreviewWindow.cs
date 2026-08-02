@@ -1,6 +1,9 @@
 using Avalonia;
 using Avalonia.Controls;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Collections.Specialized;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -19,13 +22,16 @@ namespace Rejector.Avalonia.Views;
 public sealed class FramePreviewWindow : Window
 {
     private readonly Image _previewImage;
-    private readonly ScrollViewer _previewScroll;
+    private readonly Canvas _previewSurface;
+    private readonly Grid _previewLayer;
     private readonly ScaleTransform _previewScale = new(1.0, 1.0);
     private readonly TextBlock _zoomText;
     private readonly TextBlock _intervalText;
     private readonly TextBlock _cacheText;
     private readonly TextBlock _framePositionText;
     private readonly Slider _frameSlider;
+    private readonly Border _filterChipContainer;
+    private readonly WrapPanel _filterChipWrap;
     private readonly DispatcherTimer _playTimer = new();
     private readonly Canvas _overlayCanvas;
     private readonly Canvas _starTrailOverlayCanvas;
@@ -54,11 +60,16 @@ public sealed class FramePreviewWindow : Window
     private bool _isLoupeActive;
     private bool _isPanning;
     private PanMouseButton _activePanButton = PanMouseButton.None;
+    private bool _isKeyboardNavigationInProgress;
+    private int? _activeKeyboardNavigationIndex;
+    private int? _queuedKeyboardNavigationIndex;
     private bool _isRoiDragging;
     private Point _roiDragOriginImage;
     private IPointer? _roiDragPointer;
     private Point _panStartPoint;
     private Vector _panStartOffset;
+    private double _imageLeft;
+    private double _imageTop;
     private RoiEditMode _roiEditMode;
     private IPointer? _roiEditPointer;
     private int _roiActiveHandleIndex = -1;
@@ -101,13 +112,13 @@ public sealed class FramePreviewWindow : Window
 
         var root = new Grid
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*"),
             Margin = new Thickness(12),
         };
 
         var toolbar = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto"),
+            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto"),
             ColumnSpacing = 6,
             Margin = new Thickness(0, 0, 0, 8),
         };
@@ -207,15 +218,84 @@ public sealed class FramePreviewWindow : Window
         Grid.SetColumn(roiToggle, 11);
         toolbar.Children.Add(roiToggle);
 
+        var openButton = new Button { Content = "Open", Width = 58, Height = 30 };
+        openButton.Click += (_, _) => OpenCurrentFrameInFileManager();
+        Grid.SetColumn(openButton, 12);
+        toolbar.Children.Add(openButton);
+
+        var acceptedToggle = new ToggleButton
+        {
+            Content = "Accepted",
+            Width = 84,
+            Height = 30,
+            FontWeight = FontWeight.SemiBold,
+        };
+        acceptedToggle.Bind(ToggleButton.IsCheckedProperty, new Binding("ShowAccepted") { Mode = BindingMode.TwoWay });
+        Grid.SetColumn(acceptedToggle, 13);
+        toolbar.Children.Add(acceptedToggle);
+
+        var rejectedToggle = new ToggleButton
+        {
+            Content = "Rejected",
+            Width = 84,
+            Height = 30,
+            FontWeight = FontWeight.SemiBold,
+        };
+        rejectedToggle.Bind(ToggleButton.IsCheckedProperty, new Binding("ShowRejected") { Mode = BindingMode.TwoWay });
+        Grid.SetColumn(rejectedToggle, 14);
+        toolbar.Children.Add(rejectedToggle);
+
+        var curvatureToggle = new ToggleButton { Content = "Curvature", Width = 90, Height = 30 };
+        curvatureToggle.Bind(ToggleButton.IsCheckedProperty, new Binding("IsCurvatureViewVisible") { Mode = BindingMode.TwoWay });
+        Grid.SetColumn(curvatureToggle, 15);
+        toolbar.Children.Add(curvatureToggle);
+
+        var alignToggle = new ToggleButton { Content = "Align", Width = 70, Height = 30 };
+        alignToggle.Bind(ToggleButton.IsCheckedProperty, new Binding("IsAlignmentEnabled") { Mode = BindingMode.TwoWay });
+        Grid.SetColumn(alignToggle, 16);
+        toolbar.Children.Add(alignToggle);
+
         _zoomText = new TextBlock
         {
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = SolidColorBrush.Parse("#B8BCC0"),
             Text = "Zoom: 1.00x",
         };
-        Grid.SetColumn(_zoomText, 12);
+        Grid.SetColumn(_zoomText, 17);
         toolbar.Children.Add(_zoomText);
         root.Children.Add(toolbar);
+
+        _filterChipWrap = new WrapPanel
+        {
+            Orientation = Orientation.Horizontal,
+        };
+
+        _filterChipContainer = new Border
+        {
+            Margin = new Thickness(0, 0, 0, 8),
+            Padding = new Thickness(8, 4, 8, 6),
+            BorderBrush = SolidColorBrush.Parse("#2D3136"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            IsVisible = false,
+            Child = new StackPanel
+            {
+                Spacing = 4,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "FILTERS",
+                        FontSize = 9,
+                        FontWeight = FontWeight.Bold,
+                        Foreground = SolidColorBrush.Parse("#666"),
+                    },
+                    _filterChipWrap,
+                },
+            },
+        };
+        Grid.SetRow(_filterChipContainer, 1);
+        root.Children.Add(_filterChipContainer);
 
         var previewStateRow = new Grid
         {
@@ -251,7 +331,7 @@ public sealed class FramePreviewWindow : Window
         };
         Grid.SetColumn(_cacheText, 2);
         previewStateRow.Children.Add(_cacheText);
-        Grid.SetRow(previewStateRow, 1);
+        Grid.SetRow(previewStateRow, 2);
         root.Children.Add(previewStateRow);
 
         var caption = new TextBlock
@@ -262,11 +342,11 @@ public sealed class FramePreviewWindow : Window
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         caption.Bind(TextBlock.TextProperty, new Binding("SelectedPreviewCaption"));
-        Grid.SetRow(caption, 2);
+        Grid.SetRow(caption, 3);
         root.Children.Add(caption);
 
-        var imageGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("14,*") };
-        Grid.SetRow(imageGrid, 3);
+        var imageGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("14,*,300") };
+        Grid.SetRow(imageGrid, 4);
 
         _cacheIndicatorCanvas = new Canvas
         {
@@ -287,29 +367,20 @@ public sealed class FramePreviewWindow : Window
 
         _previewImage = new Image
         {
-            Stretch = Stretch.None,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            Stretch = Stretch.Fill,
         };
         RenderOptions.SetBitmapInterpolationMode(_previewImage, BitmapInterpolationMode.None);
 
         _previewImage.Bind(Image.SourceProperty, new Binding("SelectedPreviewImage"));
 
-        var previewTransform = new LayoutTransformControl
+        _previewSurface = new Canvas
         {
-            Child = _previewImage,
-            LayoutTransform = _previewScale,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            ClipToBounds = true,
         };
-
-        _previewScroll = new ScrollViewer
-        {
-            Content = previewTransform,
-        };
+        _previewSurface.Children.Add(_previewImage);
         _previewImage.PointerPressed += PreviewImageOnPointerPressed;
-        _previewScroll.PointerMoved += PreviewScrollOnPointerMoved;
-        _previewScroll.PointerReleased += PreviewScrollOnPointerReleased;
+        _previewSurface.PointerMoved += PreviewScrollOnPointerMoved;
+        _previewSurface.PointerReleased += PreviewScrollOnPointerReleased;
 
         _overlayCanvas = new Canvas
         {
@@ -466,13 +537,280 @@ public sealed class FramePreviewWindow : Window
         _overlayCanvas.PointerReleased += OverlayCanvasOnPointerReleased;
         _overlayCanvas.PointerExited += (_, _) => _curvatureTooltip.IsVisible = false;
 
-        var previewLayer = new Grid();
-        previewLayer.Children.Add(_previewScroll);
-        previewLayer.Children.Add(_overlayCanvas);
-        previewLayer.PointerWheelChanged += PreviewLayerOnPointerWheelChanged;
+        _previewLayer = new Grid();
+        _previewLayer.Children.Add(_previewSurface);
+        _previewLayer.Children.Add(_overlayCanvas);
+        _previewLayer.PointerWheelChanged += PreviewLayerOnPointerWheelChanged;
+        _previewLayer.AddHandler(PointerPressedEvent, PreviewLayerOnPointerPressed, RoutingStrategies.Tunnel);
 
-        imageBorder.Child = previewLayer;
+        imageBorder.Child = _previewLayer;
         imageGrid.Children.Add(imageBorder);
+
+        var scoreValueText = new TextBlock { FontSize = 40, FontWeight = FontWeight.Bold, Foreground = SolidColorBrush.Parse("#E67575") };
+        scoreValueText.Bind(TextBlock.TextProperty, new Binding("SelectedResult.ScoreValueText"));
+        scoreValueText.Bind(TextBlock.ForegroundProperty, new Binding("SelectedResult.QualityColor"));
+
+        var scoreQualityText = new TextBlock
+        {
+            FontSize = 11,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = SolidColorBrush.Parse("#AAB3BC"),
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 0, 6),
+        };
+        scoreQualityText.Bind(TextBlock.TextProperty, new Binding("SelectedResult.QualityLabel"));
+        scoreQualityText.Bind(TextBlock.ForegroundProperty, new Binding("SelectedResult.QualityColor"));
+
+        var scoreProgressBar = new ProgressBar
+        {
+            Height = 10,
+            Margin = new Thickness(0, 2, 0, 0),
+            Minimum = 0,
+            Maximum = 100,
+            Background = SolidColorBrush.Parse("#303338"),
+        };
+        scoreProgressBar.Bind(RangeBase.ValueProperty, new Binding("SelectedResult.ScoreProgressPercent"));
+        scoreProgressBar.Bind(ProgressBar.ForegroundProperty, new Binding("SelectedResult.QualityColor"));
+
+        var scoreToggleButton = new Button
+        {
+            Height = 30,
+            MinWidth = 118,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            Padding = new Thickness(12, 4),
+            FontWeight = FontWeight.SemiBold,
+            Foreground = SolidColorBrush.Parse("#F5F5F5"),
+            BorderBrush = SolidColorBrush.Parse("#4B4F54"),
+            BorderThickness = new Thickness(1),
+            Content = new TextBlock { FontWeight = FontWeight.SemiBold, Foreground = SolidColorBrush.Parse("#F5F5F5") },
+        };
+        scoreToggleButton.Bind(Button.CommandProperty, new Binding("ToggleRejectCommand"));
+        scoreToggleButton.Bind(Button.CommandParameterProperty, new Binding("SelectedResult"));
+        scoreToggleButton.Bind(Button.BackgroundProperty, new Binding("SelectedResult.RejectionStateColor"));
+        if (scoreToggleButton.Content is TextBlock scoreToggleText)
+        {
+            scoreToggleText.Bind(TextBlock.TextProperty, new Binding("SelectedResult.RejectionStateLabel"));
+            scoreToggleText.TextAlignment = TextAlignment.Center;
+        }
+        scoreToggleButton.Margin = new Thickness(8, 0, 0, 0);
+        scoreToggleButton.VerticalAlignment = VerticalAlignment.Top;
+
+        var scoreHeaderText = new TextBlock
+        {
+            Text = "SCORE",
+            Foreground = SolidColorBrush.Parse("#8E9AA6"),
+            FontSize = 11,
+            FontWeight = FontWeight.SemiBold,
+        };
+
+        var scoreValueRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Margin = new Thickness(0, 4, 0, 2),
+            Children =
+            {
+                scoreValueText,
+                new TextBlock
+                {
+                    Text = "/ 5",
+                    Foreground = SolidColorBrush.Parse("#C8C8C8"),
+                    FontSize = 16,
+                    VerticalAlignment = VerticalAlignment.Bottom,
+                    Margin = new Thickness(0, 0, 0, 4),
+                },
+            },
+        };
+
+        var scorePanelGrid = new Grid
+        {
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto"),
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            RowSpacing = 6,
+        };
+        scorePanelGrid.Children.Add(scoreHeaderText);
+        Grid.SetRow(scoreValueRow, 1);
+        scorePanelGrid.Children.Add(scoreValueRow);
+        Grid.SetRow(scoreQualityText, 1);
+        Grid.SetColumn(scoreQualityText, 1);
+        scorePanelGrid.Children.Add(scoreQualityText);
+        Grid.SetColumn(scoreToggleButton, 1);
+        Grid.SetRow(scoreToggleButton, 0);
+        Grid.SetRowSpan(scoreToggleButton, 2);
+        scorePanelGrid.Children.Add(scoreToggleButton);
+        Grid.SetRow(scoreProgressBar, 2);
+        Grid.SetColumnSpan(scoreProgressBar, 2);
+        scorePanelGrid.Children.Add(scoreProgressBar);
+
+        var stfTargetSlider = new Slider { Minimum = 0.01, Maximum = 0.5, Width = 220 };
+        stfTargetSlider.Bind(Slider.ValueProperty, new Binding("StfTargetBackground") { Mode = BindingMode.TwoWay });
+
+        var stfShadowsSlider = new Slider { Minimum = 0.0, Maximum = 1.0, Width = 170 };
+        stfShadowsSlider.Bind(Slider.ValueProperty, new Binding("StfShadows") { Mode = BindingMode.TwoWay });
+
+        var stfMidtonesSlider = new Slider { Minimum = 0.0, Maximum = 1.0, Width = 170 };
+        stfMidtonesSlider.Bind(Slider.ValueProperty, new Binding("StfMidtones") { Mode = BindingMode.TwoWay });
+
+        var stfHighlightsSlider = new Slider { Minimum = 0.0, Maximum = 1.0, Width = 170 };
+        stfHighlightsSlider.Bind(Slider.ValueProperty, new Binding("StfHighlights") { Mode = BindingMode.TwoWay });
+
+        var autoStretchButton = new Button
+        {
+            Height = 28,
+            Content = "Auto Stretch",
+        };
+        autoStretchButton.Click += (_, _) =>
+        {
+            if (DataContext is MainWindowViewModel vm)
+            {
+                vm.ApplyAutoStretchToSelectedPreview();
+            }
+        };
+
+        var roiButton = new Button
+        {
+            Height = 28,
+            Content = "Show / edit ROI",
+        };
+        roiButton.Click += (_, _) =>
+        {
+            if (DataContext is MainWindowViewModel vm)
+            {
+                vm.IsRoiOverlayVisible = !vm.IsRoiOverlayVisible;
+            }
+        };
+
+        TextBlock MetricText(string label, string path)
+        {
+            var text = new TextBlock { Foreground = SolidColorBrush.Parse("#DDE4EA"), FontSize = 11 };
+            text.Bind(TextBlock.TextProperty, new Binding(path) { StringFormat = label + ": {0}" });
+            return text;
+        }
+
+        Control StfSliderRow(string label, Slider slider, string valuePath)
+        {
+            var value = new TextBlock
+            {
+                Foreground = SolidColorBrush.Parse("#F2C56E"),
+                FontFamily = new FontFamily("Consolas"),
+                Width = 58,
+                TextAlignment = TextAlignment.Right,
+            };
+            value.Bind(TextBlock.TextProperty, new Binding(valuePath) { StringFormat = "{0:F4}" });
+
+            var row = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
+                ColumnSpacing = 6,
+            };
+            row.Children.Add(new TextBlock { Text = label, Foreground = SolidColorBrush.Parse("#AAB3BC"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center });
+            Grid.SetColumn(slider, 1);
+            row.Children.Add(slider);
+            Grid.SetColumn(value, 2);
+            row.Children.Add(value);
+            return row;
+        }
+
+        var sidePanel = new Border
+        {
+            Margin = new Thickness(10, 0, 0, 0),
+            Padding = new Thickness(10),
+            Background = SolidColorBrush.Parse("#1A1D20"),
+            BorderBrush = SolidColorBrush.Parse("#2D3136"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Child = new StackPanel
+            {
+                Spacing = 10,
+                Children =
+                {
+                    new Border
+                    {
+                        BorderBrush = SolidColorBrush.Parse("#2D3136"),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(10),
+                        Child = scorePanelGrid,
+                    },
+                    new Border
+                    {
+                        BorderBrush = SolidColorBrush.Parse("#2D3136"),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(10),
+                        Child = new StackPanel
+                        {
+                            Spacing = 8,
+                            Children =
+                            {
+                                new TextBlock { Text = "INSPECTION", Foreground = SolidColorBrush.Parse("#D0D8E0"), FontSize = 11, FontWeight = FontWeight.SemiBold },
+                                new TextBlock { Text = "Stretch (STF)", Foreground = SolidColorBrush.Parse("#E0E6ED") },
+                                autoStretchButton,
+                                StfSliderRow("Shadows", stfShadowsSlider, "StfShadows"),
+                                StfSliderRow("Midtones", stfMidtonesSlider, "StfMidtones"),
+                                StfSliderRow("Highlights", stfHighlightsSlider, "StfHighlights"),
+                                new TextBlock { Text = "Target Background", Foreground = SolidColorBrush.Parse("#AAB3BC"), FontSize = 11 },
+                                stfTargetSlider,
+                                roiButton,
+                            },
+                        },
+                    },
+                    new Border
+                    {
+                        BorderBrush = SolidColorBrush.Parse("#2D3136"),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(10),
+                        Child = new StackPanel
+                        {
+                            Spacing = 5,
+                            Children =
+                            {
+                                new TextBlock { Text = "METRICS", Foreground = SolidColorBrush.Parse("#D0D8E0"), FontSize = 11, FontWeight = FontWeight.SemiBold },
+                                MetricText("Date/time", "SelectedResult.TimestampDisplay"),
+                                MetricText("Filter", "SelectedResult.FilterDisplay"),
+                                MetricText("FWHM", "SelectedResult.FwhmPixelDisplay"),
+                                MetricText("FWHM sky", "SelectedResult.FwhmArcsecDisplay"),
+                                MetricText("HFR", "SelectedResult.HfrDisplay"),
+                                MetricText("Stars", "SelectedResult.StarCount"),
+                                MetricText("SQM", "SelectedResult.SqmDisplay"),
+                                MetricText("Sky temp", "SelectedResult.SkyTempDisplay"),
+                                MetricText("Eccentricity", "SelectedResult.EccentricityDisplay"),
+                                MetricText("Mean BG", "SelectedResult.MeanBackgroundDisplay"),
+                                MetricText("Median", "SelectedResult.MedianDisplay"),
+                                MetricText("MAD", "SelectedResult.MadDisplay"),
+                                MetricText("Min", "SelectedResult.MinDisplay"),
+                                MetricText("Max", "SelectedResult.MaxDisplay"),
+                                MetricText("Trail conf.", "SelectedResult.TrailText"),
+                            },
+                        },
+                    },
+                    new Border
+                    {
+                        BorderBrush = SolidColorBrush.Parse("#2D3136"),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(10),
+                        Child = new StackPanel
+                        {
+                            Spacing = 4,
+                            Children =
+                            {
+                                new TextBlock { Text = "KEYBOARD SHORTCUTS", Foreground = SolidColorBrush.Parse("#D0D8E0"), FontSize = 11, FontWeight = FontWeight.SemiBold },
+                                new TextBlock { Text = "Left / Right: previous or next frame", Foreground = SolidColorBrush.Parse("#AAB3BC"), FontSize = 11 },
+                                new TextBlock { Text = "R: reject or unreject current frame", Foreground = SolidColorBrush.Parse("#AAB3BC"), FontSize = 11 },
+                                new TextBlock { Text = "Mouse Wheel: zoom at cursor position", Foreground = SolidColorBrush.Parse("#AAB3BC"), FontSize = 11 },
+                                new TextBlock { Text = "Ctrl + Drag: draw square ROI", Foreground = SolidColorBrush.Parse("#AAB3BC"), FontSize = 11 },
+                                new TextBlock { Text = "Escape: cancel ROI drag", Foreground = SolidColorBrush.Parse("#AAB3BC"), FontSize = 11 },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        Grid.SetColumn(sidePanel, 2);
+        imageGrid.Children.Add(sidePanel);
         root.Children.Add(imageGrid);
 
         Content = root;
@@ -497,7 +835,7 @@ public sealed class FramePreviewWindow : Window
         {
             if (e.Property == Image.SourceProperty)
             {
-                var viewState = _pendingViewState ?? CaptureViewState();
+                var viewState = _pendingViewState;
                 _pendingViewState = null;
                 HideLoupe();
                 if (!_hasInitializedView || viewState is null)
@@ -515,7 +853,7 @@ public sealed class FramePreviewWindow : Window
 
         _overlayCanvas.SizeChanged += (_, _) => UpdateRoiRect();
         _overlayCanvas.SizeChanged += (_, _) => ScheduleOverlayRedraw();
-        _previewScroll.ScrollChanged += (_, _) => ScheduleOverlayRedraw();
+        _previewSurface.SizeChanged += (_, _) => ApplyImageLayout();
 
         DataContextChanged += (_, _) => AttachVmSubscriptions();
         AttachVmSubscriptions();
@@ -555,14 +893,14 @@ public sealed class FramePreviewWindow : Window
 
         if (e.Key == Key.Left)
         {
-            vm.SelectPreviousResult();
+            QueueKeyboardNavigation(-1);
             e.Handled = true;
             return;
         }
 
         if (e.Key == Key.Right)
         {
-            vm.SelectNextResult();
+            QueueKeyboardNavigation(1);
             e.Handled = true;
             return;
         }
@@ -603,6 +941,7 @@ public sealed class FramePreviewWindow : Window
         if (_attachedVm is not null)
         {
             _attachedVm.PropertyChanged -= VmOnPropertyChanged;
+            _attachedVm.FilterChips.CollectionChanged -= FilterChipsOnCollectionChanged;
         }
 
         _attachedVm = DataContext as MainWindowViewModel;
@@ -612,11 +951,54 @@ public sealed class FramePreviewWindow : Window
         }
 
         _attachedVm.PropertyChanged += VmOnPropertyChanged;
+        _attachedVm.FilterChips.CollectionChanged += FilterChipsOnCollectionChanged;
         _cacheText.Text = $"cache: {_attachedVm.CachedPreviewCount}";
         SyncRoiFromViewModel();
         UpdateRoiRect();
         UpdateCacheIndicators();
+        RebuildFilterChipRow();
         ScheduleOverlayRedraw();
+    }
+
+    private void FilterChipsOnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        RebuildFilterChipRow();
+    }
+
+    private void RebuildFilterChipRow()
+    {
+        _filterChipWrap.Children.Clear();
+
+        if (DataContext is not MainWindowViewModel vm || !vm.HasFilterChips)
+        {
+            _filterChipContainer.IsVisible = false;
+            return;
+        }
+
+        _filterChipContainer.IsVisible = true;
+        foreach (var chip in vm.FilterChips)
+        {
+            var toggle = new ToggleButton
+            {
+                Height = 30,
+                Margin = new Thickness(0, 0, 6, 6),
+                Padding = new Thickness(10, 0),
+                FontWeight = FontWeight.SemiBold,
+                Background = SolidColorBrush.Parse("#222F426B"),
+                BorderBrush = SolidColorBrush.Parse("#6D88C4"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Content = new TextBlock { Text = chip.DisplayName },
+            };
+
+            toggle.Bind(ToggleButton.IsCheckedProperty, new Binding(nameof(FilterChipViewModel.IsSelected))
+            {
+                Source = chip,
+                Mode = BindingMode.TwoWay,
+            });
+
+            _filterChipWrap.Children.Add(toggle);
+        }
     }
 
     private void VmOnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -668,6 +1050,62 @@ public sealed class FramePreviewWindow : Window
         _intervalText.Text = value < 1.0 ? $"{value * 1000:0} ms" : $"{value:0.#} s";
     }
 
+    private void QueueKeyboardNavigation(int direction)
+    {
+        if (direction == 0 || DataContext is not MainWindowViewModel vm || vm.Results.Count == 0)
+        {
+            return;
+        }
+
+        var currentIndex = vm.SelectedResult is null
+            ? 0
+            : Math.Max(0, vm.Results.IndexOf(vm.SelectedResult));
+        var baseIndex = _queuedKeyboardNavigationIndex ?? _activeKeyboardNavigationIndex ?? currentIndex;
+        var targetIndex = Math.Clamp(baseIndex + direction, 0, vm.Results.Count - 1);
+        if (targetIndex == baseIndex && targetIndex == currentIndex)
+        {
+            return;
+        }
+
+        _queuedKeyboardNavigationIndex = targetIndex;
+        if (_isKeyboardNavigationInProgress)
+        {
+            return;
+        }
+
+        _ = ProcessQueuedKeyboardNavigationAsync();
+    }
+
+    private async Task ProcessQueuedKeyboardNavigationAsync()
+    {
+        if (_isKeyboardNavigationInProgress)
+        {
+            return;
+        }
+
+        _isKeyboardNavigationInProgress = true;
+        try
+        {
+            while (_queuedKeyboardNavigationIndex is int targetIndex)
+            {
+                _queuedKeyboardNavigationIndex = null;
+                _activeKeyboardNavigationIndex = targetIndex;
+
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    vm.SelectResultAtIndex(targetIndex);
+                }
+
+                await Task.Yield();
+            }
+        }
+        finally
+        {
+            _activeKeyboardNavigationIndex = null;
+            _isKeyboardNavigationInProgress = false;
+        }
+    }
+
     private void FitToView()
     {
         if (_previewImage.Source is not IImage image)
@@ -675,8 +1113,8 @@ public sealed class FramePreviewWindow : Window
             return;
         }
 
-        var viewportWidth = Math.Max(0, _previewScroll.Bounds.Width - 12);
-        var viewportHeight = Math.Max(0, _previewScroll.Bounds.Height - 12);
+        var viewportWidth = Math.Max(0, _previewSurface.Bounds.Width - 12);
+        var viewportHeight = Math.Max(0, _previewSurface.Bounds.Height - 12);
         if (viewportWidth <= 0 || viewportHeight <= 0 || image.Size.Width <= 0 || image.Size.Height <= 0)
         {
             return;
@@ -685,7 +1123,9 @@ public sealed class FramePreviewWindow : Window
         var scaleX = viewportWidth / image.Size.Width;
         var scaleY = viewportHeight / image.Size.Height;
         SetZoom(Math.Min(scaleX, scaleY));
-        _previewScroll.Offset = default;
+        _imageLeft = (_previewSurface.Bounds.Width - (image.Size.Width * _previewScale.ScaleX)) / 2.0;
+        _imageTop = (_previewSurface.Bounds.Height - (image.Size.Height * _previewScale.ScaleY)) / 2.0;
+        ApplyImageLayout();
     }
 
     private void PreviewLayerOnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
@@ -696,8 +1136,18 @@ public sealed class FramePreviewWindow : Window
         }
 
         var factor = e.Delta.Y > 0 ? 1.1 : 1.0 / 1.1;
-        SetZoomAroundViewerPoint(e.GetPosition(_previewScroll), _previewScale.ScaleX * factor);
+        SetZoomAroundViewerPoint(e.GetPosition(_previewSurface), _previewScale.ScaleX * factor);
         e.Handled = true;
+    }
+
+    private void PreviewLayerOnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_previewImage.Source is null || !e.GetCurrentPoint(_previewLayer).Properties.IsMiddleButtonPressed)
+        {
+            return;
+        }
+
+        BeginPanning(e, PanMouseButton.Middle);
     }
 
     private void PreviewImageOnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -711,7 +1161,7 @@ public sealed class FramePreviewWindow : Window
         if (point.Properties.IsRightButtonPressed)
         {
             _isLoupeActive = true;
-            e.Pointer.Capture(_previewScroll);
+            e.Pointer.Capture(_previewSurface);
             ShowLoupeAt(e.GetPosition(_previewImage));
             e.Handled = true;
             return;
@@ -728,18 +1178,28 @@ public sealed class FramePreviewWindow : Window
             _roiDragOriginImage = e.GetPosition(_previewImage);
             _roiDragPointer = e.Pointer;
             _previewImage.Cursor = new Cursor(StandardCursorType.Cross);
-            e.Pointer.Capture(_previewScroll);
+            e.Pointer.Capture(_previewSurface);
             UpdateRoiDrag(_roiDragOriginImage);
             e.Handled = true;
             return;
         }
 
+        BeginPanning(e, point.Properties.IsMiddleButtonPressed ? PanMouseButton.Middle : PanMouseButton.Left);
+    }
+
+    private void BeginPanning(PointerPressedEventArgs e, PanMouseButton button)
+    {
+        if (_isRoiDragging || _roiEditMode != RoiEditMode.None)
+        {
+            return;
+        }
+
         _isPanning = true;
-    _activePanButton = point.Properties.IsMiddleButtonPressed ? PanMouseButton.Middle : PanMouseButton.Left;
-        _panStartPoint = e.GetPosition(_previewScroll);
-        _panStartOffset = _previewScroll.Offset;
+        _activePanButton = button;
+        _panStartPoint = e.GetPosition(_previewSurface);
+        _panStartOffset = new Vector(_imageLeft, _imageTop);
         _previewImage.Cursor = new Cursor(StandardCursorType.SizeAll);
-        e.Pointer.Capture(_previewScroll);
+        e.Pointer.Capture(_previewSurface);
         e.Handled = true;
     }
 
@@ -747,7 +1207,7 @@ public sealed class FramePreviewWindow : Window
     {
         if (_isRoiDragging)
         {
-            if (!e.GetCurrentPoint(_previewScroll).Properties.IsLeftButtonPressed
+            if (!e.GetCurrentPoint(_previewSurface).Properties.IsLeftButtonPressed
                 || !e.KeyModifiers.HasFlag(KeyModifiers.Control))
             {
                 CancelRoiDrag();
@@ -762,7 +1222,7 @@ public sealed class FramePreviewWindow : Window
 
         if (_isLoupeActive)
         {
-            if (!e.GetCurrentPoint(_previewScroll).Properties.IsRightButtonPressed)
+            if (!e.GetCurrentPoint(_previewSurface).Properties.IsRightButtonPressed)
             {
                 HideLoupe();
                 e.Pointer.Capture(null);
@@ -781,8 +1241,8 @@ public sealed class FramePreviewWindow : Window
 
         var panStillPressed = _activePanButton switch
         {
-            PanMouseButton.Middle => e.GetCurrentPoint(_previewScroll).Properties.IsMiddleButtonPressed,
-            PanMouseButton.Left => e.GetCurrentPoint(_previewScroll).Properties.IsLeftButtonPressed,
+            PanMouseButton.Middle => e.GetCurrentPoint(_previewSurface).Properties.IsMiddleButtonPressed,
+            PanMouseButton.Left => e.GetCurrentPoint(_previewSurface).Properties.IsLeftButtonPressed,
             _ => false,
         };
 
@@ -792,11 +1252,11 @@ public sealed class FramePreviewWindow : Window
             return;
         }
 
-        var point = e.GetPosition(_previewScroll);
+        var point = e.GetPosition(_previewSurface);
         var delta = point - _panStartPoint;
-        _previewScroll.Offset = new Vector(
-            Math.Max(0, _panStartOffset.X - delta.X),
-            Math.Max(0, _panStartOffset.Y - delta.Y));
+        _imageLeft = _panStartOffset.X + delta.X;
+        _imageTop = _panStartOffset.Y + delta.Y;
+        ApplyImageLayout();
         e.Handled = true;
     }
 
@@ -980,7 +1440,7 @@ public sealed class FramePreviewWindow : Window
 
     private Point GetViewportCenter()
     {
-        return new Point(_previewScroll.Bounds.Width / 2.0, _previewScroll.Bounds.Height / 2.0);
+        return new Point(_previewSurface.Bounds.Width / 2.0, _previewSurface.Bounds.Height / 2.0);
     }
 
     private void ZoomAroundViewportCenter(double factor)
@@ -990,7 +1450,7 @@ public sealed class FramePreviewWindow : Window
 
     private void SetZoomAroundViewerPoint(Point viewerPoint, double targetZoom)
     {
-        if (_previewImage.Source is null || _previewScroll.Bounds.Width <= 0 || _previewScroll.Bounds.Height <= 0)
+        if (_previewImage.Source is null || _previewSurface.Bounds.Width <= 0 || _previewSurface.Bounds.Height <= 0)
         {
             return;
         }
@@ -1002,17 +1462,12 @@ public sealed class FramePreviewWindow : Window
             return;
         }
 
-        var imageX = (_previewScroll.Offset.X + viewerPoint.X) / oldZoom;
-        var imageY = (_previewScroll.Offset.Y + viewerPoint.Y) / oldZoom;
+        var imageX = (viewerPoint.X - _imageLeft) / oldZoom;
+        var imageY = (viewerPoint.Y - _imageTop) / oldZoom;
         SetZoom(newZoom);
-
-        Dispatcher.UIThread.Post(() =>
-        {
-            _previewScroll.Offset = new Vector(
-                Math.Max(0, (imageX * newZoom) - viewerPoint.X),
-                Math.Max(0, (imageY * newZoom) - viewerPoint.Y));
-            ScheduleOverlayRedraw();
-        }, DispatcherPriority.Background);
+        _imageLeft = viewerPoint.X - (imageX * newZoom);
+        _imageTop = viewerPoint.Y - (imageY * newZoom);
+        ApplyImageLayout();
     }
 
     private void SetZoom(double value)
@@ -1023,22 +1478,85 @@ public sealed class FramePreviewWindow : Window
         _zoomText.Text = $"Zoom: {clamped:F2}x";
     }
 
+    private void OpenCurrentFrameInFileManager()
+    {
+        if (DataContext is not MainWindowViewModel vm
+            || vm.SelectedResult is null
+            || string.IsNullOrWhiteSpace(vm.SelectedResult.FilePath)
+            || !File.Exists(vm.SelectedResult.FilePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var filePath = vm.SelectedResult.FilePath;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{filePath}\"",
+                    UseShellExecute = true,
+                });
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "open",
+                    Arguments = $"-R \"{filePath}\"",
+                    UseShellExecute = false,
+                });
+            }
+            else
+            {
+                var folder = System.IO.Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrWhiteSpace(folder))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "xdg-open",
+                        Arguments = $"\"{folder}\"",
+                        UseShellExecute = false,
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to open file manager: {ex.Message}");
+        }
+    }
+
+    private void ApplyImageLayout()
+    {
+        if (_previewImage.Source is not IImage image)
+        {
+            return;
+        }
+
+        _previewImage.Width = image.Size.Width * _previewScale.ScaleX;
+        _previewImage.Height = image.Size.Height * _previewScale.ScaleY;
+        Canvas.SetLeft(_previewImage, _imageLeft);
+        Canvas.SetTop(_previewImage, _imageTop);
+        ScheduleOverlayRedraw();
+    }
+
     private ViewState? CaptureViewState()
     {
-        if (_previewImage.Source is not IImage image || _previewScroll.Bounds.Width <= 0 || _previewScroll.Bounds.Height <= 0)
+        if (_previewImage.Source is not IImage image || _previewSurface.Bounds.Width <= 0 || _previewSurface.Bounds.Height <= 0)
         {
             return null;
         }
 
-        var extentWidth = _previewScroll.Extent.Width;
-        var extentHeight = _previewScroll.Extent.Height;
-        var centerX = _previewScroll.Offset.X + (_previewScroll.Bounds.Width / 2.0);
-        var centerY = _previewScroll.Offset.Y + (_previewScroll.Bounds.Height / 2.0);
+        var centerX = ((_previewSurface.Bounds.Width / 2.0) - _imageLeft) / _previewScale.ScaleX;
+        var centerY = ((_previewSurface.Bounds.Height / 2.0) - _imageTop) / _previewScale.ScaleY;
 
         return new ViewState(
             _previewScale.ScaleX,
-            extentWidth > 0 ? centerX / extentWidth : 0.5,
-            extentHeight > 0 ? centerY / extentHeight : 0.5);
+            image.Size.Width > 0 ? centerX / image.Size.Width : 0.5,
+            image.Size.Height > 0 ? centerY / image.Size.Height : 0.5);
     }
 
     private void RestoreViewState(ViewState viewState)
@@ -1052,12 +1570,11 @@ public sealed class FramePreviewWindow : Window
                 return;
             }
 
-            var targetCenterX = _previewScroll.Extent.Width * viewState.CenterXRatio;
-            var targetCenterY = _previewScroll.Extent.Height * viewState.CenterYRatio;
-            _previewScroll.Offset = new Vector(
-                Math.Max(0, targetCenterX - (_previewScroll.Bounds.Width / 2.0)),
-                Math.Max(0, targetCenterY - (_previewScroll.Bounds.Height / 2.0)));
-            ScheduleOverlayRedraw();
+            _imageLeft = (_previewSurface.Bounds.Width / 2.0)
+                - (image.Size.Width * viewState.CenterXRatio * _previewScale.ScaleX);
+            _imageTop = (_previewSurface.Bounds.Height / 2.0)
+                - (image.Size.Height * viewState.CenterYRatio * _previewScale.ScaleY);
+            ApplyImageLayout();
         }, DispatcherPriority.Background);
     }
 
@@ -1422,11 +1939,11 @@ public sealed class FramePreviewWindow : Window
 
         if (DataContext is not MainWindowViewModel vm || vm.SelectedResult is null)
         {
-            _previewScroll.IsVisible = true;
+            _previewSurface.IsVisible = true;
             return;
         }
 
-        _previewScroll.IsVisible = !vm.IsCurvatureViewVisible;
+        _previewSurface.IsVisible = !vm.IsCurvatureViewVisible;
         if (vm.IsCurvatureViewVisible)
         {
             SetRoiControlsVisible(false);
@@ -1850,12 +2367,11 @@ public sealed class FramePreviewWindow : Window
             return false;
         }
 
-        var zoom = _previewScale.ScaleX;
-        var imageWidth = image.Size.Width * zoom;
-        var imageHeight = image.Size.Height * zoom;
-        var left = ((viewportWidth - imageWidth) / 2.0) - _previewScroll.Offset.X;
-        var top = ((viewportHeight - imageHeight) / 2.0) - _previewScroll.Offset.Y;
-        rect = new Rect(left, top, imageWidth, imageHeight);
+        rect = new Rect(
+            _imageLeft,
+            _imageTop,
+            image.Size.Width * _previewScale.ScaleX,
+            image.Size.Height * _previewScale.ScaleY);
         return true;
     }
 }
