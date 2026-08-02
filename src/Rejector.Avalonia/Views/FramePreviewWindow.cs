@@ -12,6 +12,8 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Templates;
 using Avalonia.Controls.Shapes;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -100,6 +102,25 @@ public sealed class FramePreviewWindow : Window
         None,
         Move,
         Resize,
+    }
+
+    private static void ApplyChipTemplate(ToggleButton chip)
+    {
+        chip.Template = new FuncControlTemplate<ToggleButton>((control, _) =>
+            new Border
+            {
+                [!Border.BackgroundProperty] = control[!TemplatedControl.BackgroundProperty],
+                [!Border.BorderBrushProperty] = control[!TemplatedControl.BorderBrushProperty],
+                [!Border.BorderThicknessProperty] = control[!TemplatedControl.BorderThicknessProperty],
+                [!Border.CornerRadiusProperty] = control[!TemplatedControl.CornerRadiusProperty],
+                [!Border.PaddingProperty] = control[!TemplatedControl.PaddingProperty],
+                Child = new ContentPresenter
+                {
+                    [!ContentPresenter.ContentProperty] = control[!ContentControl.ContentProperty],
+                    [!ContentPresenter.HorizontalContentAlignmentProperty] = control[!ContentControl.HorizontalContentAlignmentProperty],
+                    [!ContentPresenter.VerticalContentAlignmentProperty] = control[!ContentControl.VerticalContentAlignmentProperty],
+                },
+            });
     }
 
     public FramePreviewWindow()
@@ -223,14 +244,52 @@ public sealed class FramePreviewWindow : Window
         Grid.SetColumn(openButton, 12);
         toolbar.Children.Add(openButton);
 
+        static void ApplyChipVisual(
+            ToggleButton chip,
+            bool isChecked,
+            string activeBackground,
+            string activeBorder,
+            string activeForeground)
+        {
+            chip.Background = SolidColorBrush.Parse(isChecked ? activeBackground : "#161616");
+            chip.BorderBrush = SolidColorBrush.Parse(isChecked ? activeBorder : "#444");
+            chip.Foreground = SolidColorBrush.Parse(isChecked ? activeForeground : "#CCBDBDBD");
+            if (chip.Content is TextBlock text)
+            {
+                text.Foreground = SolidColorBrush.Parse(isChecked ? activeForeground : "#CCBDBDBD");
+            }
+        }
+
+        static void ApplyNeutralToggleVisual(ToggleButton toggle, bool isChecked)
+        {
+            toggle.Background = SolidColorBrush.Parse(isChecked ? "#334F78D1" : "#1E2227");
+            toggle.BorderBrush = SolidColorBrush.Parse(isChecked ? "#8FB3FF" : "#4A515A");
+            toggle.Foreground = SolidColorBrush.Parse(isChecked ? "#F3F8FF" : "#D3DAE3");
+        }
+
         var acceptedToggle = new ToggleButton
         {
             Content = "Accepted",
             Width = 84,
             Height = 30,
             FontWeight = FontWeight.SemiBold,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(12, 0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
         };
+        ApplyChipTemplate(acceptedToggle);
         acceptedToggle.Bind(ToggleButton.IsCheckedProperty, new Binding("ShowAccepted") { Mode = BindingMode.TwoWay });
+        acceptedToggle.PropertyChanged += (_, args) =>
+        {
+            if (args.Property == ToggleButton.IsCheckedProperty)
+            {
+                ApplyChipVisual(acceptedToggle, acceptedToggle.IsChecked == true, "#2F3FAE63", "#7AD68E", "#FFE9F8EE");
+            }
+        };
+        acceptedToggle.AttachedToVisualTree += (_, _) =>
+            ApplyChipVisual(acceptedToggle, acceptedToggle.IsChecked == true, "#2F3FAE63", "#7AD68E", "#FFE9F8EE");
         Grid.SetColumn(acceptedToggle, 13);
         toolbar.Children.Add(acceptedToggle);
 
@@ -240,13 +299,48 @@ public sealed class FramePreviewWindow : Window
             Width = 84,
             Height = 30,
             FontWeight = FontWeight.SemiBold,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(12, 0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
         };
+        ApplyChipTemplate(rejectedToggle);
         rejectedToggle.Bind(ToggleButton.IsCheckedProperty, new Binding("ShowRejected") { Mode = BindingMode.TwoWay });
+        rejectedToggle.PropertyChanged += (_, args) =>
+        {
+            if (args.Property == ToggleButton.IsCheckedProperty)
+            {
+                ApplyChipVisual(rejectedToggle, rejectedToggle.IsChecked == true, "#33C45F5F", "#E07A7A", "#FFF9EAEA");
+            }
+        };
+        rejectedToggle.AttachedToVisualTree += (_, _) =>
+            ApplyChipVisual(rejectedToggle, rejectedToggle.IsChecked == true, "#33C45F5F", "#E07A7A", "#FFF9EAEA");
         Grid.SetColumn(rejectedToggle, 14);
         toolbar.Children.Add(rejectedToggle);
 
-        var curvatureToggle = new ToggleButton { Content = "Curvature", Width = 90, Height = 30 };
+        var curvatureToggle = new ToggleButton
+        {
+            Content = "Curvature",
+            Width = 90,
+            Height = 30,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(10, 0),
+            FontWeight = FontWeight.SemiBold,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        ApplyChipTemplate(curvatureToggle);
         curvatureToggle.Bind(ToggleButton.IsCheckedProperty, new Binding("IsCurvatureViewVisible") { Mode = BindingMode.TwoWay });
+        curvatureToggle.PropertyChanged += (_, args) =>
+        {
+            if (args.Property == ToggleButton.IsCheckedProperty)
+            {
+                ApplyNeutralToggleVisual(curvatureToggle, curvatureToggle.IsChecked == true);
+            }
+        };
+        curvatureToggle.AttachedToVisualTree += (_, _) => ApplyNeutralToggleVisual(curvatureToggle, curvatureToggle.IsChecked == true);
         Grid.SetColumn(curvatureToggle, 15);
         toolbar.Children.Add(curvatureToggle);
 
@@ -681,11 +775,48 @@ public sealed class FramePreviewWindow : Window
             }
         };
 
-        TextBlock MetricText(string label, string path)
+        Control MetricRow(string label, string path, string? indicatorColor = null)
         {
-            var text = new TextBlock { Foreground = SolidColorBrush.Parse("#DDE4EA"), FontSize = 11 };
-            text.Bind(TextBlock.TextProperty, new Binding(path) { StringFormat = label + ": {0}" });
-            return text;
+            var row = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"),
+                ColumnSpacing = 6,
+            };
+
+            if (!string.IsNullOrWhiteSpace(indicatorColor))
+            {
+                var marker = new Ellipse
+                {
+                    Width = 8,
+                    Height = 8,
+                    Fill = SolidColorBrush.Parse(indicatorColor),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                row.Children.Add(marker);
+            }
+
+            var labelText = new TextBlock
+            {
+                Foreground = SolidColorBrush.Parse("#DDE4EA"),
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center,
+                Text = label,
+            };
+            Grid.SetColumn(labelText, 1);
+            row.Children.Add(labelText);
+
+            var valueText = new TextBlock
+            {
+                Foreground = SolidColorBrush.Parse("#FFE7B0"),
+                FontSize = 11,
+                FontWeight = FontWeight.SemiBold,
+                TextAlignment = TextAlignment.Right,
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            valueText.Bind(TextBlock.TextProperty, new Binding(path));
+            Grid.SetColumn(valueText, 3);
+            row.Children.Add(valueText);
+            return row;
         }
 
         Control StfSliderRow(string label, Slider slider, string valuePath)
@@ -768,21 +899,21 @@ public sealed class FramePreviewWindow : Window
                             Children =
                             {
                                 new TextBlock { Text = "METRICS", Foreground = SolidColorBrush.Parse("#D0D8E0"), FontSize = 11, FontWeight = FontWeight.SemiBold },
-                                MetricText("Date/time", "SelectedResult.TimestampDisplay"),
-                                MetricText("Filter", "SelectedResult.FilterDisplay"),
-                                MetricText("FWHM", "SelectedResult.FwhmPixelDisplay"),
-                                MetricText("FWHM sky", "SelectedResult.FwhmArcsecDisplay"),
-                                MetricText("HFR", "SelectedResult.HfrDisplay"),
-                                MetricText("Stars", "SelectedResult.StarCount"),
-                                MetricText("SQM", "SelectedResult.SqmDisplay"),
-                                MetricText("Sky temp", "SelectedResult.SkyTempDisplay"),
-                                MetricText("Eccentricity", "SelectedResult.EccentricityDisplay"),
-                                MetricText("Mean BG", "SelectedResult.MeanBackgroundDisplay"),
-                                MetricText("Median", "SelectedResult.MedianDisplay"),
-                                MetricText("MAD", "SelectedResult.MadDisplay"),
-                                MetricText("Min", "SelectedResult.MinDisplay"),
-                                MetricText("Max", "SelectedResult.MaxDisplay"),
-                                MetricText("Trail conf.", "SelectedResult.TrailText"),
+                                MetricRow("Date/time", "SelectedResult.TimestampDisplay"),
+                                MetricRow("Filter", "SelectedResult.FilterDisplay"),
+                                MetricRow("FWHM", "SelectedResult.FwhmPixelDisplay", "#D96868"),
+                                MetricRow("FWHM sky", "SelectedResult.FwhmArcsecDisplay", "#D96868"),
+                                MetricRow("HFR", "SelectedResult.HfrDisplay", "#D96868"),
+                                MetricRow("Stars", "SelectedResult.StarCount", "#D96868"),
+                                MetricRow("SQM", "SelectedResult.SqmDisplay"),
+                                MetricRow("Sky temp", "SelectedResult.SkyTempDisplay"),
+                                MetricRow("Eccentricity", "SelectedResult.EccentricityDisplay", "#E1B42E"),
+                                MetricRow("Mean BG", "SelectedResult.MeanBackgroundDisplay", "#D96868"),
+                                MetricRow("Median", "SelectedResult.MedianDisplay"),
+                                MetricRow("MAD", "SelectedResult.MadDisplay"),
+                                MetricRow("Min", "SelectedResult.MinDisplay"),
+                                MetricRow("Max", "SelectedResult.MaxDisplay"),
+                                MetricRow("Trail conf.", "SelectedResult.TrailText", "#56C269"),
                             },
                         },
                     },
@@ -835,9 +966,21 @@ public sealed class FramePreviewWindow : Window
         {
             if (e.Property == Image.SourceProperty)
             {
+                HideLoupe();
+
+                if (_previewImage.Source is null)
+                {
+                    if (DataContext is MainWindowViewModel vm && vm.SelectedResult is null)
+                    {
+                        _pendingViewState = null;
+                    }
+
+                    ScheduleOverlayRedraw();
+                    return;
+                }
+
                 var viewState = _pendingViewState;
                 _pendingViewState = null;
-                HideLoupe();
                 if (!_hasInitializedView || viewState is null)
                 {
                     Dispatcher.UIThread.Post(FitToView, DispatcherPriority.Background);
@@ -981,21 +1124,45 @@ public sealed class FramePreviewWindow : Window
             var toggle = new ToggleButton
             {
                 Height = 30,
-                Margin = new Thickness(0, 0, 6, 6),
+                Margin = new Thickness(0, 0, 6, 0),
                 Padding = new Thickness(10, 0),
                 FontWeight = FontWeight.SemiBold,
-                Background = SolidColorBrush.Parse("#222F426B"),
-                BorderBrush = SolidColorBrush.Parse("#6D88C4"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(12),
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
                 Content = new TextBlock { Text = chip.DisplayName },
             };
+            ApplyChipTemplate(toggle);
 
             toggle.Bind(ToggleButton.IsCheckedProperty, new Binding(nameof(FilterChipViewModel.IsSelected))
             {
                 Source = chip,
                 Mode = BindingMode.TwoWay,
             });
+
+            toggle.PropertyChanged += (_, args) =>
+            {
+                if (args.Property == ToggleButton.IsCheckedProperty)
+                {
+                    var isChecked = toggle.IsChecked == true;
+                    toggle.Background = SolidColorBrush.Parse(isChecked ? "#334F78D1" : "#161616");
+                    toggle.BorderBrush = SolidColorBrush.Parse(isChecked ? "#8FB3FF" : "#444");
+                    toggle.Foreground = SolidColorBrush.Parse(isChecked ? "#FFE8F0FF" : "#CCBDBDBD");
+                    if (toggle.Content is TextBlock text)
+                    {
+                        text.Foreground = SolidColorBrush.Parse(isChecked ? "#FFE8F0FF" : "#CCBDBDBD");
+                    }
+                }
+            };
+            var isSelected = chip.IsSelected;
+            toggle.Background = SolidColorBrush.Parse(isSelected ? "#334F78D1" : "#161616");
+            toggle.BorderBrush = SolidColorBrush.Parse(isSelected ? "#8FB3FF" : "#444");
+            toggle.Foreground = SolidColorBrush.Parse(isSelected ? "#FFE8F0FF" : "#CCBDBDBD");
+            if (toggle.Content is TextBlock contentText)
+            {
+                contentText.Foreground = SolidColorBrush.Parse(isSelected ? "#FFE8F0FF" : "#CCBDBDBD");
+            }
 
             _filterChipWrap.Children.Add(toggle);
         }

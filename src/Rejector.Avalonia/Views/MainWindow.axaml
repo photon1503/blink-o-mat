@@ -107,11 +107,12 @@
                   <DataTemplate x:DataType="vm:FilterSummaryViewModel">
                     <Grid Margin="0,3,0,0" Height="16" ColumnDefinitions="18,*,Auto">
                       <TextBlock Grid.Column="0" Text="{Binding FilterName}" FontSize="10" FontWeight="SemiBold" Foreground="#8FB3FF" VerticalAlignment="Center" />
-                      <Grid Grid.Column="1" Margin="4,0,6,0" ColumnDefinitions="*,*">
-                        <Border Grid.Column="0" Background="#5CA36E" CornerRadius="2,0,0,2" />
-                        <Border Grid.Column="1" Background="#B85C5C" CornerRadius="0,2,2,0" />
-                        <TextBlock Grid.Column="0" FontSize="9" Foreground="#DDFFFFFF" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0,0,0" Text="{Binding Accepted}" />
-                        <TextBlock Grid.Column="1" FontSize="9" Foreground="#DDFFFFFF" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,3,0" Text="{Binding Rejected}" />
+                      <Grid Grid.Column="1" Margin="4,0,6,0">
+                        <ProgressBar Height="16" Minimum="0" Maximum="1" Value="{Binding AcceptedRatio}" Foreground="#5CA36E" Background="#B85C5C" />
+                        <Grid ColumnDefinitions="*,*">
+                          <TextBlock Grid.Column="0" FontSize="9" Foreground="#DDFFFFFF" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0,0,0" Text="{Binding Accepted}" />
+                          <TextBlock Grid.Column="1" FontSize="9" Foreground="#DDFFFFFF" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,3,0" Text="{Binding Rejected}" />
+                        </Grid>
                       </Grid>
                       <TextBlock Grid.Column="2" FontSize="10" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" Text="{Binding IntegrationTimeText}" />
                     </Grid>
@@ -187,10 +188,10 @@
             <StackPanel>
               <TextBlock Text="VISIBILITY" FontSize="9" FontWeight="Bold" Foreground="#666" Margin="0,0,0,4" />
               <WrapPanel>
-                <ToggleButton IsChecked="{Binding ShowAccepted}" Margin="0,0,6,0" Padding="12,4" BorderThickness="1" FontWeight="SemiBold" Background="#223A6B46" BorderBrush="#5CA36E">
+                <ToggleButton Tag="accepted" IsChecked="{Binding ShowAccepted}" Margin="0,0,6,0" Height="30" Padding="12,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" Loaded="ChipToggle_Loaded" Click="ChipToggle_Click">
                   <TextBlock Text="Accepted" />
                 </ToggleButton>
-                <ToggleButton IsChecked="{Binding ShowRejected}" Padding="12,4" BorderThickness="1" FontWeight="SemiBold" Background="#224E2A2A" BorderBrush="#B85C5C">
+                <ToggleButton Tag="rejected" IsChecked="{Binding ShowRejected}" Height="30" Padding="12,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" Loaded="ChipToggle_Loaded" Click="ChipToggle_Click">
                   <TextBlock Text="Rejected" />
                 </ToggleButton>
               </WrapPanel>
@@ -208,7 +209,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:FilterChipViewModel">
-                    <ToggleButton IsChecked="{Binding IsSelected}" Margin="0,0,6,0" Padding="10,4" BorderThickness="1" FontWeight="SemiBold">
+                    <ToggleButton Tag="filter" IsChecked="{Binding IsSelected}" Margin="0,0,6,0" Height="30" Padding="10,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" Loaded="ChipToggle_Loaded" Click="ChipToggle_Click">
                       <TextBlock Text="{Binding DisplayName}" />
                     </ToggleButton>
                   </DataTemplate>

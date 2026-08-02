@@ -1,6 +1,8 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using Rejector.Avalonia.ViewModels;
@@ -14,6 +16,70 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+    }
+
+    private static void ApplyChipColors(ToggleButton toggle)
+    {
+        var kind = toggle.Tag as string ?? string.Empty;
+        var isChecked = toggle.IsChecked == true;
+
+        string background;
+        string border;
+        string foreground;
+
+        switch (kind)
+        {
+            case "accepted":
+                background = isChecked ? "#2F3FAE63" : "#161616";
+                border = isChecked ? "#7AD68E" : "#444";
+                foreground = isChecked ? "#FFE9F8EE" : "#CCBDBDBD";
+                break;
+            case "rejected":
+                background = isChecked ? "#33C45F5F" : "#161616";
+                border = isChecked ? "#E07A7A" : "#444";
+                foreground = isChecked ? "#FFF9EAEA" : "#CCBDBDBD";
+                break;
+            default:
+                background = isChecked ? "#334F78D1" : "#161616";
+                border = isChecked ? "#8FB3FF" : "#444";
+                foreground = isChecked ? "#FFE8F0FF" : "#CCBDBDBD";
+                break;
+        }
+
+        toggle.Background = SolidColorBrush.Parse(background);
+        toggle.BorderBrush = SolidColorBrush.Parse(border);
+        toggle.Foreground = SolidColorBrush.Parse(foreground);
+
+        if (toggle.Content is TextBlock label)
+        {
+            label.Foreground = SolidColorBrush.Parse(foreground);
+        }
+    }
+
+    private void ChipToggle_Loaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton toggle)
+        {
+            toggle.PropertyChanged -= ChipToggle_PropertyChanged;
+            toggle.PropertyChanged += ChipToggle_PropertyChanged;
+            ApplyChipColors(toggle);
+        }
+    }
+
+    private void ChipToggle_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton toggle)
+        {
+            ApplyChipColors(toggle);
+        }
+    }
+
+    private void ChipToggle_PropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (sender is ToggleButton toggle && e.Property == ToggleButton.IsCheckedProperty)
+        {
+            ApplyChipColors(toggle);
+        }
     }
 
     private void ResultRow_Tapped(object? sender, TappedEventArgs e)

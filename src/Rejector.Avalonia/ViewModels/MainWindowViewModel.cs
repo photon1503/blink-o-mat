@@ -1796,10 +1796,26 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         var previous = FilterChips.ToDictionary(chip => chip.Key, chip => chip.IsSelected, StringComparer.OrdinalIgnoreCase);
         FilterChips.Clear();
 
+        static int FilterOrder(string key)
+        {
+            return key.ToUpperInvariant() switch
+            {
+                "L" => 0,
+                "R" => 1,
+                "G" => 2,
+                "B" => 3,
+                "H" or "HA" => 4,
+                "O" or "OIII" => 5,
+                "S" or "SII" => 6,
+                _ => 100,
+            };
+        }
+
         var keys = _resultContexts
             .Select(context => NormalizeFilterKey(context.Frame.FilterName))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(FilterOrder)
+            .ThenBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         foreach (var key in keys)
@@ -2491,7 +2507,10 @@ public sealed record FilterSummaryViewModel(
     int Accepted,
     int Rejected,
     int Total,
-    string IntegrationTimeText);
+    string IntegrationTimeText)
+{
+    public double AcceptedRatio => Total <= 0 ? 0.0 : Accepted / (double)Total;
+}
 
 public sealed class SortRuleViewModel : INotifyPropertyChanged
 {
