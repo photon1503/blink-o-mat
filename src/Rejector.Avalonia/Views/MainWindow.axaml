@@ -76,8 +76,8 @@
             <StackPanel>
               <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Frame summary" />
               <Grid Margin="0,0,0,4" ColumnDefinitions="*,Auto">
-                <TextBlock Text="Total frames" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
-                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding TotalFrameCount}" FontSize="11" />
+                <TextBlock Text="Total frames" Foreground="{DynamicResource MutedTextBrush}" FontSize="12" />
+                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding TotalFrameCount}" FontSize="12" />
               </Grid>
               <Grid Height="7" Margin="0,0,0,3" ColumnDefinitions="*,*">
                 <Border Grid.Column="0" Background="#5CA36E" CornerRadius="3,0,0,3" />
@@ -86,35 +86,35 @@
               <ProgressBar Height="7" Minimum="0" Maximum="1" Value="{Binding OverallAcceptedRatio}" Foreground="#5CA36E" Background="#B85C5C" Margin="0,0,0,6" />
               <Grid Margin="0,0,0,2" ColumnDefinitions="*,Auto">
                 <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="✓ " Foreground="#5CA36E" FontSize="11" />
-                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text="{Binding ApprovedFrameCount, StringFormat={}{0} accepted (}" />
-                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text="{Binding ApprovedFramePercentageText}" />
-                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text=")" />
+                  <TextBlock Text="✓ " Foreground="#5CA36E" FontSize="12" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="12" Text="{Binding ApprovedFrameCount, StringFormat={}{0} accepted (}" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="12" Text="{Binding ApprovedFramePercentageText}" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="12" Text=")" />
                 </StackPanel>
-                <TextBlock Grid.Column="1" FontWeight="SemiBold" FontSize="11" Text="{Binding AcceptedIntegrationTimeText}" />
+                <TextBlock Grid.Column="1" FontWeight="SemiBold" FontSize="12" Text="{Binding AcceptedIntegrationTimeText}" />
               </Grid>
               <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="✕ " Foreground="#B85C5C" FontSize="11" />
-                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text="{Binding RejectedFrameCount, StringFormat={}{0} rejected (}" />
-                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text="{Binding RejectedFramePercentageText}" />
-                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text=")" />
+                  <TextBlock Text="✕ " Foreground="#B85C5C" FontSize="12" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="12" Text="{Binding RejectedFrameCount, StringFormat={}{0} rejected (}" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="12" Text="{Binding RejectedFramePercentageText}" />
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="12" Text=")" />
                 </StackPanel>
-                <TextBlock Grid.Column="1" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Text="{Binding TotalIntegrationTimeText, StringFormat=total: {0}}" />
+                <TextBlock Grid.Column="1" Foreground="{DynamicResource MutedTextBrush}" FontSize="12" Text="{Binding TotalIntegrationTimeText, StringFormat=total: {0}}" />
               </Grid>
               <ItemsControl ItemsSource="{Binding FilterSummaries}" Margin="0,8,0,0" IsVisible="{Binding HasMultipleFilterChips}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:FilterSummaryViewModel">
                     <Grid Margin="0,3,0,0" Height="16" ColumnDefinitions="18,*,Auto">
-                      <TextBlock Grid.Column="0" Text="{Binding FilterName}" FontSize="10" FontWeight="SemiBold" Foreground="#8FB3FF" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="0" Text="{Binding FilterName}" FontSize="11" FontWeight="SemiBold" Foreground="#A8C4FF" VerticalAlignment="Center" />
                       <Grid Grid.Column="1" Margin="4,0,6,0">
                         <ProgressBar Height="16" Minimum="0" Maximum="1" Value="{Binding AcceptedRatio}" Foreground="#5CA36E" Background="#B85C5C" />
                         <Grid ColumnDefinitions="*,*">
-                          <TextBlock Grid.Column="0" FontSize="9" Foreground="#DDFFFFFF" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0,0,0" Text="{Binding Accepted}" />
-                          <TextBlock Grid.Column="1" FontSize="9" Foreground="#DDFFFFFF" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,3,0" Text="{Binding Rejected}" />
+                          <TextBlock Grid.Column="0" FontSize="10" Foreground="#F1F5FA" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0,0,0" Text="{Binding Accepted}" />
+                          <TextBlock Grid.Column="1" FontSize="10" Foreground="#F1F5FA" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,3,0" Text="{Binding Rejected}" />
                         </Grid>
                       </Grid>
-                      <TextBlock Grid.Column="2" FontSize="10" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" Text="{Binding IntegrationTimeText}" />
+                      <TextBlock Grid.Column="2" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" Text="{Binding IntegrationTimeText}" />
                     </Grid>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -124,53 +124,114 @@
 
           <Border Padding="10" Margin="0,0,0,10" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="#FF27292C" BorderThickness="1">
             <StackPanel>
-              <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Automatic rejection" />
-              <controls:MetricSliderControl Label="Max FWHM"
-                                            Value="{Binding MaxFwhm}"
+              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Margin="0,0,0,8">
+                <TextBlock Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center" Text="Automatic rejection" />
+                <Button Grid.Column="1" Content="↻" Width="26" Height="22" Command="{Binding ResetThresholdsCommand}" ToolTip.Tip="Reset all threshold sliders to defaults" />
+                <ComboBox Grid.Column="2"
+                          Width="110"
+                          Height="22"
+                          ItemsSource="{Binding RejectionFilterOptions}"
+                          SelectedItem="{Binding SelectedRejectionFilter, Mode=TwoWay}" />
+              </Grid>
+
+              <controls:MetricSliderControl Label="Min. trail confidence"
+                                            Value="{Binding MinSatelliteConfidence}"
+                                            Minimum="1"
+                                            Maximum="100"
+                                            TickFrequency="5"
+                                            LargeChange="10"
+                                            Decimals="0"
+                                            Suffix="%"
+                                            ShowRejectCount="True"
+                                            RejectCount="{Binding SatelliteTrailRejectedFrameCount}" />
+              <controls:MetricSliderControl Label="Max FWHM (as)"
+                                            Value="{Binding MaxFwhmArcsec}"
                                             Minimum="0"
-                                            Maximum="50"
+                                            Maximum="30"
                                             TickFrequency="0.1"
                                             LargeChange="1"
-                                            Decimals="2" />
+                                            Decimals="2"
+                                            ShowRejectCount="True"
+                                            RejectCount="{Binding FwhmArcsecRejectedFrameCount}" />
+              <controls:MetricSliderControl Label="Min SQM"
+                                            Value="{Binding MinSqm}"
+                                            Minimum="0"
+                                            Maximum="30"
+                                            TickFrequency="0.05"
+                                            LargeChange="1"
+                                            Decimals="2"
+                                            ShowRejectCount="True"
+                                            RejectCount="{Binding SqmRejectedFrameCount}" />
+              <controls:MetricSliderControl Label="Max sky temp"
+                                            Value="{Binding MaxSkyTemp}"
+                                            Minimum="-50"
+                                            Maximum="50"
+                                            TickFrequency="1"
+                                            LargeChange="5"
+                                            Decimals="1"
+                                            ShowRejectCount="True"
+                                            RejectCount="{Binding SkyTempRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Max HFR"
                                             Value="{Binding MaxHfr}"
                                             Minimum="0"
-                                            Maximum="50"
+                                            Maximum="10"
                                             TickFrequency="0.1"
                                             LargeChange="1"
-                                            Decimals="2" />
-              <controls:MetricSliderControl Label="Max Ecc"
+                                            Decimals="2"
+                                            ShowRejectCount="True"
+                                            RejectCount="{Binding HfrRejectedFrameCount}" />
+              <controls:MetricSliderControl Label="Max Eccentricity"
                                             Value="{Binding MaxEccentricity}"
                                             Minimum="0"
                                             Maximum="1"
                                             TickFrequency="0.01"
                                             LargeChange="0.1"
-                                            Decimals="3" />
-              <controls:MetricSliderControl Label="Max Background"
+                                            Decimals="3"
+                                            ShowRejectCount="True"
+                                            RejectCount="{Binding EccentricityRejectedFrameCount}" />
+              <controls:MetricSliderControl Label="Max Mean Background"
                                             Value="{Binding MaxMeanBackground}"
                                             Minimum="0"
-                                            Maximum="100000"
+                                            Maximum="10000"
                                             TickFrequency="50"
                                             LargeChange="500"
-                                            Decimals="0" />
+                                            Decimals="1"
+                                            ShowRejectCount="True"
+                                            RejectCount="{Binding MeanBackgroundRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Min Stars"
                                             Value="{Binding MinStars}"
                                             Minimum="0"
-                                            Maximum="50000"
-                                            TickFrequency="10"
-                                            LargeChange="100"
-                                            Decimals="0" />
-              <controls:MetricSliderControl Label="Min Trail %"
-                                            Value="{Binding MinSatelliteConfidence}"
-                                            Minimum="0"
-                                            Maximum="100"
-                                            TickFrequency="1"
-                                            LargeChange="10"
+                                            Maximum="20000"
+                                            TickFrequency="50"
+                                            LargeChange="500"
                                             Decimals="0"
-                                            Suffix="%" />
+                                            ShowRejectCount="True"
+                                            RejectCount="{Binding StarCountRejectedFrameCount}" />
+              <controls:MetricSliderControl Label="Min Score"
+                                            Value="{Binding MinScore}"
+                                            Minimum="0"
+                                            Maximum="5"
+                                            TickFrequency="0.1"
+                                            LargeChange="0.5"
+                                            Decimals="1"
+                                            ShowRejectCount="True"
+                                            RejectCount="{Binding ScoreRejectedFrameCount}" />
+
+              <CheckBox Content="Auto-stretch each frame individually"
+                        IsChecked="{Binding AutoStretchPerFrame, Mode=TwoWay}"
+                        Margin="0,6,0,2"
+                        ToolTip.Tip="When enabled, STF is computed independently per frame" />
+              <controls:MetricSliderControl Label="STF Target Background"
+                                            Value="{Binding StfTargetBackground}"
+                                            Minimum="0.01"
+                                            Maximum="0.5"
+                                            TickFrequency="0.01"
+                                            LargeChange="0.05"
+                                            Decimals="2" />
+
               <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,10,0,0">
-                <Button Command="{Binding ApplyThresholdsCommand}" Content="Apply Thresholds" />
-                <Button Grid.Column="1" Command="{Binding MoveRejectedCommand}" Content="Move Rejected" />
+                <Button Command="{Binding ApplyThresholdsCommand}" Content="Apply Thresholds" Foreground="#E8EDF3" Background="#2A3036" BorderBrush="#4A525C" />
+                <Button Grid.Column="1" Command="{Binding MoveRejectedCommand}" Content="Move Rejected" Foreground="#E8EDF3" Background="#2A3036" BorderBrush="#4A525C" />
               </Grid>
             </StackPanel>
           </Border>
@@ -186,7 +247,7 @@
         <Grid Grid.Row="0" Margin="0,0,0,8" ColumnDefinitions="Auto,Auto,*,Auto">
           <Border Grid.Column="0" Margin="0,0,8,0" Padding="8,4,8,6" BorderThickness="1" BorderBrush="{DynamicResource PanelBorderBrush}" CornerRadius="6" Background="{DynamicResource PanelBackgroundBrush}">
             <StackPanel>
-              <TextBlock Text="VISIBILITY" FontSize="9" FontWeight="Bold" Foreground="#666" Margin="0,0,0,4" />
+              <TextBlock Text="VISIBILITY" FontSize="10" FontWeight="Bold" Foreground="#BCC5CF" Margin="0,0,0,4" />
               <WrapPanel>
                 <ToggleButton Tag="accepted" IsChecked="{Binding ShowAccepted}" Margin="0,0,6,0" Height="30" Padding="12,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" Loaded="ChipToggle_Loaded" Click="ChipToggle_Click">
                   <TextBlock Text="Accepted" />
@@ -200,7 +261,7 @@
 
           <Border Grid.Column="1" Margin="0,0,8,0" Padding="8,4,8,6" BorderThickness="1" BorderBrush="{DynamicResource PanelBorderBrush}" CornerRadius="6" Background="{DynamicResource PanelBackgroundBrush}" IsVisible="{Binding HasFilterChips}">
             <StackPanel>
-              <TextBlock Text="FILTERS" FontSize="9" FontWeight="Bold" Foreground="#666" Margin="0,0,0,4" />
+              <TextBlock Text="FILTERS" FontSize="10" FontWeight="Bold" Foreground="#BCC5CF" Margin="0,0,0,4" />
               <ItemsControl ItemsSource="{Binding FilterChips}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
@@ -220,7 +281,7 @@
 
           <Border Grid.Column="3" Padding="8,4,8,6" BorderThickness="1" BorderBrush="{DynamicResource PanelBorderBrush}" CornerRadius="6" Background="{DynamicResource PanelBackgroundBrush}">
             <StackPanel>
-              <TextBlock Text="SORT" FontSize="9" FontWeight="Bold" Foreground="#666" Margin="0,0,0,4" />
+              <TextBlock Text="SORT" FontSize="10" FontWeight="Bold" Foreground="#BCC5CF" Margin="0,0,0,4" />
               <ItemsControl ItemsSource="{Binding SortRules}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:SortRuleViewModel">
@@ -367,15 +428,17 @@
                     </Grid>
                   </Grid>
 
-                  <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="4" Background="#1B1D20" BorderBrush="#303338" BorderThickness="1" CornerRadius="4" Padding="12,10">
+                  <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="4" Background="#1B1D20" BorderBrush="#303338" BorderThickness="1" CornerRadius="4" Padding="12,10" ClipToBounds="True">
                     <StackPanel>
                       <TextBlock Text="SCORE" FontSize="11" Foreground="#9A9A9A" />
                       <StackPanel Orientation="Horizontal" Margin="0,6,0,2">
                         <TextBlock Text="{Binding ScoreValueText}" FontSize="34" FontWeight="Bold" Foreground="{Binding QualityColor}" />
                         <TextBlock Text=" / 5" FontSize="16" Foreground="#C8C8C8" VerticalAlignment="Bottom" Margin="4,0,0,4" />
                       </StackPanel>
-                      <ProgressBar Height="12" Margin="0,10,0,14" Minimum="0" Maximum="100" Value="{Binding ScoreProgressPercent}" Foreground="{Binding QualityColor}" Background="#303338" />
-                      <Button Command="{Binding ToggleRejectCommand}" CommandParameter="{Binding}" FontWeight="SemiBold" Foreground="#F5F5F5" HorizontalContentAlignment="Center" Padding="10,7" BorderThickness="0" Background="{Binding RejectionStateColor}">
+                      <Border Margin="0,10,0,14" Height="12" Background="#303338" CornerRadius="3" ClipToBounds="True">
+                        <ProgressBar Height="12" Minimum="0" Maximum="100" Value="{Binding ScoreProgressPercent}" Foreground="{Binding QualityColor}" Background="#303338" HorizontalAlignment="Stretch" />
+                      </Border>
+                      <Button Command="{Binding ToggleRejectCommand}" CommandParameter="{Binding}" FontWeight="SemiBold" Foreground="#F5F5F5" HorizontalContentAlignment="Center" HorizontalAlignment="Stretch" Height="34" MinHeight="34" Padding="10,7" BorderThickness="0" Background="{Binding RejectionStateColor}">
                         <TextBlock Text="{Binding RejectionStateLabel}" FontWeight="SemiBold" Foreground="#F5F5F5" HorizontalAlignment="Center" />
                       </Button>
                       <Border Margin="0,6,0,0" HorizontalAlignment="Center" IsVisible="{Binding HasRejectionReasons}">

@@ -2,7 +2,7 @@
     x:Class="Rejector.Avalonia.App"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    RequestedThemeVariant="Default">
+    RequestedThemeVariant="Dark">
   <Application.Resources>
     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FF1A1C1F" />
     <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#FF1A1C1F" />
@@ -11,7 +11,7 @@
     <SolidColorBrush x:Key="ControlHoverBrush" Color="#FF464646" />
     <SolidColorBrush x:Key="PanelBorderBrush" Color="#FF555555" />
     <SolidColorBrush x:Key="TextBrush" Color="#FFE6E6E6" />
-    <SolidColorBrush x:Key="MutedTextBrush" Color="#FFB8B8B8" />
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#FFCDD3DA" />
     <SolidColorBrush x:Key="AccentBrush" Color="#FF569CD6" />
     <SolidColorBrush x:Key="ButtonBrush" Color="#FF26282B" />
     <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FF4A4D52" />
@@ -42,9 +42,25 @@
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
     </Style>
+    <Style Selector="ComboBox /template/ ContentPresenter">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="ComboBoxItem">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="CheckBox">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="ToggleButton">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
     <Style Selector="NumericUpDown">
       <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="NumericUpDown TextBox">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
     </Style>
   </Application.Styles>
 </Application>

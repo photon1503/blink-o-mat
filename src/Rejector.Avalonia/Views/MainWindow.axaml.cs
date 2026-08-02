@@ -1,5 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -12,6 +15,21 @@ namespace Rejector.Avalonia.Views;
 public partial class MainWindow : Window
 {
     private FramePreviewWindow? _previewWindow;
+    private static readonly FuncControlTemplate<ToggleButton> ChipTemplate = new((control, _) =>
+        new Border
+        {
+            [!Border.BackgroundProperty] = control[!TemplatedControl.BackgroundProperty],
+            [!Border.BorderBrushProperty] = control[!TemplatedControl.BorderBrushProperty],
+            [!Border.BorderThicknessProperty] = control[!TemplatedControl.BorderThicknessProperty],
+            [!Border.CornerRadiusProperty] = control[!TemplatedControl.CornerRadiusProperty],
+            [!Border.PaddingProperty] = control[!TemplatedControl.PaddingProperty],
+            Child = new ContentPresenter
+            {
+                [!ContentPresenter.ContentProperty] = control[!ContentControl.ContentProperty],
+                [!ContentPresenter.HorizontalContentAlignmentProperty] = control[!ContentControl.HorizontalContentAlignmentProperty],
+                [!ContentPresenter.VerticalContentAlignmentProperty] = control[!ContentControl.VerticalContentAlignmentProperty],
+            },
+        });
 
     public MainWindow()
     {
@@ -20,6 +38,11 @@ public partial class MainWindow : Window
 
     private static void ApplyChipColors(ToggleButton toggle)
     {
+        if (!ReferenceEquals(toggle.Template, ChipTemplate))
+        {
+            toggle.Template = ChipTemplate;
+        }
+
         var kind = toggle.Tag as string ?? string.Empty;
         var isChecked = toggle.IsChecked == true;
 

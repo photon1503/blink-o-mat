@@ -159,6 +159,21 @@ Goal: Match WPF preview interaction and visualization behavior.
   - Screenshot captured: Yes
   - Remaining delta listed: Yes
 
+### Task 1.10: Automatic Rejection Panel Feature + Design Parity
+- Status: DONE
+- Priority: HIGH
+- Objective: Restore missing Automatic Rejection controls and behavior in Avalonia sidebar to match WPF workflow.
+- Baseline: src/MainWindow.xaml (Automatic rejection panel)
+- Targets: src/Rejector.Avalonia/Views/MainWindow.axaml, src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
+- Files expected: 2-4
+- Report: docs/reports/1.10-automatic-rejection-panel-parity.md
+- Acceptance Matrix:
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: Yes
+  - Remaining delta listed: Yes
+
 ## Epic 2: Settings and Profile Parity
 Goal: Match WPF settings overlay behavior and persistence profile model.
 

@@ -6,8 +6,17 @@
     x:Name="Root">
   <UserControl.Styles>
     <Style Selector="controls|MetricSliderControl Slider#TheSlider">
-      <Setter Property="Height" Value="18" />
-      <Setter Property="Margin" Value="0,2,0,0" />
+      <Setter Property="Height" Value="24" />
+      <Setter Property="Margin" Value="0,1,0,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="controls|MetricSliderControl Slider#TheSlider Thumb">
+      <Setter Property="Width" Value="7" />
+      <Setter Property="Height" Value="7" />
+    </Style>
+    <Style Selector="controls|MetricSliderControl Thumb">
+      <Setter Property="Width" Value="7" />
+      <Setter Property="Height" Value="7" />
     </Style>
     <Style Selector="controls|MetricSliderControl TextBox#ValueEditor">
       <Setter Property="Background" Value="#252525" />
@@ -21,24 +30,28 @@
     </Style>
   </UserControl.Styles>
 
-  <StackPanel Margin="0,0,0,6">
-    <Grid ColumnDefinitions="*,Auto">
+  <StackPanel Margin="0,0,0,8">
+    <Grid ColumnDefinitions="*,72" ColumnSpacing="6" MinHeight="16">
       <TextBlock Grid.Column="0"
                  Text="{Binding Label, ElementName=Root}"
-                 FontSize="11"
-                 Foreground="#B8B8B8"
+                 FontSize="12"
+                 Foreground="#E2E6EA"
                  VerticalAlignment="Center" />
       <TextBlock Grid.Column="1"
-                 FontSize="10"
-                 Foreground="#888"
+                 FontSize="11"
+                 Foreground="#D2D7DE"
+                 HorizontalAlignment="Right"
+                 TextAlignment="Right"
                  VerticalAlignment="Center"
+                 Margin="0,0,2,0"
                  IsVisible="{Binding ShowRejectCount, ElementName=Root}"
                  Text="{Binding RejectCount, ElementName=Root, StringFormat=Rejects: {0}}" />
     </Grid>
 
-    <Grid Margin="0,2,0,0" ColumnDefinitions="*,64">
+    <Grid Margin="0,3,0,0" ColumnDefinitions="*,72" ColumnSpacing="6">
       <Slider Grid.Column="0"
               x:Name="TheSlider"
+              Margin="0,0,1,0"
               Minimum="{Binding Minimum, ElementName=Root}"
               Maximum="{Binding Maximum, ElementName=Root}"
               TickFrequency="{Binding TickFrequency, ElementName=Root}"
@@ -48,7 +61,7 @@
 
       <Border Grid.Column="1"
               x:Name="ValueBorder"
-              Margin="6,0,0,1"
+              Width="72"
               Padding="4,0"
               Height="24"
               VerticalAlignment="Center"
@@ -59,6 +72,7 @@
               PointerPressed="ValueBorder_PointerPressed">
         <Grid>
           <TextBlock x:Name="ValueDisplay"
+                     MinWidth="58"
                      HorizontalAlignment="Right"
                      VerticalAlignment="Center"
                      FontSize="13"

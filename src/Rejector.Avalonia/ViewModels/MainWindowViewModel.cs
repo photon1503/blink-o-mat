@@ -29,6 +29,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly RelayCommand _clearSelectedOverrideCommand;
     private readonly RelayCommand _addSortRuleCommand;
     private readonly RelayCommand _removeSortRuleCommand;
+    private readonly RelayCommand _resetThresholdsCommand;
     private readonly RelayCommand _dismissUpdateBannerCommand;
     private readonly RelayCommand _showDebugUpdateBannerCommand;
     private readonly List<FrameResultContext> _resultContexts = [];
@@ -99,6 +100,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private double _scoreWeightTrail = 2.0;
     private double _previewFrameSliderValue;
     private bool _isSynchronizingPreviewSlider;
+    private const string AllFiltersScopeLabel = "All Filters";
+    private string _selectedRejectionFilter = AllFiltersScopeLabel;
     private List<FileSystemWatcher>? _folderWatchers;
     private CancellationTokenSource? _watchReloadCts;
     private (double Left, double Top, double Width, double Height) _manualRoi = (0.35, 0.35, 0.3, 0.3);
@@ -120,6 +123,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _clearSelectedOverrideCommand = new RelayCommand(ClearSelectedManualOverride, () => SelectedResult is not null && !_isAnalyzing);
         _addSortRuleCommand = new RelayCommand(AddSortRule, () => SortRules.Count < 4);
         _removeSortRuleCommand = new RelayCommand(parameter => RemoveSortRule(parameter as SortRuleViewModel), parameter => parameter is SortRuleViewModel && SortRules.Count > 1);
+        _resetThresholdsCommand = new RelayCommand(ResetThresholds, () => _resultContexts.Count > 0 && !_isAnalyzing);
         _dismissUpdateBannerCommand = new RelayCommand(() => IsUpdateBannerVisible = false, () => IsUpdateBannerVisible);
         _showDebugUpdateBannerCommand = new RelayCommand(() =>
         {
@@ -367,6 +371,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _analyzeCommand.RaiseCanExecuteChanged();
             _applyThresholdsCommand.RaiseCanExecuteChanged();
             _moveRejectedCommand.RaiseCanExecuteChanged();
+            _resetThresholdsCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -383,6 +388,26 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool HasFilterChips => FilterChips.Count > 0;
 
     public bool HasMultipleFilterChips => FilterChips.Count > 1;
+
+    public IReadOnlyList<string> RejectionFilterOptions =>
+        [AllFiltersScopeLabel, .. FilterChips.Select(chip => chip.Key)];
+
+    public string SelectedRejectionFilter
+    {
+        get => _selectedRejectionFilter;
+        set
+        {
+            var next = string.IsNullOrWhiteSpace(value) ? AllFiltersScopeLabel : value;
+            if (string.Equals(_selectedRejectionFilter, next, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _selectedRejectionFilter = next;
+            OnPropertyChanged();
+            RaiseThresholdPanelDiagnosticsChanged();
+        }
+    }
 
     public string ResultCountText => $"{Results.Count} analyzed frame(s), {Results.Count(result => result.IsRejected)} rejected";
 
@@ -430,6 +455,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ICommand ClearSelectedOverrideCommand => _clearSelectedOverrideCommand;
     public ICommand AddSortRuleCommand => _addSortRuleCommand;
     public ICommand RemoveSortRuleCommand => _removeSortRuleCommand;
+    public ICommand ResetThresholdsCommand => _resetThresholdsCommand;
     public ICommand DismissUpdateBannerCommand => _dismissUpdateBannerCommand;
     public ICommand DebugShowUpdateBannerCommand => _showDebugUpdateBannerCommand;
 
@@ -501,6 +527,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool ShowEccentricityMetric { get => _showEccentricityMetric; set => SetBool(ref _showEccentricityMetric, value); }
     public bool ShowTrailMetric { get => _showTrailMetric; set => SetBool(ref _showTrailMetric, value); }
     public bool ShowSqmMetric { get => _showSqmMetric; set => SetBool(ref _showSqmMetric, value); }
+
+    public bool AutoStretchPerFrame
+    {
+        get => _useAutoStretchForPreview;
+        set
+        {
+            if (_useAutoStretchForPreview == value)
+            {
+                return;
+            }
+
+            _useAutoStretchForPreview = value;
+            OnPropertyChanged();
+            if (SelectedResult is not null)
+            {
+                StartLoadSelectedPreview();
+            }
+        }
+    }
 
     public double StfTargetBackground
     {
@@ -823,6 +868,24 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         set => SetThresholdValue(_thresholds.MaxHfr, value, v => _thresholds.MaxHfr = v, nameof(MaxHfr));
     }
 
+    public double MaxFwhmArcsec
+    {
+        get => _thresholds.MaxFwhmArcsec;
+        set => SetThresholdValue(_thresholds.MaxFwhmArcsec, value, v => _thresholds.MaxFwhmArcsec = v, nameof(MaxFwhmArcsec));
+    }
+
+    public double MinSqm
+    {
+        get => _thresholds.MinSqm;
+        set => SetThresholdValue(_thresholds.MinSqm, value, v => _thresholds.MinSqm = v, nameof(MinSqm));
+    }
+
+    public double MaxSkyTemp
+    {
+        get => _thresholds.MaxSkyTemp;
+        set => SetThresholdValue(_thresholds.MaxSkyTemp, value, v => _thresholds.MaxSkyTemp = v, nameof(MaxSkyTemp));
+    }
+
     public double MaxEccentricity
     {
         get => _thresholds.MaxEccentricity;
@@ -854,8 +917,40 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _thresholds.MinSatelliteConfidence = value;
             OnPropertyChanged();
             ReapplyThresholdsFromSidebar();
+            RaiseThresholdPanelDiagnosticsChanged();
         }
     }
+
+    public double MinScore
+    {
+        get => _thresholds.MinScore;
+        set => SetThresholdValue(_thresholds.MinScore, value, v => _thresholds.MinScore = v, nameof(MinScore));
+    }
+
+    public int SatelliteTrailRejectedFrameCount => CountThresholdRejects(context =>
+        _thresholds.MinSatelliteConfidence > 0 && context.Frame.Metrics.SatelliteTrailConfidence >= _thresholds.MinSatelliteConfidence);
+
+    public int FwhmRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.Fwhm > _thresholds.MaxFwhm);
+
+    public int FwhmArcsecRejectedFrameCount => CountThresholdRejects(context =>
+        context.Frame.Metrics.FwhmArcsec.HasValue && context.Frame.Metrics.FwhmArcsec.Value > _thresholds.MaxFwhmArcsec);
+
+    public int SqmRejectedFrameCount => CountThresholdRejects(context =>
+        context.Frame.Metrics.Sqm.HasValue && context.Frame.Metrics.Sqm.Value < _thresholds.MinSqm);
+
+    public int SkyTempRejectedFrameCount => CountThresholdRejects(context =>
+        context.Frame.Metrics.SkyTemp.HasValue && context.Frame.Metrics.SkyTemp.Value > _thresholds.MaxSkyTemp);
+
+    public int HfrRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.Hfr > _thresholds.MaxHfr);
+
+    public int EccentricityRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.Eccentricity > _thresholds.MaxEccentricity);
+
+    public int MeanBackgroundRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.MeanBackground > _thresholds.MaxMeanBackground);
+
+    public int StarCountRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.StarCount < _thresholds.MinStars);
+
+    public int ScoreRejectedFrameCount => CountThresholdRejects(context =>
+        _thresholds.MinScore > 0 && context.Frame.OverallScore < _thresholds.MinScore);
 
     public async Task SaveSessionAsync(string path)
     {
@@ -961,11 +1056,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _thresholds.MinSatelliteConfidence = session.MinSatelliteConfidence;
         _thresholds.MinScore = session.MinScore;
         OnPropertyChanged(nameof(MaxFwhm));
+        OnPropertyChanged(nameof(MaxFwhmArcsec));
+        OnPropertyChanged(nameof(MinSqm));
+        OnPropertyChanged(nameof(MaxSkyTemp));
         OnPropertyChanged(nameof(MaxHfr));
         OnPropertyChanged(nameof(MaxEccentricity));
         OnPropertyChanged(nameof(MaxMeanBackground));
         OnPropertyChanged(nameof(MinStars));
         OnPropertyChanged(nameof(MinSatelliteConfidence));
+        OnPropertyChanged(nameof(MinScore));
+        RaiseThresholdPanelDiagnosticsChanged();
 
         foreach (var entry in session.Frames)
         {
@@ -1493,7 +1593,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private void ApplyThresholds(bool updateStatus)
     {
-        foreach (var context in _resultContexts)
+        var scopedContexts = GetThresholdScopeContexts().ToList();
+        foreach (var context in scopedContexts)
         {
             context.Frame.SetAutomaticRejected(_rejectionService.ShouldReject(context.Frame, _thresholds));
         }
@@ -1501,10 +1602,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         RebuildResults();
         if (updateStatus)
         {
+            var scopeLabel = string.Equals(SelectedRejectionFilter, AllFiltersScopeLabel, StringComparison.OrdinalIgnoreCase)
+                ? "all filters"
+                : SelectedRejectionFilter;
+
             StatusText = Results.Count == 0
                 ? StatusText
-                : $"Applied thresholds to {Results.Count} frame(s). {Results.Count(result => result.IsRejected)} currently rejected.";
+                : $"Applied thresholds to {scopedContexts.Count} frame(s) in {scopeLabel}. {Results.Count(result => result.IsRejected)} currently rejected.";
         }
+
+        RaiseThresholdPanelDiagnosticsChanged();
     }
 
     private void ReapplyThresholdsFromSidebar()
@@ -1770,9 +1877,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(PreviewFramePositionText));
         _applyThresholdsCommand.RaiseCanExecuteChanged();
         _moveRejectedCommand.RaiseCanExecuteChanged();
+        _resetThresholdsCommand.RaiseCanExecuteChanged();
         _markSelectedKeepCommand.RaiseCanExecuteChanged();
         _markSelectedRejectedCommand.RaiseCanExecuteChanged();
         _clearSelectedOverrideCommand.RaiseCanExecuteChanged();
+        RaiseThresholdPanelDiagnosticsChanged();
     }
 
     private void SyncPreviewSliderFromSelection()
@@ -1824,8 +1933,76 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             FilterChips.Add(new FilterChipViewModel(key, isSelected, RebuildResults));
         }
 
+        if (!RejectionFilterOptions.Contains(_selectedRejectionFilter, StringComparer.OrdinalIgnoreCase))
+        {
+            _selectedRejectionFilter = AllFiltersScopeLabel;
+            OnPropertyChanged(nameof(SelectedRejectionFilter));
+        }
+
         OnPropertyChanged(nameof(HasFilterChips));
         OnPropertyChanged(nameof(HasMultipleFilterChips));
+        OnPropertyChanged(nameof(RejectionFilterOptions));
+        RaiseThresholdPanelDiagnosticsChanged();
+    }
+
+    private IEnumerable<FrameResultContext> GetThresholdScopeContexts()
+    {
+        if (string.Equals(SelectedRejectionFilter, AllFiltersScopeLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            return _resultContexts;
+        }
+
+        var selectedKey = NormalizeFilterKey(SelectedRejectionFilter);
+        return _resultContexts.Where(context =>
+            string.Equals(NormalizeFilterKey(context.Frame.FilterName), selectedKey, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private int CountThresholdRejects(Func<FrameResultContext, bool> predicate)
+    {
+        return GetThresholdScopeContexts().Count(predicate);
+    }
+
+    private void RaiseThresholdPanelDiagnosticsChanged()
+    {
+        OnPropertyChanged(nameof(SatelliteTrailRejectedFrameCount));
+        OnPropertyChanged(nameof(FwhmRejectedFrameCount));
+        OnPropertyChanged(nameof(FwhmArcsecRejectedFrameCount));
+        OnPropertyChanged(nameof(SqmRejectedFrameCount));
+        OnPropertyChanged(nameof(SkyTempRejectedFrameCount));
+        OnPropertyChanged(nameof(HfrRejectedFrameCount));
+        OnPropertyChanged(nameof(EccentricityRejectedFrameCount));
+        OnPropertyChanged(nameof(MeanBackgroundRejectedFrameCount));
+        OnPropertyChanged(nameof(StarCountRejectedFrameCount));
+        OnPropertyChanged(nameof(ScoreRejectedFrameCount));
+    }
+
+    private void ResetThresholds()
+    {
+        var defaults = new Thresholds();
+        _thresholds.MaxFwhm = defaults.MaxFwhm;
+        _thresholds.MaxFwhmArcsec = defaults.MaxFwhmArcsec;
+        _thresholds.MinSqm = defaults.MinSqm;
+        _thresholds.MaxSkyTemp = defaults.MaxSkyTemp;
+        _thresholds.MaxHfr = defaults.MaxHfr;
+        _thresholds.MaxEccentricity = defaults.MaxEccentricity;
+        _thresholds.MaxMeanBackground = defaults.MaxMeanBackground;
+        _thresholds.MinStars = defaults.MinStars;
+        _thresholds.MinSatelliteConfidence = defaults.MinSatelliteConfidence;
+        _thresholds.MinScore = defaults.MinScore;
+
+        OnPropertyChanged(nameof(MaxFwhm));
+        OnPropertyChanged(nameof(MaxFwhmArcsec));
+        OnPropertyChanged(nameof(MinSqm));
+        OnPropertyChanged(nameof(MaxSkyTemp));
+        OnPropertyChanged(nameof(MaxHfr));
+        OnPropertyChanged(nameof(MaxEccentricity));
+        OnPropertyChanged(nameof(MaxMeanBackground));
+        OnPropertyChanged(nameof(MinStars));
+        OnPropertyChanged(nameof(MinSatelliteConfidence));
+        OnPropertyChanged(nameof(MinScore));
+
+        ReapplyThresholdsFromSidebar();
+        StatusText = "Reset rejection thresholds to defaults.";
     }
 
     private IEnumerable<FrameResultContext> GetFilterScopedContexts()
@@ -2291,6 +2468,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         setter(nextValue);
         OnPropertyChanged(propertyName);
         ReapplyThresholdsFromSidebar();
+        RaiseThresholdPanelDiagnosticsChanged();
     }
 
     private static Bitmap CreateDemoPreview()
