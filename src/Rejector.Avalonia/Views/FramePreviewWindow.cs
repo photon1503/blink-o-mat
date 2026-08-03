@@ -104,6 +104,111 @@ public sealed class FramePreviewWindow : Window
         Resize,
     }
 
+    private static readonly FuncControlTemplate<Slider> PreviewSliderTemplate = new((control, _) =>
+    {
+        var track = new Track
+        {
+            Name = "PART_Track",
+            Margin = new Thickness(4, 0),
+            Height = 16,
+            VerticalAlignment = VerticalAlignment.Center,
+            [!Track.MinimumProperty] = control[!RangeBase.MinimumProperty],
+            [!Track.MaximumProperty] = control[!RangeBase.MaximumProperty],
+            [!Track.ValueProperty] = control[!RangeBase.ValueProperty],
+            [!Track.OrientationProperty] = control[!Slider.OrientationProperty],
+            [!Track.IsDirectionReversedProperty] = control[!Slider.IsDirectionReversedProperty],
+        };
+
+        track.DecreaseButton = new RepeatButton
+        {
+            IsTabStop = false,
+            Focusable = false,
+            Background = Brushes.Transparent,
+            Template = new FuncControlTemplate<RepeatButton>((_, _) =>
+                new Grid
+                {
+                    Children =
+                    {
+                        new Border
+                        {
+                            Height = 2,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Background = SolidColorBrush.Parse("#1E90FF"),
+                            CornerRadius = new CornerRadius(1),
+                        },
+                    },
+                }),
+        };
+
+        track.IncreaseButton = new RepeatButton
+        {
+            IsTabStop = false,
+            Focusable = false,
+            Background = Brushes.Transparent,
+            Template = new FuncControlTemplate<RepeatButton>((_, _) =>
+                new Border
+                {
+                    Background = Brushes.Transparent,
+                }),
+        };
+
+        track.Thumb = new Thumb
+        {
+            Width = 24,
+            Height = 24,
+            MinWidth = 24,
+            MinHeight = 24,
+            VerticalAlignment = VerticalAlignment.Center,
+            Template = new FuncControlTemplate<Thumb>((_, _) =>
+                new Grid
+                {
+                    Width = 14,
+                    Height = 14,
+                    ClipToBounds = false,
+                    Children =
+                    {
+                        new Border
+                        {
+                            Width = 8,
+                            Height = 8,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Background = SolidColorBrush.Parse("#1E90FF"),
+                            BorderBrush = SolidColorBrush.Parse("#0D6FC8"),
+                            BorderThickness = new Thickness(1),
+                            CornerRadius = new CornerRadius(3),
+                        },
+                    },
+                }),
+        };
+
+        return new Grid
+        {
+            Height = 16,
+            VerticalAlignment = VerticalAlignment.Center,
+            ClipToBounds = false,
+            Children =
+            {
+                new Border
+                {
+                    Height = 2,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(4, 0),
+                    Background = SolidColorBrush.Parse("#8E949B"),
+                    CornerRadius = new CornerRadius(1),
+                },
+                track,
+            },
+        };
+    });
+
+    private static void ApplyPreviewSliderTemplate(Slider slider)
+    {
+        slider.Template = PreviewSliderTemplate;
+        slider.Height = 24;
+        slider.VerticalAlignment = VerticalAlignment.Center;
+    }
+
     private static void ApplyChipTemplate(ToggleButton chip)
     {
         chip.Template = new FuncControlTemplate<ToggleButton>((control, _) =>
@@ -399,6 +504,7 @@ public sealed class FramePreviewWindow : Window
         };
 
         _frameSlider = new Slider { Minimum = 0, Maximum = 0 };
+        ApplyPreviewSliderTemplate(_frameSlider);
         _frameSlider.Bind(Slider.ValueProperty, new Binding("PreviewFrameSliderValue") { Mode = BindingMode.TwoWay });
         _frameSlider.Bind(Slider.MaximumProperty, new Binding("PreviewFrameSliderMaximum"));
         Grid.SetColumn(_frameSlider, 0);
@@ -738,15 +844,19 @@ public sealed class FramePreviewWindow : Window
         scorePanelGrid.Children.Add(scoreProgressBar);
 
         var stfTargetSlider = new Slider { Minimum = 0.01, Maximum = 0.5, Width = 220 };
+        ApplyPreviewSliderTemplate(stfTargetSlider);
         stfTargetSlider.Bind(Slider.ValueProperty, new Binding("StfTargetBackground") { Mode = BindingMode.TwoWay });
 
         var stfShadowsSlider = new Slider { Minimum = 0.0, Maximum = 1.0, Width = 170 };
+        ApplyPreviewSliderTemplate(stfShadowsSlider);
         stfShadowsSlider.Bind(Slider.ValueProperty, new Binding("StfShadows") { Mode = BindingMode.TwoWay });
 
         var stfMidtonesSlider = new Slider { Minimum = 0.0, Maximum = 1.0, Width = 170 };
+        ApplyPreviewSliderTemplate(stfMidtonesSlider);
         stfMidtonesSlider.Bind(Slider.ValueProperty, new Binding("StfMidtones") { Mode = BindingMode.TwoWay });
 
         var stfHighlightsSlider = new Slider { Minimum = 0.0, Maximum = 1.0, Width = 170 };
+        ApplyPreviewSliderTemplate(stfHighlightsSlider);
         stfHighlightsSlider.Bind(Slider.ValueProperty, new Binding("StfHighlights") { Mode = BindingMode.TwoWay });
 
         var autoStretchButton = new Button
@@ -843,6 +953,79 @@ public sealed class FramePreviewWindow : Window
             return row;
         }
 
+        var inspectionChevron = new TextBlock
+        {
+            Text = "▸",
+            Foreground = SolidColorBrush.Parse("#9BA6B2"),
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        var inspectionBody = new StackPanel
+        {
+            Margin = new Thickness(0, 8, 0, 0),
+            Spacing = 8,
+            IsVisible = false,
+            Children =
+            {
+                new TextBlock { Text = "Stretch (STF)", Foreground = SolidColorBrush.Parse("#E0E6ED") },
+                autoStretchButton,
+                StfSliderRow("Shadows", stfShadowsSlider, "StfShadows"),
+                StfSliderRow("Midtones", stfMidtonesSlider, "StfMidtones"),
+                StfSliderRow("Highlights", stfHighlightsSlider, "StfHighlights"),
+                new TextBlock { Text = "Target Background", Foreground = SolidColorBrush.Parse("#AAB3BC"), FontSize = 11 },
+                stfTargetSlider,
+                roiButton,
+            },
+        };
+
+        var inspectionHeader = new ToggleButton
+        {
+            IsChecked = false,
+            Background = SolidColorBrush.Parse("#14181C"),
+            BorderBrush = SolidColorBrush.Parse("#2E353D"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 8),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        ApplyChipTemplate(inspectionHeader);
+        inspectionHeader.Content = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "INSPECTION",
+                    Foreground = SolidColorBrush.Parse("#D0D8E0"),
+                    FontSize = 11,
+                    FontWeight = FontWeight.SemiBold,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+                inspectionChevron,
+            },
+        };
+        Grid.SetColumn(inspectionChevron, 1);
+
+        void UpdateInspectionCardVisual(bool expanded)
+        {
+            inspectionBody.IsVisible = expanded;
+            inspectionChevron.Text = expanded ? "▾" : "▸";
+            inspectionHeader.Background = SolidColorBrush.Parse(expanded ? "#1B2127" : "#14181C");
+            inspectionHeader.BorderBrush = SolidColorBrush.Parse(expanded ? "#3A4450" : "#2E353D");
+        }
+
+        inspectionHeader.PropertyChanged += (_, args) =>
+        {
+            if (args.Property == ToggleButton.IsCheckedProperty)
+            {
+                UpdateInspectionCardVisual(inspectionHeader.IsChecked == true);
+            }
+        };
+        UpdateInspectionCardVisual(false);
+
         var sidePanel = new Border
         {
             Margin = new Thickness(10, 0, 0, 0),
@@ -872,18 +1055,11 @@ public sealed class FramePreviewWindow : Window
                         Padding = new Thickness(10),
                         Child = new StackPanel
                         {
-                            Spacing = 8,
+                            Spacing = 0,
                             Children =
                             {
-                                new TextBlock { Text = "INSPECTION", Foreground = SolidColorBrush.Parse("#D0D8E0"), FontSize = 11, FontWeight = FontWeight.SemiBold },
-                                new TextBlock { Text = "Stretch (STF)", Foreground = SolidColorBrush.Parse("#E0E6ED") },
-                                autoStretchButton,
-                                StfSliderRow("Shadows", stfShadowsSlider, "StfShadows"),
-                                StfSliderRow("Midtones", stfMidtonesSlider, "StfMidtones"),
-                                StfSliderRow("Highlights", stfHighlightsSlider, "StfHighlights"),
-                                new TextBlock { Text = "Target Background", Foreground = SolidColorBrush.Parse("#AAB3BC"), FontSize = 11 },
-                                stfTargetSlider,
-                                roiButton,
+                                inspectionHeader,
+                                inspectionBody,
                             },
                         },
                     },
