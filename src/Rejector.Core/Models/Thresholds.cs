@@ -23,4 +23,31 @@ public sealed class Thresholds
     public bool AutoCalcMeanBackgroundThreshold { get; set; } = true;
     public bool AutoCalcStarsThreshold { get; set; } = true;
     public bool AutoCalcScoreThreshold { get; set; } = true;
+
+    public Thresholds Clone()
+    {
+        return new Thresholds
+        {
+            MaxFwhm = MaxFwhm,
+            MaxFwhmArcsec = MaxFwhmArcsec,
+            MinSqm = MinSqm,
+            MaxSkyTemp = MaxSkyTemp,
+            MaxHfr = MaxHfr,
+            MaxEccentricity = MaxEccentricity,
+            MaxMeanBackground = MaxMeanBackground,
+            MinStars = MinStars,
+            MinSatelliteConfidence = MinSatelliteConfidence,
+            MinScore = MinScore,
+            AutoCalcTrailThreshold = AutoCalcTrailThreshold,
+            AutoCalcFwhmThreshold = AutoCalcFwhmThreshold,
+            AutoCalcFwhmArcsecThreshold = AutoCalcFwhmArcsecThreshold,
+            AutoCalcSqmThreshold = AutoCalcSqmThreshold,
+            AutoCalcSkyTempThreshold = AutoCalcSkyTempThreshold,
+            AutoCalcHfrThreshold = AutoCalcHfrThreshold,
+            AutoCalcEccentricityThreshold = AutoCalcEccentricityThreshold,
+            AutoCalcMeanBackgroundThreshold = AutoCalcMeanBackgroundThreshold,
+            AutoCalcStarsThreshold = AutoCalcStarsThreshold,
+            AutoCalcScoreThreshold = AutoCalcScoreThreshold,
+        };
+    }
 }

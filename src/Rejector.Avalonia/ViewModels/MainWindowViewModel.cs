@@ -30,11 +30,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly RelayCommand _addSortRuleCommand;
     private readonly RelayCommand _removeSortRuleCommand;
     private readonly RelayCommand _resetThresholdsCommand;
+    private readonly RelayCommand _createProfileCommand;
     private readonly RelayCommand _dismissUpdateBannerCommand;
     private readonly RelayCommand _showDebugUpdateBannerCommand;
     private readonly List<FrameResultContext> _resultContexts = [];
     private readonly HashSet<string> _cachedPreviewPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _watchReloadGate = new();
+    private readonly Dictionary<string, Thresholds> _filterThresholds = new(StringComparer.OrdinalIgnoreCase);
     private string _inputFolder = string.Empty;
     private string _rejectedFolder = string.Empty;
     private string _statusText = "Enter a folder path to analyze frames with the shared core.";
@@ -60,8 +62,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         byte MaxValue,
         double MeanValue);
     private string _selectedPreviewCaption = "Select a frame to preview it here.";
-    private readonly Thresholds _thresholds;
+    private Thresholds _thresholds = new();
     private string _sortField = "File name";
+    private string _newProfileName = "Default";
+    private string _defaultProfileName = "Default";
+    private SettingsProfile? _selectedSettingsProfile;
+    private bool _isApplyingProfile;
     private double? _sessionFocalLengthMm;
     private double? _sessionPixelSizeUm;
     private bool _isUpdateBannerVisible;
@@ -113,7 +119,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _rejectedFolder = settings.RejectedFolder ?? string.Empty;
         _includeSubfolders = settings.IncludeSubfolders;
         _watchFolderEnabled = settings.WatchFolder;
-        _thresholds = settings.Profiles.FirstOrDefault()?.Thresholds ?? new Thresholds();
+        _thresholds = settings.Profiles.FirstOrDefault()?.Thresholds?.Clone() ?? new Thresholds();
         _analyzeCommand = new RelayCommand(StartAnalyze, () => !_isAnalyzing && !string.IsNullOrWhiteSpace(InputFolder));
         _applyThresholdsCommand = new RelayCommand(ApplyThresholds, () => Results.Count > 0 && !_isAnalyzing);
         _moveRejectedCommand = new RelayCommand(StartMoveRejected, () => Results.Any(result => result.IsRejected) && !_isAnalyzing && !string.IsNullOrWhiteSpace(RejectedFolder));
@@ -124,12 +130,30 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _addSortRuleCommand = new RelayCommand(AddSortRule, () => SortRules.Count < 4);
         _removeSortRuleCommand = new RelayCommand(parameter => RemoveSortRule(parameter as SortRuleViewModel), parameter => parameter is SortRuleViewModel && SortRules.Count > 1);
         _resetThresholdsCommand = new RelayCommand(ResetThresholds, () => _resultContexts.Count > 0 && !_isAnalyzing);
+        _createProfileCommand = new RelayCommand(CreateSettingsProfile, CanCreateSettingsProfile);
         _dismissUpdateBannerCommand = new RelayCommand(() => IsUpdateBannerVisible = false, () => IsUpdateBannerVisible);
         _showDebugUpdateBannerCommand = new RelayCommand(() =>
         {
             UpdateBannerText = "Update available: parity validation build";
             IsUpdateBannerVisible = true;
         });
+
+        SettingsProfiles.Clear();
+        foreach (var profile in (settings.Profiles ?? []).Select(profile => profile.Clone()))
+        {
+            SettingsProfiles.Add(profile);
+        }
+
+        if (SettingsProfiles.Count == 0)
+        {
+            SettingsProfiles.Add(new SettingsProfile { Name = "Default" });
+        }
+
+        _defaultProfileName = SettingsProfile.NormalizeName(settings.DefaultProfileName);
+        var defaultProfile = SettingsProfiles.FirstOrDefault(profile => string.Equals(profile.Name, _defaultProfileName, StringComparison.OrdinalIgnoreCase))
+            ?? SettingsProfiles.First();
+        SelectedSettingsProfile = defaultProfile;
+        NewProfileName = defaultProfile.Name;
 
         SortRules.Add(new SortRuleViewModel(SortFieldOptions[0], true, RebuildResults));
     }
@@ -309,6 +333,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(IncludeSubfoldersText));
             PersistFolderSettings();
+            PersistProfileSettings();
             RestartFolderWatchIfEnabled();
         }
     }
@@ -328,6 +353,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(WatchFolderText));
             OnPropertyChanged(nameof(AnalyzeButtonText));
             PersistFolderSettings();
+            PersistProfileSettings();
 
             if (!value)
             {
@@ -372,6 +398,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _applyThresholdsCommand.RaiseCanExecuteChanged();
             _moveRejectedCommand.RaiseCanExecuteChanged();
             _resetThresholdsCommand.RaiseCanExecuteChanged();
+            _createProfileCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -382,6 +409,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ObservableCollection<FrameSummaryViewModel> Results { get; } = [];
 
     public ObservableCollection<FilterChipViewModel> FilterChips { get; } = [];
+
+    public ObservableCollection<SettingsProfile> SettingsProfiles { get; } = [];
 
     public ObservableCollection<SortRuleViewModel> SortRules { get; } = [];
 
@@ -455,6 +484,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ICommand ClearSelectedOverrideCommand => _clearSelectedOverrideCommand;
     public ICommand AddSortRuleCommand => _addSortRuleCommand;
     public ICommand RemoveSortRuleCommand => _removeSortRuleCommand;
+    public ICommand CreateProfileCommand => _createProfileCommand;
     public ICommand ResetThresholdsCommand => _resetThresholdsCommand;
     public ICommand DismissUpdateBannerCommand => _dismissUpdateBannerCommand;
     public ICommand DebugShowUpdateBannerCommand => _showDebugUpdateBannerCommand;
@@ -520,13 +550,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool ShowFwhmMetric { get => _showFwhmMetric; set => SetBool(ref _showFwhmMetric, value); }
-    public bool ShowFwhmArcsecMetric { get => _showFwhmArcsecMetric; set => SetBool(ref _showFwhmArcsecMetric, value); }
-    public bool ShowHfrMetric { get => _showHfrMetric; set => SetBool(ref _showHfrMetric, value); }
-    public bool ShowStarsMetric { get => _showStarsMetric; set => SetBool(ref _showStarsMetric, value); }
-    public bool ShowEccentricityMetric { get => _showEccentricityMetric; set => SetBool(ref _showEccentricityMetric, value); }
-    public bool ShowTrailMetric { get => _showTrailMetric; set => SetBool(ref _showTrailMetric, value); }
-    public bool ShowSqmMetric { get => _showSqmMetric; set => SetBool(ref _showSqmMetric, value); }
+    public bool ShowFwhmMetric { get => _showFwhmMetric; set { if (SetBool(ref _showFwhmMetric, value)) { PersistProfileSettings(); } } }
+    public bool ShowFwhmArcsecMetric { get => _showFwhmArcsecMetric; set { if (SetBool(ref _showFwhmArcsecMetric, value)) { PersistProfileSettings(); } } }
+    public bool ShowHfrMetric { get => _showHfrMetric; set { if (SetBool(ref _showHfrMetric, value)) { PersistProfileSettings(); } } }
+    public bool ShowStarsMetric { get => _showStarsMetric; set { if (SetBool(ref _showStarsMetric, value)) { PersistProfileSettings(); } } }
+    public bool ShowEccentricityMetric { get => _showEccentricityMetric; set { if (SetBool(ref _showEccentricityMetric, value)) { PersistProfileSettings(); } } }
+    public bool ShowTrailMetric { get => _showTrailMetric; set { if (SetBool(ref _showTrailMetric, value)) { PersistProfileSettings(); } } }
+    public bool ShowSqmMetric { get => _showSqmMetric; set { if (SetBool(ref _showSqmMetric, value)) { PersistProfileSettings(); } } }
 
     public bool AutoStretchPerFrame
     {
@@ -560,6 +590,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
             _stfTargetBackground = clamped;
             OnPropertyChanged();
+            PersistProfileSettings();
 
             if (_useAutoStretchForPreview && SelectedResult is not null)
             {
@@ -575,19 +606,19 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool IsOrientationDebugOverlayVisible { get => _isOrientationDebugOverlayVisible; set => SetBool(ref _isOrientationDebugOverlayVisible, value); }
     public bool IsCurvatureViewVisible { get => _isCurvatureViewVisible; set => SetBool(ref _isCurvatureViewVisible, value); }
 
-    public bool UseScoreFwhm { get => _useScoreFwhm; set => SetBoolAndRebuild(ref _useScoreFwhm, value); }
-    public bool UseScoreHfr { get => _useScoreHfr; set => SetBoolAndRebuild(ref _useScoreHfr, value); }
-    public bool UseScoreStars { get => _useScoreStars; set => SetBoolAndRebuild(ref _useScoreStars, value); }
-    public bool UseScoreEccentricity { get => _useScoreEccentricity; set => SetBoolAndRebuild(ref _useScoreEccentricity, value); }
-    public bool UseScoreBackground { get => _useScoreBackground; set => SetBoolAndRebuild(ref _useScoreBackground, value); }
-    public bool UseScoreTrail { get => _useScoreTrail; set => SetBoolAndRebuild(ref _useScoreTrail, value); }
+    public bool UseScoreFwhm { get => _useScoreFwhm; set { if (SetBoolAndRebuild(ref _useScoreFwhm, value)) { PersistProfileSettings(); } } }
+    public bool UseScoreHfr { get => _useScoreHfr; set { if (SetBoolAndRebuild(ref _useScoreHfr, value)) { PersistProfileSettings(); } } }
+    public bool UseScoreStars { get => _useScoreStars; set { if (SetBoolAndRebuild(ref _useScoreStars, value)) { PersistProfileSettings(); } } }
+    public bool UseScoreEccentricity { get => _useScoreEccentricity; set { if (SetBoolAndRebuild(ref _useScoreEccentricity, value)) { PersistProfileSettings(); } } }
+    public bool UseScoreBackground { get => _useScoreBackground; set { if (SetBoolAndRebuild(ref _useScoreBackground, value)) { PersistProfileSettings(); } } }
+    public bool UseScoreTrail { get => _useScoreTrail; set { if (SetBoolAndRebuild(ref _useScoreTrail, value)) { PersistProfileSettings(); } } }
 
-    public double ScoreWeightFwhm { get => _scoreWeightFwhm; set => SetDoubleAndRebuild(ref _scoreWeightFwhm, value); }
-    public double ScoreWeightHfr { get => _scoreWeightHfr; set => SetDoubleAndRebuild(ref _scoreWeightHfr, value); }
-    public double ScoreWeightStars { get => _scoreWeightStars; set => SetDoubleAndRebuild(ref _scoreWeightStars, value); }
-    public double ScoreWeightEccentricity { get => _scoreWeightEccentricity; set => SetDoubleAndRebuild(ref _scoreWeightEccentricity, value); }
-    public double ScoreWeightBackground { get => _scoreWeightBackground; set => SetDoubleAndRebuild(ref _scoreWeightBackground, value); }
-    public double ScoreWeightTrail { get => _scoreWeightTrail; set => SetDoubleAndRebuild(ref _scoreWeightTrail, value); }
+    public double ScoreWeightFwhm { get => _scoreWeightFwhm; set { if (SetDoubleAndRebuild(ref _scoreWeightFwhm, value)) { PersistProfileSettings(); } } }
+    public double ScoreWeightHfr { get => _scoreWeightHfr; set { if (SetDoubleAndRebuild(ref _scoreWeightHfr, value)) { PersistProfileSettings(); } } }
+    public double ScoreWeightStars { get => _scoreWeightStars; set { if (SetDoubleAndRebuild(ref _scoreWeightStars, value)) { PersistProfileSettings(); } } }
+    public double ScoreWeightEccentricity { get => _scoreWeightEccentricity; set { if (SetDoubleAndRebuild(ref _scoreWeightEccentricity, value)) { PersistProfileSettings(); } } }
+    public double ScoreWeightBackground { get => _scoreWeightBackground; set { if (SetDoubleAndRebuild(ref _scoreWeightBackground, value)) { PersistProfileSettings(); } } }
+    public double ScoreWeightTrail { get => _scoreWeightTrail; set { if (SetDoubleAndRebuild(ref _scoreWeightTrail, value)) { PersistProfileSettings(); } } }
 
     public int CachedPreviewCount => _cachedPreviewPaths.Count;
 
@@ -703,6 +734,92 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             }
             OnPropertyChanged();
             RebuildResults();
+        }
+    }
+
+    public string NewProfileName
+    {
+        get => _newProfileName;
+        set
+        {
+            if (_newProfileName == value)
+            {
+                return;
+            }
+
+            _newProfileName = value;
+            OnPropertyChanged();
+            _createProfileCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public string DefaultProfileName
+    {
+        get => _defaultProfileName;
+        set
+        {
+            var normalized = SettingsProfile.NormalizeName(value);
+            if (_defaultProfileName == normalized)
+            {
+                return;
+            }
+
+            _defaultProfileName = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsSelectedProfileDefault));
+            PersistProfileSettings();
+        }
+    }
+
+    public SettingsProfile? SelectedSettingsProfile
+    {
+        get => _selectedSettingsProfile;
+        set
+        {
+            if (ReferenceEquals(_selectedSettingsProfile, value))
+            {
+                return;
+            }
+
+            _selectedSettingsProfile = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedProfileName));
+            OnPropertyChanged(nameof(IsSelectedProfileDefault));
+            if (value is null || _isApplyingProfile)
+            {
+                return;
+            }
+
+            ApplySelectedProfileSettings(value);
+        }
+    }
+
+    public string SelectedProfileName
+    {
+        get => SelectedSettingsProfile?.Name ?? string.Empty;
+        set
+        {
+            var target = SettingsProfiles.FirstOrDefault(profile => string.Equals(profile.Name, value, StringComparison.OrdinalIgnoreCase));
+            if (target is not null)
+            {
+                SelectedSettingsProfile = target;
+            }
+        }
+    }
+
+    public bool IsSelectedProfileDefault
+    {
+        get => SelectedSettingsProfile is not null && string.Equals(DefaultProfileName, SelectedSettingsProfile.Name, StringComparison.OrdinalIgnoreCase);
+        set
+        {
+            if (!value || SelectedSettingsProfile is null)
+            {
+                OnPropertyChanged();
+                return;
+            }
+
+            DefaultProfileName = SelectedSettingsProfile.Name;
+            OnPropertyChanged();
         }
     }
 
@@ -1435,6 +1552,182 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _appSettingsService.Save(settings);
     }
 
+    private bool CanCreateSettingsProfile()
+    {
+        var normalized = SettingsProfile.NormalizeName(NewProfileName);
+        return !string.IsNullOrWhiteSpace(normalized)
+            && !SettingsProfiles.Any(profile => string.Equals(profile.Name, normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void CreateSettingsProfile()
+    {
+        var normalized = SettingsProfile.NormalizeName(NewProfileName);
+        if (string.IsNullOrWhiteSpace(normalized) || SettingsProfiles.Any(profile => string.Equals(profile.Name, normalized, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        var profile = CreateProfileFromCurrentState(normalized);
+        SettingsProfiles.Add(profile);
+        NewProfileName = profile.Name;
+        SelectedSettingsProfile = profile;
+    }
+
+    private void ApplySelectedProfileSettings(SettingsProfile profile)
+    {
+        _isApplyingProfile = true;
+        try
+        {
+            _filterThresholds.Clear();
+            if (profile.FilterThresholds.Count > 0)
+            {
+                foreach (var filterThresholds in profile.FilterThresholds)
+                {
+                    _filterThresholds[filterThresholds.Key] = filterThresholds.Thresholds?.Clone() ?? new Thresholds();
+                }
+            }
+            else
+            {
+                _filterThresholds[string.Empty] = profile.Thresholds?.Clone() ?? new Thresholds();
+            }
+
+            if (!_filterThresholds.ContainsKey(string.Empty))
+            {
+                _filterThresholds[string.Empty] = profile.Thresholds?.Clone() ?? new Thresholds();
+            }
+
+            _thresholds = profile.Thresholds?.Clone() ?? new Thresholds();
+            IncludeSubfolders = profile.IncludeSubfoldersDefault;
+            WatchFolderEnabled = profile.WatchFolderDefault;
+            StfTargetBackground = profile.StfTargetBackgroundDefault;
+
+            ShowFwhmMetric = profile.ShowFwhmMetric;
+            ShowFwhmArcsecMetric = profile.ShowFwhmArcsecMetric;
+            ShowHfrMetric = profile.ShowHfrMetric;
+            ShowStarsMetric = profile.ShowStarsMetric;
+            ShowEccentricityMetric = profile.ShowEccentricityMetric;
+            ShowTrailMetric = profile.ShowTrailMetric;
+            ShowSqmMetric = profile.ShowSqmMetric;
+
+            UseScoreFwhm = profile.UseScoreFwhm;
+            UseScoreHfr = profile.UseScoreHfr;
+            UseScoreStars = profile.UseScoreStars;
+            UseScoreEccentricity = profile.UseScoreEccentricity;
+            UseScoreBackground = profile.UseScoreMeanBackground;
+            UseScoreTrail = profile.UseScoreTrail;
+            ScoreWeightFwhm = profile.ScoreWeightFwhm;
+            ScoreWeightHfr = profile.ScoreWeightHfr;
+            ScoreWeightStars = profile.ScoreWeightStars;
+            ScoreWeightEccentricity = profile.ScoreWeightEccentricity;
+            ScoreWeightBackground = profile.ScoreWeightMeanBackground;
+            ScoreWeightTrail = profile.ScoreWeightTrail;
+
+            OnPropertyChanged(nameof(MaxFwhm));
+            OnPropertyChanged(nameof(MaxHfr));
+            OnPropertyChanged(nameof(MaxFwhmArcsec));
+            OnPropertyChanged(nameof(MinSqm));
+            OnPropertyChanged(nameof(MaxSkyTemp));
+            OnPropertyChanged(nameof(MaxEccentricity));
+            OnPropertyChanged(nameof(MaxMeanBackground));
+            OnPropertyChanged(nameof(MinStars));
+            OnPropertyChanged(nameof(MinSatelliteConfidence));
+            OnPropertyChanged(nameof(MinScore));
+            OnPropertyChanged(nameof(ShowFwhmMetric));
+            OnPropertyChanged(nameof(ShowFwhmArcsecMetric));
+            OnPropertyChanged(nameof(ShowHfrMetric));
+            OnPropertyChanged(nameof(ShowStarsMetric));
+            OnPropertyChanged(nameof(ShowEccentricityMetric));
+            OnPropertyChanged(nameof(ShowTrailMetric));
+            OnPropertyChanged(nameof(ShowSqmMetric));
+            OnPropertyChanged(nameof(UseScoreFwhm));
+            OnPropertyChanged(nameof(UseScoreHfr));
+            OnPropertyChanged(nameof(UseScoreStars));
+            OnPropertyChanged(nameof(UseScoreEccentricity));
+            OnPropertyChanged(nameof(UseScoreBackground));
+            OnPropertyChanged(nameof(UseScoreTrail));
+            OnPropertyChanged(nameof(ScoreWeightFwhm));
+            OnPropertyChanged(nameof(ScoreWeightHfr));
+            OnPropertyChanged(nameof(ScoreWeightStars));
+            OnPropertyChanged(nameof(ScoreWeightEccentricity));
+            OnPropertyChanged(nameof(ScoreWeightBackground));
+            OnPropertyChanged(nameof(ScoreWeightTrail));
+            OnPropertyChanged(nameof(IncludeSubfolders));
+            OnPropertyChanged(nameof(WatchFolderEnabled));
+            OnPropertyChanged(nameof(StfTargetBackground));
+            ApplyThresholds(updateStatus: false);
+        }
+        finally
+        {
+            _isApplyingProfile = false;
+        }
+
+        PersistProfileSettings();
+    }
+
+    private void PersistProfileSettings()
+    {
+        if (_isApplyingProfile || SelectedSettingsProfile is null)
+        {
+            return;
+        }
+
+        var snapshot = CreateProfileFromCurrentState(SelectedSettingsProfile.Name);
+        var index = SettingsProfiles.IndexOf(SelectedSettingsProfile);
+        if (index >= 0)
+        {
+            SettingsProfiles[index] = snapshot;
+            _selectedSettingsProfile = snapshot;
+            OnPropertyChanged(nameof(SelectedSettingsProfile));
+            OnPropertyChanged(nameof(SelectedProfileName));
+            OnPropertyChanged(nameof(IsSelectedProfileDefault));
+        }
+
+        var settings = _appSettingsService.Load();
+        settings.InputFolder = InputFolder;
+        settings.RejectedFolder = RejectedFolder;
+        settings.IncludeSubfolders = IncludeSubfolders;
+        settings.WatchFolder = WatchFolderEnabled;
+        settings.DefaultProfileName = DefaultProfileName;
+        settings.Profiles = SettingsProfiles.Select(profile => profile.Clone()).ToList();
+        _appSettingsService.Save(settings);
+    }
+
+    private SettingsProfile CreateProfileFromCurrentState(string name)
+    {
+        return new SettingsProfile
+        {
+            Name = SettingsProfile.NormalizeName(name),
+            Thresholds = _thresholds.Clone(),
+            FilterThresholds = _filterThresholds.Select(kvp => new ProfileFilterThresholds
+            {
+                Key = kvp.Key,
+                Thresholds = kvp.Value.Clone(),
+            }).ToList(),
+            IncludeSubfoldersDefault = IncludeSubfolders,
+            WatchFolderDefault = WatchFolderEnabled,
+            StfTargetBackgroundDefault = StfTargetBackground,
+            ShowFwhmMetric = ShowFwhmMetric,
+            ShowFwhmArcsecMetric = ShowFwhmArcsecMetric,
+            ShowHfrMetric = ShowHfrMetric,
+            ShowStarsMetric = ShowStarsMetric,
+            ShowEccentricityMetric = ShowEccentricityMetric,
+            ShowTrailMetric = ShowTrailMetric,
+            ShowSqmMetric = ShowSqmMetric,
+            UseScoreFwhm = UseScoreFwhm,
+            UseScoreHfr = UseScoreHfr,
+            UseScoreStars = UseScoreStars,
+            UseScoreEccentricity = UseScoreEccentricity,
+            UseScoreMeanBackground = UseScoreBackground,
+            UseScoreTrail = UseScoreTrail,
+            ScoreWeightFwhm = ScoreWeightFwhm,
+            ScoreWeightHfr = ScoreWeightHfr,
+            ScoreWeightStars = ScoreWeightStars,
+            ScoreWeightEccentricity = ScoreWeightEccentricity,
+            ScoreWeightMeanBackground = ScoreWeightBackground,
+            ScoreWeightTrail = ScoreWeightTrail,
+        };
+    }
+
     private void RestartFolderWatchIfEnabled()
     {
         if (IsAnalyzing)
@@ -2001,6 +2294,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(MinSatelliteConfidence));
         OnPropertyChanged(nameof(MinScore));
 
+        PersistProfileSettings();
         ReapplyThresholdsFromSidebar();
         StatusText = "Reset rejection thresholds to defaults.";
     }
@@ -2412,50 +2706,54 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         RebuildResults();
     }
 
-    private void SetBool(ref bool field, bool value, [CallerMemberName] string? propertyName = null)
+    private bool SetBool(ref bool field, bool value, [CallerMemberName] string? propertyName = null)
     {
         if (field == value)
         {
-            return;
+            return false;
         }
 
         field = value;
         OnPropertyChanged(propertyName);
+        return true;
     }
 
-    private void SetBoolAndRebuild(ref bool field, bool value, [CallerMemberName] string? propertyName = null)
+    private bool SetBoolAndRebuild(ref bool field, bool value, [CallerMemberName] string? propertyName = null)
     {
         if (field == value)
         {
-            return;
+            return false;
         }
 
         field = value;
         OnPropertyChanged(propertyName);
         RebuildResults();
+        return true;
     }
 
-    private void SetDouble(ref double field, double value, [CallerMemberName] string? propertyName = null)
+    private bool SetDouble(ref double field, double value, [CallerMemberName] string? propertyName = null)
     {
         if (Math.Abs(field - value) < 0.0001)
         {
-            return;
+            return false;
         }
 
         field = value;
         OnPropertyChanged(propertyName);
+        return true;
     }
 
-    private void SetDoubleAndRebuild(ref double field, double value, [CallerMemberName] string? propertyName = null)
+    private bool SetDoubleAndRebuild(ref double field, double value, [CallerMemberName] string? propertyName = null)
     {
         if (Math.Abs(field - value) < 0.0001)
         {
-            return;
+            return false;
         }
 
         field = value;
         OnPropertyChanged(propertyName);
         RebuildResults();
+        return true;
     }
 
     private void SetThresholdValue(double currentValue, double nextValue, Action<double> setter, string propertyName)
@@ -2469,6 +2767,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(propertyName);
         ReapplyThresholdsFromSidebar();
         RaiseThresholdPanelDiagnosticsChanged();
+        PersistProfileSettings();
     }
 
     private static Bitmap CreateDemoPreview()

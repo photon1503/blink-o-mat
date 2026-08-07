@@ -38,6 +38,45 @@ public sealed class AppSettingsServiceTests
     }
 
     [Fact]
+    public void Clone_CreatesIndependentSnapshotOfProfileState()
+    {
+        var original = new SettingsProfile
+        {
+            Name = "Custom",
+            Thresholds = new Thresholds
+            {
+                MaxFwhm = 3.5,
+                MaxFwhmArcsec = 2.2,
+                MinSqm = 18.5,
+                AutoCalcFwhmThreshold = false,
+            },
+            IncludeSubfoldersDefault = true,
+            WatchFolderDefault = true,
+            StfTargetBackgroundDefault = 0.33,
+            ShowTrailMetric = false,
+            UseScoreFwhm = false,
+            ScoreWeightFwhm = 4.5,
+        };
+
+        var clone = original.Clone();
+
+        clone.Name = "Clone";
+        clone.Thresholds.MaxFwhm = 9.9;
+        clone.IncludeSubfoldersDefault = false;
+        clone.ShowTrailMetric = true;
+        clone.UseScoreFwhm = true;
+        clone.ScoreWeightFwhm = 1.2;
+
+        Assert.Equal("Custom", original.Name);
+        Assert.Equal(3.5, original.Thresholds.MaxFwhm);
+        Assert.True(original.IncludeSubfoldersDefault);
+        Assert.False(original.ShowTrailMetric);
+        Assert.False(original.UseScoreFwhm);
+        Assert.Equal(4.5, original.ScoreWeightFwhm);
+        Assert.Equal(0.33, original.StfTargetBackgroundDefault);
+    }
+
+    [Fact]
     public void TryBackupPersistedSettings_MovesExistingSettingsFile()
     {
         var tempRoot = CreateTempDirectory();

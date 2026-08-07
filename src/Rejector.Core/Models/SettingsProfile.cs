@@ -61,6 +61,65 @@ public sealed class SettingsProfile
     public double ScoreWeightStars { get; set; } = 1.5;
     public double ScoreWeightMeanBackground { get; set; } = 0.5;
 
+    public SettingsProfile Clone()
+    {
+        return new SettingsProfile
+        {
+            Name = NormalizeName(Name),
+            Thresholds = Thresholds?.Clone() ?? new Thresholds(),
+            FilterThresholds = FilterThresholds.Select(item => new ProfileFilterThresholds
+            {
+                Key = item.Key,
+                Thresholds = item.Thresholds?.Clone() ?? new Thresholds(),
+            }).ToList(),
+            IncludeSubfoldersDefault = IncludeSubfoldersDefault,
+            WatchFolderDefault = WatchFolderDefault,
+            StfTargetBackgroundDefault = StfTargetBackgroundDefault,
+            ShowTrailSlider = ShowTrailSlider,
+            ShowFwhmSlider = ShowFwhmSlider,
+            ShowFwhmArcsecSlider = ShowFwhmArcsecSlider,
+            ShowSqmSlider = ShowSqmSlider,
+            ShowSkyTempSlider = ShowSkyTempSlider,
+            ShowHfrSlider = ShowHfrSlider,
+            ShowEccentricitySlider = ShowEccentricitySlider,
+            ShowMeanBackgroundSlider = ShowMeanBackgroundSlider,
+            ShowStarsSlider = ShowStarsSlider,
+            ShowScoreSlider = ShowScoreSlider,
+            ShowTrailMetric = ShowTrailMetric,
+            ShowFwhmMetric = ShowFwhmMetric,
+            ShowFwhmArcsecMetric = ShowFwhmArcsecMetric,
+            ShowSqmMetric = ShowSqmMetric,
+            ShowSkyTempMetric = ShowSkyTempMetric,
+            ShowHfrMetric = ShowHfrMetric,
+            ShowEccentricityMetric = ShowEccentricityMetric,
+            ShowMeanBackgroundMetric = ShowMeanBackgroundMetric,
+            ShowStarsMetric = ShowStarsMetric,
+            ShowScoreMetric = ShowScoreMetric,
+            AutoCalcTrailThreshold = AutoCalcTrailThreshold,
+            AutoCalcFwhmThreshold = AutoCalcFwhmThreshold,
+            AutoCalcFwhmArcsecThreshold = AutoCalcFwhmArcsecThreshold,
+            AutoCalcSqmThreshold = AutoCalcSqmThreshold,
+            AutoCalcSkyTempThreshold = AutoCalcSkyTempThreshold,
+            AutoCalcHfrThreshold = AutoCalcHfrThreshold,
+            AutoCalcEccentricityThreshold = AutoCalcEccentricityThreshold,
+            AutoCalcMeanBackgroundThreshold = AutoCalcMeanBackgroundThreshold,
+            AutoCalcStarsThreshold = AutoCalcStarsThreshold,
+            AutoCalcScoreThreshold = AutoCalcScoreThreshold,
+            UseScoreFwhm = UseScoreFwhm,
+            UseScoreEccentricity = UseScoreEccentricity,
+            UseScoreTrail = UseScoreTrail,
+            UseScoreHfr = UseScoreHfr,
+            UseScoreStars = UseScoreStars,
+            UseScoreMeanBackground = UseScoreMeanBackground,
+            ScoreWeightFwhm = ScoreWeightFwhm,
+            ScoreWeightEccentricity = ScoreWeightEccentricity,
+            ScoreWeightTrail = ScoreWeightTrail,
+            ScoreWeightHfr = ScoreWeightHfr,
+            ScoreWeightStars = ScoreWeightStars,
+            ScoreWeightMeanBackground = ScoreWeightMeanBackground,
+        };
+    }
+
     public static string NormalizeName(string? raw)
     {
         var value = (raw ?? string.Empty).Trim();

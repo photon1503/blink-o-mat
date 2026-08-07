@@ -519,7 +519,21 @@
         </Grid>
         <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="10">
-          <TextBlock Text="Thresholds" FontSize="12" FontWeight="SemiBold" Foreground="#D7E8FF" />
+          <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,0,0,4">
+            <TextBlock Text="PROFILES" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
+          </Border>
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
+            <TextBox Watermark="Profile name" Text="{Binding NewProfileName, Mode=TwoWay}" />
+            <Button Grid.Column="1" Content="Create" Command="{Binding CreateProfileCommand}" />
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
+            <ComboBox ItemsSource="{Binding SettingsProfiles}" SelectedItem="{Binding SelectedSettingsProfile, Mode=TwoWay}" DisplayMemberBinding="{Binding Name}" />
+            <CheckBox Grid.Column="1" Content="Default" IsChecked="{Binding IsSelectedProfileDefault, Mode=TwoWay}" VerticalAlignment="Center" />
+          </Grid>
+
+          <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,4">
+            <TextBlock Text="THRESHOLDS" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
+          </Border>
           <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="8">
             <TextBlock VerticalAlignment="Center" Text="Max FWHM" />
             <NumericUpDown Grid.Column="1" Minimum="0" Maximum="50" Increment="0.1" Value="{Binding MaxFwhm}" FormatString="F2" />

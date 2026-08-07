@@ -1,0 +1,7 @@
+- [x] Reviewed WPF profile/settings behavior and mapped it to the Avalonia port.
+- [x] Added cloning support for thresholds and settings profiles in the shared core.
+- [x] Added profile lifecycle state to the Avalonia main window view model.
+- [x] Exposed profile create/select/default controls in the Avalonia settings overlay.
+- [x] Wired profile state to persistence in the shared settings service.
+- [x] Verified the core regression tests pass.
+- [x] Verified the Avalonia project builds successfully.
