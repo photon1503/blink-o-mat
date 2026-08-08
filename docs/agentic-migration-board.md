@@ -193,17 +193,17 @@ Goal: Match WPF settings overlay behavior and persistence profile model.
   - Remaining delta listed: Yes
 
 ### Task 2.1: Profile Lifecycle Parity
-- Status: TODO
+- Status: DONE
 - Objective: Port profile create/select/default workflow.
 - Baseline: src/Views/SettingsOverlayView.xaml and src/ViewModels/MainViewModel.cs
 - Targets: src/Rejector.Avalonia/Views/MainWindow.axaml, src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
 - Files expected: 3-8
 - Acceptance Matrix:
-  - Behavior matched: No
-  - Build passed: No
-  - Tests passed: No
-  - Screenshot captured: No
-  - Remaining delta listed: No
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: Yes
+  - Remaining delta listed: Yes
 
 ### Task 2.2: Profile-Backed Toggle Persistence Parity
 - Status: TODO
