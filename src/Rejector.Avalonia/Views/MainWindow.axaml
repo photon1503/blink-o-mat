@@ -126,7 +126,7 @@
             <StackPanel>
               <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Margin="0,0,0,8">
                 <TextBlock Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center" Text="Automatic rejection" />
-                <Button Grid.Column="1" Content="↻" Width="26" Height="22" Command="{Binding ResetThresholdsCommand}" ToolTip.Tip="Reset all threshold sliders to defaults" />
+                <Button Grid.Column="1" Content="↻" Width="26" Height="22" Command="{Binding ResetThresholdsCommand}" ToolTip.Tip="Set thresholds to the worst loaded frame values" />
                 <ComboBox Grid.Column="2"
                           Width="110"
                           Height="22"
@@ -136,7 +136,7 @@
 
               <controls:MetricSliderControl Label="Min. trail confidence"
                                             Value="{Binding MinSatelliteConfidence}"
-                                            Minimum="1"
+                                            Minimum="0"
                                             Maximum="100"
                                             TickFrequency="5"
                                             LargeChange="10"

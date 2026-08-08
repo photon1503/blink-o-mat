@@ -24,6 +24,48 @@ public sealed class Thresholds
     public bool AutoCalcStarsThreshold { get; set; } = true;
     public bool AutoCalcScoreThreshold { get; set; } = true;
 
+    public static Thresholds CreatePermissive(IEnumerable<ProcessedFrame> frames)
+    {
+        var materialized = frames.ToList();
+        var defaults = new Thresholds();
+
+        static double MaxOrDefault(IEnumerable<double> values, double fallback)
+        {
+            var finite = values.Where(double.IsFinite).ToList();
+            return finite.Count > 0 ? finite.Max() : fallback;
+        }
+
+        static double MinOrDefault(IEnumerable<double> values, double fallback)
+        {
+            var finite = values.Where(double.IsFinite).ToList();
+            return finite.Count > 0 ? finite.Min() : fallback;
+        }
+
+        return new Thresholds
+        {
+            MaxFwhm = MaxOrDefault(materialized.Select(frame => frame.Metrics.Fwhm), defaults.MaxFwhm),
+            MaxFwhmArcsec = MaxOrDefault(materialized.Select(frame => frame.Metrics.FwhmArcsec).OfType<double>(), defaults.MaxFwhmArcsec),
+            MinSqm = MinOrDefault(materialized.Select(frame => frame.Metrics.Sqm).OfType<double>(), defaults.MinSqm),
+            MaxSkyTemp = MaxOrDefault(materialized.Select(frame => frame.Metrics.SkyTemp).OfType<double>(), defaults.MaxSkyTemp),
+            MaxHfr = MaxOrDefault(materialized.Select(frame => frame.Metrics.Hfr), defaults.MaxHfr),
+            MaxEccentricity = MaxOrDefault(materialized.Select(frame => frame.Metrics.Eccentricity), defaults.MaxEccentricity),
+            MaxMeanBackground = MaxOrDefault(materialized.Select(frame => frame.Metrics.MeanBackground), defaults.MaxMeanBackground),
+            MinStars = materialized.Count > 0 ? materialized.Min(frame => (double)frame.Metrics.StarCount) : defaults.MinStars,
+            MinSatelliteConfidence = 0,
+            MinScore = MinOrDefault(materialized.Select(frame => frame.OverallScore), defaults.MinScore),
+            AutoCalcTrailThreshold = false,
+            AutoCalcFwhmThreshold = false,
+            AutoCalcFwhmArcsecThreshold = false,
+            AutoCalcSqmThreshold = false,
+            AutoCalcSkyTempThreshold = false,
+            AutoCalcHfrThreshold = false,
+            AutoCalcEccentricityThreshold = false,
+            AutoCalcMeanBackgroundThreshold = false,
+            AutoCalcStarsThreshold = false,
+            AutoCalcScoreThreshold = false,
+        };
+    }
+
     public Thresholds Clone()
     {
         return new Thresholds

@@ -444,37 +444,31 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public string ResultCountText => $"{Results.Count} analyzed frame(s), {Results.Count(result => result.IsRejected)} rejected";
 
-    public int TotalFrameCount => GetFilterScopedContexts().Count();
+    public int TotalFrameCount => GetFrameStatistics().Total;
 
-    public int ApprovedFrameCount => GetFilterScopedContexts().Count(context => !context.Frame.IsRejected);
+    public int ApprovedFrameCount => GetFrameStatistics().Accepted;
 
-    public int RejectedFrameCount => GetFilterScopedContexts().Count(context => context.Frame.IsRejected);
+    public int RejectedFrameCount => GetFrameStatistics().Rejected;
 
-    public double OverallAcceptedRatio => TotalFrameCount == 0 ? 0 : ApprovedFrameCount / (double)TotalFrameCount;
+    public double OverallAcceptedRatio => GetFrameStatistics().AcceptedRatio;
 
     public string ApprovedFramePercentageText => TotalFrameCount == 0 ? "0%" : $"{(ApprovedFrameCount * 100.0 / TotalFrameCount):F0}%";
 
     public string RejectedFramePercentageText => TotalFrameCount == 0 ? "0%" : $"{(RejectedFrameCount * 100.0 / TotalFrameCount):F0}%";
 
-    public string AcceptedIntegrationTimeText => FormatIntegrationTime(GetFilterScopedContexts().Where(context => !context.Frame.IsRejected));
+    public string AcceptedIntegrationTimeText => FormatIntegrationTime(GetFrameStatistics().AcceptedExposureSeconds);
 
-    public string TotalIntegrationTimeText => FormatIntegrationTime(GetFilterScopedContexts());
+    public string TotalIntegrationTimeText => FormatIntegrationTime(GetFrameStatistics().TotalExposureSeconds);
 
-    public IReadOnlyList<FilterSummaryViewModel> FilterSummaries => GetFilterScopedContexts()
-        .GroupBy(context => context.Frame.FilterName?.Trim() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-        .OrderBy(group => string.IsNullOrWhiteSpace(group.Key) ? "zzzz" : group.Key, StringComparer.OrdinalIgnoreCase)
-        .Select(group =>
-        {
-            var items = group.ToList();
-            var total = items.Count;
-            var accepted = items.Count(context => !context.Frame.IsRejected);
-            return new FilterSummaryViewModel(
-                string.IsNullOrWhiteSpace(group.Key) ? "-" : group.Key,
-                accepted,
-                total - accepted,
-                total,
-                FormatIntegrationTime(items.Where(context => !context.Frame.IsRejected)));
-        })
+    public IReadOnlyList<FilterSummaryViewModel> FilterSummaries => GetFrameStatistics().Filters
+        .Select(filter => new FilterSummaryViewModel(
+            filter.FilterName,
+            filter.Accepted,
+            filter.Rejected,
+            filter.Total,
+            FormatIntegrationTime(filter.AcceptedExposureSeconds > 0
+                ? filter.AcceptedExposureSeconds
+                : filter.TotalExposureSeconds)))
         .ToList();
 
     public ICommand AnalyzeCommand => _analyzeCommand;
@@ -720,7 +714,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    public IReadOnlyList<string> SortFieldOptions { get; } = ["File name", "FWHM", "HFR", "Stars", "Eccentricity"];
+    public IReadOnlyList<string> SortFieldOptions { get; } = [
+        "File name",
+        "Score",
+        "Observation date",
+        "FWHM",
+        "FWHM arcsec",
+        "SQM",
+        "Sky temp",
+        "HFR",
+        "Stars",
+        "Eccentricity",
+        "Mean background",
+        "Median",
+        "MAD",
+        "Min",
+        "Min count",
+        "Max",
+        "Max count"
+    ];
 
     public Bitmap DemoPreview { get; } = CreateDemoPreview();
 
@@ -2222,7 +2234,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         var selectedPath = SelectedResult?.FilePath;
         var scopedContexts = GetFilterScopedContexts().ToList();
-        var scoreMap = ComputeScores(scopedContexts);
+        var scoreMap = ComputeScores(_resultContexts);
+        foreach (var context in _resultContexts)
+        {
+            if (scoreMap.TryGetValue(context.Frame.FilePath, out var score))
+            {
+                context.Frame.OverallScore = score;
+            }
+        }
         var indicatorMap = ComputeIndicatorColors(scopedContexts);
 
         Results.Clear();
@@ -2330,6 +2349,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             string.Equals(NormalizeFilterKey(context.Frame.FilterName), selectedKey, StringComparison.OrdinalIgnoreCase));
     }
 
+    private FrameStatistics GetFrameStatistics() =>
+        FrameStatisticsCalculator.Calculate(GetFilterScopedContexts().Select(context => context.Frame));
+
     private int CountThresholdRejects(Func<FrameResultContext, bool> predicate)
     {
         return GetThresholdScopeContexts().Count(predicate);
@@ -2351,22 +2373,21 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private void ResetThresholds()
     {
-        var defaults = new Thresholds();
-        var thresholds = GetSelectedThresholdsForEdit();
-        thresholds.MaxFwhm = defaults.MaxFwhm;
-        thresholds.MaxFwhmArcsec = defaults.MaxFwhmArcsec;
-        thresholds.MinSqm = defaults.MinSqm;
-        thresholds.MaxSkyTemp = defaults.MaxSkyTemp;
-        thresholds.MaxHfr = defaults.MaxHfr;
-        thresholds.MaxEccentricity = defaults.MaxEccentricity;
-        thresholds.MaxMeanBackground = defaults.MaxMeanBackground;
-        thresholds.MinStars = defaults.MinStars;
-        thresholds.MinSatelliteConfidence = defaults.MinSatelliteConfidence;
-        thresholds.MinScore = defaults.MinScore;
+        var scoreMap = ComputeScores(_resultContexts);
+        foreach (var context in _resultContexts)
+        {
+            if (scoreMap.TryGetValue(context.Frame.FilePath, out var score))
+            {
+                context.Frame.OverallScore = score;
+            }
+        }
+
+        _thresholds = Thresholds.CreatePermissive(_resultContexts.Select(context => context.Frame));
+        _filterThresholds.Clear();
 
         RaiseAllThresholdPropertiesChanged();
-        PersistSelectedThresholdScopeAndRevalidateAll();
-        StatusText = "Reset rejection thresholds to defaults.";
+        OverrideSelectedProfileThresholdsAndRevalidateAll();
+        StatusText = "Set rejection thresholds to the worst loaded frame values and revalidated every frame.";
     }
 
     private void RaiseAllThresholdPropertiesChanged()
@@ -2385,10 +2406,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private IEnumerable<FrameResultContext> GetFilterScopedContexts()
     {
+        if (FilterChips.Count == 0)
+        {
+            return _resultContexts;
+        }
+
         var selectedKeys = FilterChips.Where(chip => chip.IsSelected).Select(chip => chip.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (selectedKeys.Count == 0)
         {
-            return _resultContexts;
+            return [];
         }
 
         return _resultContexts.Where(context => selectedKeys.Contains(NormalizeFilterKey(context.Frame.FilterName)));
@@ -2408,51 +2434,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             query = query.Where(context => !context.Frame.IsRejected);
         }
 
-        var rules = SortRules.Count > 0
-            ? SortRules.ToArray()
-            : [new SortRuleViewModel(SortField, true, RebuildResults)];
+        var rules = (SortRules.Count > 0 ? SortRules : [new SortRuleViewModel(SortField, true, RebuildResults)])
+            .Select(rule => new FrameSortRule(rule.Field, rule.IsAscending))
+            .ToArray();
 
-        IOrderedEnumerable<FrameResultContext>? ordered = null;
-        foreach (var rule in rules)
-        {
-            ordered = ApplySortRule(ordered, query, rule);
-        }
-
-        query = ordered?.ThenBy(context => context.Frame.FileName, StringComparer.OrdinalIgnoreCase)
-            ?? query.OrderBy(context => context.Frame.FileName, StringComparer.OrdinalIgnoreCase);
-
-        return query;
-    }
-
-    private static IOrderedEnumerable<FrameResultContext> ApplySortRule(
-        IOrderedEnumerable<FrameResultContext>? ordered,
-        IEnumerable<FrameResultContext> source,
-        SortRuleViewModel rule)
-    {
-        return (rule.Field, rule.IsAscending, ordered) switch
-        {
-            ("FWHM", true, null) => source.OrderBy(context => context.Frame.Metrics.Fwhm),
-            ("FWHM", false, null) => source.OrderByDescending(context => context.Frame.Metrics.Fwhm),
-            ("HFR", true, null) => source.OrderBy(context => context.Frame.Metrics.Hfr),
-            ("HFR", false, null) => source.OrderByDescending(context => context.Frame.Metrics.Hfr),
-            ("Stars", true, null) => source.OrderBy(context => context.Frame.Metrics.StarCount),
-            ("Stars", false, null) => source.OrderByDescending(context => context.Frame.Metrics.StarCount),
-            ("Eccentricity", true, null) => source.OrderBy(context => context.Frame.Metrics.Eccentricity),
-            ("Eccentricity", false, null) => source.OrderByDescending(context => context.Frame.Metrics.Eccentricity),
-            ("File name", false, null) => source.OrderByDescending(context => context.Frame.FileName, StringComparer.OrdinalIgnoreCase),
-            (_, _, null) => source.OrderBy(context => context.Frame.FileName, StringComparer.OrdinalIgnoreCase),
-
-            ("FWHM", true, not null) => ordered.ThenBy(context => context.Frame.Metrics.Fwhm),
-            ("FWHM", false, not null) => ordered.ThenByDescending(context => context.Frame.Metrics.Fwhm),
-            ("HFR", true, not null) => ordered.ThenBy(context => context.Frame.Metrics.Hfr),
-            ("HFR", false, not null) => ordered.ThenByDescending(context => context.Frame.Metrics.Hfr),
-            ("Stars", true, not null) => ordered.ThenBy(context => context.Frame.Metrics.StarCount),
-            ("Stars", false, not null) => ordered.ThenByDescending(context => context.Frame.Metrics.StarCount),
-            ("Eccentricity", true, not null) => ordered.ThenBy(context => context.Frame.Metrics.Eccentricity),
-            ("Eccentricity", false, not null) => ordered.ThenByDescending(context => context.Frame.Metrics.Eccentricity),
-            ("File name", false, not null) => ordered.ThenByDescending(context => context.Frame.FileName, StringComparer.OrdinalIgnoreCase),
-            (_, _, not null) => ordered.ThenBy(context => context.Frame.FileName, StringComparer.OrdinalIgnoreCase),
-        };
+        var comparer = new FrameSortComparer(rules);
+        return query
+            .OrderBy(context => context.Frame, comparer)
+            .ThenBy(context => context.Frame.FileName, StringComparer.OrdinalIgnoreCase);
     }
 
     private static string NormalizeFilterKey(string? filterName)
@@ -2703,12 +2692,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private const string ColorYellow = "#DAA520";
     private const string ColorRed = "#CD5C5C";
 
-    private static string FormatIntegrationTime(IEnumerable<FrameResultContext> contexts)
+    private static string FormatIntegrationTime(double totalSeconds)
     {
-        var totalSeconds = contexts.Sum(context => context.Frame.ExposureSeconds ?? 0);
         if (totalSeconds <= 0)
         {
-            return "n/a";
+            return string.Empty;
         }
 
         return totalSeconds >= 3600

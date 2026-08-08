@@ -237,30 +237,32 @@ Goal: Match WPF settings overlay behavior and persistence profile model.
 Goal: Match rule precedence and status/performance semantics.
 
 ### Task 3.1: Multi-Rule Sort Precedence Validation
-- Status: IN_PROGRESS
+- Status: DONE
 - Objective: Validate and fix any rule-order differences versus WPF comparator behavior.
 - Baseline: src/ViewModels/MainViewModel.cs (ApplySorting, FrameItemComparer)
 - Target: src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
 - Files expected: 1-4
+- Report: docs/reports/3.1-multi-rule-sort-precedence-validation.md
 - Acceptance Matrix:
-  - Behavior matched: No
+  - Behavior matched: Yes
   - Build passed: Yes
   - Tests passed: Yes
-  - Screenshot captured: No
-  - Remaining delta listed: No
+  - Screenshot captured: Yes
+  - Remaining delta listed: Yes
 
 ### Task 3.2: Filter Scope Statistics Consistency
-- Status: TODO
+- Status: DONE
 - Objective: Align accepted/rejected stats and per-filter summary behavior with WPF.
 - Baseline: src/ViewModels/MainViewModel.cs (GetVisibleFramesForStatistics and related)
 - Target: src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
 - Files expected: 1-4
+- Report: docs/reports/3.2-filter-scope-statistics-consistency.md
 - Acceptance Matrix:
-  - Behavior matched: No
-  - Build passed: No
-  - Tests passed: No
-  - Screenshot captured: No
-  - Remaining delta listed: No
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: Yes
+  - Remaining delta listed: Yes
 
 ### Task 3.3: Bottom Status/Performance Detail Parity
 - Status: TODO
