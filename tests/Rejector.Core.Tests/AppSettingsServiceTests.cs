@@ -77,6 +77,110 @@ public sealed class AppSettingsServiceTests
     }
 
     [Fact]
+    public void OverrideThresholds_ReplacesProfileThresholdsAndClearsFilterOverrides()
+    {
+        var profile = new SettingsProfile
+        {
+            Thresholds = new Thresholds { MaxFwhm = 3.5 },
+            FilterThresholds =
+            [
+                new ProfileFilterThresholds
+                {
+                    Key = "Ha",
+                    Thresholds = new Thresholds { MaxFwhm = 2.5 },
+                },
+            ],
+        };
+        var replacement = new Thresholds { MaxFwhm = 6.5 };
+
+        profile.OverrideThresholds(replacement);
+        replacement.MaxFwhm = 9.5;
+
+        Assert.Equal(6.5, profile.Thresholds.MaxFwhm);
+        Assert.Empty(profile.FilterThresholds);
+    }
+
+    [Fact]
+    public void GetOrCreateFilterThresholds_ClonesGlobalAndResolvesCaseInsensitively()
+    {
+        var profile = new SettingsProfile
+        {
+            Thresholds = new Thresholds { MaxFwhm = 6.5 },
+        };
+
+        var filterThresholds = profile.GetOrCreateFilterThresholds(" Ha ");
+        filterThresholds.MaxFwhm = 3.25;
+
+        Assert.Equal(6.5, profile.Thresholds.MaxFwhm);
+        Assert.Equal(3.25, profile.GetThresholdsForFilter("ha").MaxFwhm);
+        Assert.Equal(6.5, profile.GetThresholdsForFilter("OIII").MaxFwhm);
+        Assert.Single(profile.FilterThresholds);
+    }
+
+    [Fact]
+    public void SaveAndLoad_PreservesProfileToggleThresholdAndScoreState()
+    {
+        var tempRoot = CreateTempDirectory();
+        try
+        {
+            var service = new AppSettingsService(new FixedPathProvider(tempRoot), "Rejector.Tests");
+            service.Save(new AppSettings
+            {
+                Profiles =
+                [
+                    new SettingsProfile
+                    {
+                        Name = "Imaging",
+                        Thresholds = new Thresholds
+                        {
+                            MaxFwhm = 4.25,
+                            AutoCalcFwhmThreshold = false,
+                        },
+                        FilterThresholds =
+                        [
+                            new ProfileFilterThresholds
+                            {
+                                Key = "Ha",
+                                Thresholds = new Thresholds
+                                {
+                                    MaxFwhm = 2.75,
+                                    AutoCalcFwhmThreshold = false,
+                                },
+                            },
+                        ],
+                        ShowFwhmMetric = false,
+                        ShowTrailMetric = false,
+                        ShowSkyTempMetric = false,
+                        ShowMeanBackgroundMetric = false,
+                        ShowScoreMetric = false,
+                        UseScoreFwhm = false,
+                        ScoreWeightTrail = 4.25,
+                    },
+                ],
+                DefaultProfileName = "Imaging",
+            });
+
+            var loaded = service.Load().Profiles.Single();
+
+            Assert.Equal(4.25, loaded.Thresholds.MaxFwhm);
+            Assert.False(loaded.Thresholds.AutoCalcFwhmThreshold);
+            Assert.Equal(2.75, loaded.GetThresholdsForFilter("ha").MaxFwhm);
+            Assert.False(loaded.GetThresholdsForFilter("ha").AutoCalcFwhmThreshold);
+            Assert.False(loaded.ShowFwhmMetric);
+            Assert.False(loaded.ShowTrailMetric);
+            Assert.False(loaded.ShowSkyTempMetric);
+            Assert.False(loaded.ShowMeanBackgroundMetric);
+            Assert.False(loaded.ShowScoreMetric);
+            Assert.False(loaded.UseScoreFwhm);
+            Assert.Equal(4.25, loaded.ScoreWeightTrail);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
     public void TryBackupPersistedSettings_MovesExistingSettingsFile()
     {
         var tempRoot = CreateTempDirectory();

@@ -61,6 +61,59 @@ public sealed class SettingsProfile
     public double ScoreWeightStars { get; set; } = 1.5;
     public double ScoreWeightMeanBackground { get; set; } = 0.5;
 
+    public void OverrideThresholds(Thresholds thresholds)
+    {
+        Thresholds = thresholds.Clone();
+        FilterThresholds.Clear();
+        AutoCalcTrailThreshold = Thresholds.AutoCalcTrailThreshold;
+        AutoCalcFwhmThreshold = Thresholds.AutoCalcFwhmThreshold;
+        AutoCalcFwhmArcsecThreshold = Thresholds.AutoCalcFwhmArcsecThreshold;
+        AutoCalcSqmThreshold = Thresholds.AutoCalcSqmThreshold;
+        AutoCalcSkyTempThreshold = Thresholds.AutoCalcSkyTempThreshold;
+        AutoCalcHfrThreshold = Thresholds.AutoCalcHfrThreshold;
+        AutoCalcEccentricityThreshold = Thresholds.AutoCalcEccentricityThreshold;
+        AutoCalcMeanBackgroundThreshold = Thresholds.AutoCalcMeanBackgroundThreshold;
+        AutoCalcStarsThreshold = Thresholds.AutoCalcStarsThreshold;
+        AutoCalcScoreThreshold = Thresholds.AutoCalcScoreThreshold;
+    }
+
+    public Thresholds GetThresholdsForFilter(string? filterKey)
+    {
+        var normalizedKey = NormalizeFilterKey(filterKey);
+        if (normalizedKey.Length == 0)
+        {
+            return Thresholds;
+        }
+
+        return FilterThresholds.FirstOrDefault(item =>
+                   string.Equals(NormalizeFilterKey(item.Key), normalizedKey, StringComparison.OrdinalIgnoreCase))?.Thresholds
+               ?? Thresholds;
+    }
+
+    public Thresholds GetOrCreateFilterThresholds(string? filterKey)
+    {
+        var normalizedKey = NormalizeFilterKey(filterKey);
+        if (normalizedKey.Length == 0)
+        {
+            return Thresholds;
+        }
+
+        var existing = FilterThresholds.FirstOrDefault(item =>
+            string.Equals(NormalizeFilterKey(item.Key), normalizedKey, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            return existing.Thresholds;
+        }
+
+        var created = new ProfileFilterThresholds
+        {
+            Key = normalizedKey,
+            Thresholds = Thresholds.Clone(),
+        };
+        FilterThresholds.Add(created);
+        return created.Thresholds;
+    }
+
     public SettingsProfile Clone()
     {
         return new SettingsProfile
@@ -124,6 +177,11 @@ public sealed class SettingsProfile
     {
         var value = (raw ?? string.Empty).Trim();
         return string.IsNullOrWhiteSpace(value) ? "Default" : value;
+    }
+
+    private static string NormalizeFilterKey(string? raw)
+    {
+        return raw?.Trim() ?? string.Empty;
     }
 }
 

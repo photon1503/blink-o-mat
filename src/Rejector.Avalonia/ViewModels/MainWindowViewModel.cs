@@ -81,6 +81,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _showEccentricityMetric = true;
     private bool _showTrailMetric = true;
     private bool _showSqmMetric = true;
+    private bool _showSkyTempMetric = true;
+    private bool _showMeanBackgroundMetric = true;
+    private bool _showScoreMetric = true;
     private double _stfTargetBackground = 0.25;
     private double _stfShadows;
     private double _stfMidtones = 0.25;
@@ -434,6 +437,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
             _selectedRejectionFilter = next;
             OnPropertyChanged();
+            RaiseAllThresholdPropertiesChanged();
             RaiseThresholdPanelDiagnosticsChanged();
         }
     }
@@ -557,6 +561,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool ShowEccentricityMetric { get => _showEccentricityMetric; set { if (SetBool(ref _showEccentricityMetric, value)) { PersistProfileSettings(); } } }
     public bool ShowTrailMetric { get => _showTrailMetric; set { if (SetBool(ref _showTrailMetric, value)) { PersistProfileSettings(); } } }
     public bool ShowSqmMetric { get => _showSqmMetric; set { if (SetBool(ref _showSqmMetric, value)) { PersistProfileSettings(); } } }
+    public bool ShowSkyTempMetric { get => _showSkyTempMetric; set { if (SetBool(ref _showSkyTempMetric, value)) { PersistProfileSettings(); } } }
+    public bool ShowMeanBackgroundMetric { get => _showMeanBackgroundMetric; set { if (SetBool(ref _showMeanBackgroundMetric, value)) { PersistProfileSettings(); } } }
+    public bool ShowScoreMetric { get => _showScoreMetric; set { if (SetBool(ref _showScoreMetric, value)) { PersistProfileSettings(); } } }
 
     public bool AutoStretchPerFrame
     {
@@ -975,99 +982,100 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public double MaxFwhm
     {
-        get => _thresholds.MaxFwhm;
-        set => SetThresholdValue(_thresholds.MaxFwhm, value, v => _thresholds.MaxFwhm = v, nameof(MaxFwhm));
+        get => GetSelectedThresholds().MaxFwhm;
+        set => SetThresholdValue(t => t.MaxFwhm, (t, v) => t.MaxFwhm = v, (t, v) => t.AutoCalcFwhmThreshold = v, value, nameof(MaxFwhm));
     }
 
     public double MaxHfr
     {
-        get => _thresholds.MaxHfr;
-        set => SetThresholdValue(_thresholds.MaxHfr, value, v => _thresholds.MaxHfr = v, nameof(MaxHfr));
+        get => GetSelectedThresholds().MaxHfr;
+        set => SetThresholdValue(t => t.MaxHfr, (t, v) => t.MaxHfr = v, (t, v) => t.AutoCalcHfrThreshold = v, value, nameof(MaxHfr));
     }
 
     public double MaxFwhmArcsec
     {
-        get => _thresholds.MaxFwhmArcsec;
-        set => SetThresholdValue(_thresholds.MaxFwhmArcsec, value, v => _thresholds.MaxFwhmArcsec = v, nameof(MaxFwhmArcsec));
+        get => GetSelectedThresholds().MaxFwhmArcsec;
+        set => SetThresholdValue(t => t.MaxFwhmArcsec, (t, v) => t.MaxFwhmArcsec = v, (t, v) => t.AutoCalcFwhmArcsecThreshold = v, value, nameof(MaxFwhmArcsec));
     }
 
     public double MinSqm
     {
-        get => _thresholds.MinSqm;
-        set => SetThresholdValue(_thresholds.MinSqm, value, v => _thresholds.MinSqm = v, nameof(MinSqm));
+        get => GetSelectedThresholds().MinSqm;
+        set => SetThresholdValue(t => t.MinSqm, (t, v) => t.MinSqm = v, (t, v) => t.AutoCalcSqmThreshold = v, value, nameof(MinSqm));
     }
 
     public double MaxSkyTemp
     {
-        get => _thresholds.MaxSkyTemp;
-        set => SetThresholdValue(_thresholds.MaxSkyTemp, value, v => _thresholds.MaxSkyTemp = v, nameof(MaxSkyTemp));
+        get => GetSelectedThresholds().MaxSkyTemp;
+        set => SetThresholdValue(t => t.MaxSkyTemp, (t, v) => t.MaxSkyTemp = v, (t, v) => t.AutoCalcSkyTempThreshold = v, value, nameof(MaxSkyTemp));
     }
 
     public double MaxEccentricity
     {
-        get => _thresholds.MaxEccentricity;
-        set => SetThresholdValue(_thresholds.MaxEccentricity, value, v => _thresholds.MaxEccentricity = v, nameof(MaxEccentricity));
+        get => GetSelectedThresholds().MaxEccentricity;
+        set => SetThresholdValue(t => t.MaxEccentricity, (t, v) => t.MaxEccentricity = v, (t, v) => t.AutoCalcEccentricityThreshold = v, value, nameof(MaxEccentricity));
     }
 
     public double MaxMeanBackground
     {
-        get => _thresholds.MaxMeanBackground;
-        set => SetThresholdValue(_thresholds.MaxMeanBackground, value, v => _thresholds.MaxMeanBackground = v, nameof(MaxMeanBackground));
+        get => GetSelectedThresholds().MaxMeanBackground;
+        set => SetThresholdValue(t => t.MaxMeanBackground, (t, v) => t.MaxMeanBackground = v, (t, v) => t.AutoCalcMeanBackgroundThreshold = v, value, nameof(MaxMeanBackground));
     }
 
     public double MinStars
     {
-        get => _thresholds.MinStars;
-        set => SetThresholdValue(_thresholds.MinStars, value, v => _thresholds.MinStars = v, nameof(MinStars));
+        get => GetSelectedThresholds().MinStars;
+        set => SetThresholdValue(t => t.MinStars, (t, v) => t.MinStars = v, (t, v) => t.AutoCalcStarsThreshold = v, value, nameof(MinStars));
     }
 
     public int MinSatelliteConfidence
     {
-        get => _thresholds.MinSatelliteConfidence;
+        get => GetSelectedThresholds().MinSatelliteConfidence;
         set
         {
-            if (_thresholds.MinSatelliteConfidence == value)
+            var thresholds = GetSelectedThresholdsForEdit();
+            if (thresholds.MinSatelliteConfidence == value)
             {
                 return;
             }
 
-            _thresholds.MinSatelliteConfidence = value;
+            thresholds.MinSatelliteConfidence = value;
+            thresholds.AutoCalcTrailThreshold = false;
             OnPropertyChanged();
-            ReapplyThresholdsFromSidebar();
-            RaiseThresholdPanelDiagnosticsChanged();
+            PersistSelectedThresholdScopeAndRevalidateAll();
         }
     }
 
     public double MinScore
     {
-        get => _thresholds.MinScore;
-        set => SetThresholdValue(_thresholds.MinScore, value, v => _thresholds.MinScore = v, nameof(MinScore));
+        get => GetSelectedThresholds().MinScore;
+        set => SetThresholdValue(t => t.MinScore, (t, v) => t.MinScore = v, (t, v) => t.AutoCalcScoreThreshold = v, value, nameof(MinScore));
     }
 
     public int SatelliteTrailRejectedFrameCount => CountThresholdRejects(context =>
-        _thresholds.MinSatelliteConfidence > 0 && context.Frame.Metrics.SatelliteTrailConfidence >= _thresholds.MinSatelliteConfidence);
+        GetSelectedThresholds().MinSatelliteConfidence > 0 && context.Frame.Metrics.SatelliteTrailConfidence >= GetSelectedThresholds().MinSatelliteConfidence);
 
-    public int FwhmRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.Fwhm > _thresholds.MaxFwhm);
+    public int FwhmRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.Fwhm > GetSelectedThresholds().MaxFwhm);
 
     public int FwhmArcsecRejectedFrameCount => CountThresholdRejects(context =>
-        context.Frame.Metrics.FwhmArcsec.HasValue && context.Frame.Metrics.FwhmArcsec.Value > _thresholds.MaxFwhmArcsec);
+        context.Frame.Metrics.FwhmArcsec.HasValue && context.Frame.Metrics.FwhmArcsec.Value > GetSelectedThresholds().MaxFwhmArcsec);
 
     public int SqmRejectedFrameCount => CountThresholdRejects(context =>
-        context.Frame.Metrics.Sqm.HasValue && context.Frame.Metrics.Sqm.Value < _thresholds.MinSqm);
+        context.Frame.Metrics.Sqm.HasValue && context.Frame.Metrics.Sqm.Value < GetSelectedThresholds().MinSqm);
 
     public int SkyTempRejectedFrameCount => CountThresholdRejects(context =>
-        context.Frame.Metrics.SkyTemp.HasValue && context.Frame.Metrics.SkyTemp.Value > _thresholds.MaxSkyTemp);
+        context.Frame.Metrics.SkyTemp.HasValue && context.Frame.Metrics.SkyTemp.Value > GetSelectedThresholds().MaxSkyTemp);
 
-    public int HfrRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.Hfr > _thresholds.MaxHfr);
+    public int HfrRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.Hfr > GetSelectedThresholds().MaxHfr);
 
-    public int EccentricityRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.Eccentricity > _thresholds.MaxEccentricity);
+    public int EccentricityRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.Eccentricity > GetSelectedThresholds().MaxEccentricity);
 
-    public int MeanBackgroundRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.MeanBackground > _thresholds.MaxMeanBackground);
+    public int MeanBackgroundRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.MeanBackground > GetSelectedThresholds().MaxMeanBackground);
 
-    public int StarCountRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.StarCount < _thresholds.MinStars);
+    public int StarCountRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.StarCount < GetSelectedThresholds().MinStars);
 
     public int ScoreRejectedFrameCount => CountThresholdRejects(context =>
-        _thresholds.MinScore > 0 && context.Frame.OverallScore < _thresholds.MinScore);
+        GetSelectedThresholds().MinScore > 0 && context.Frame.OverallScore < GetSelectedThresholds().MinScore);
 
     public async Task SaveSessionAsync(string path)
     {
@@ -1336,7 +1344,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                         FilterName = raw.FilterName,
                         Metrics = metrics,
                     };
-                    frame.SetAutomaticRejected(_rejectionService.ShouldReject(frame, _thresholds));
+                    frame.SetAutomaticRejected(_rejectionService.ShouldReject(frame, ResolveThresholdsForFrame(frame)));
 
                     var thumbnailPayload = PreviewPayloadCodec.Encode(previews.Full);
                     var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
@@ -1398,7 +1406,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                                     FilterName = raw.FilterName,
                                     Metrics = metrics,
                                 };
-                                frame.SetAutomaticRejected(_rejectionService.ShouldReject(frame, _thresholds));
+                                frame.SetAutomaticRejected(_rejectionService.ShouldReject(frame, ResolveThresholdsForFrame(frame)));
 
                                 var thumbnailPayload = PreviewPayloadCodec.Encode(previews.Full);
                                 var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
@@ -1583,17 +1591,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             {
                 foreach (var filterThresholds in profile.FilterThresholds)
                 {
-                    _filterThresholds[filterThresholds.Key] = filterThresholds.Thresholds?.Clone() ?? new Thresholds();
+                    _filterThresholds[NormalizeFilterKey(filterThresholds.Key)] = filterThresholds.Thresholds?.Clone() ?? new Thresholds();
                 }
-            }
-            else
-            {
-                _filterThresholds[string.Empty] = profile.Thresholds?.Clone() ?? new Thresholds();
-            }
-
-            if (!_filterThresholds.ContainsKey(string.Empty))
-            {
-                _filterThresholds[string.Empty] = profile.Thresholds?.Clone() ?? new Thresholds();
             }
 
             _thresholds = profile.Thresholds?.Clone() ?? new Thresholds();
@@ -1608,6 +1607,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             ShowEccentricityMetric = profile.ShowEccentricityMetric;
             ShowTrailMetric = profile.ShowTrailMetric;
             ShowSqmMetric = profile.ShowSqmMetric;
+            ShowSkyTempMetric = profile.ShowSkyTempMetric;
+            ShowMeanBackgroundMetric = profile.ShowMeanBackgroundMetric;
+            ShowScoreMetric = profile.ShowScoreMetric;
 
             UseScoreFwhm = profile.UseScoreFwhm;
             UseScoreHfr = profile.UseScoreHfr;
@@ -1639,6 +1641,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(ShowEccentricityMetric));
             OnPropertyChanged(nameof(ShowTrailMetric));
             OnPropertyChanged(nameof(ShowSqmMetric));
+            OnPropertyChanged(nameof(ShowSkyTempMetric));
+            OnPropertyChanged(nameof(ShowMeanBackgroundMetric));
+            OnPropertyChanged(nameof(ShowScoreMetric));
             OnPropertyChanged(nameof(UseScoreFwhm));
             OnPropertyChanged(nameof(UseScoreHfr));
             OnPropertyChanged(nameof(UseScoreStars));
@@ -1692,6 +1697,72 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _appSettingsService.Save(settings);
     }
 
+    private void OverrideSelectedProfileThresholdsAndRevalidateAll()
+    {
+        _filterThresholds.Clear();
+        SelectedSettingsProfile?.OverrideThresholds(_thresholds);
+
+        RevalidateAllFramesWithResolvedThresholds();
+        PersistProfileSettings();
+    }
+
+    private void PersistSelectedThresholdScopeAndRevalidateAll()
+    {
+        if (string.Equals(SelectedRejectionFilter, AllFiltersScopeLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            OverrideSelectedProfileThresholdsAndRevalidateAll();
+            return;
+        }
+
+        RevalidateAllFramesWithResolvedThresholds();
+        PersistProfileSettings();
+    }
+
+    private Thresholds GetSelectedThresholds()
+    {
+        if (string.Equals(SelectedRejectionFilter, AllFiltersScopeLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            return _thresholds;
+        }
+
+        var key = NormalizeFilterKey(SelectedRejectionFilter);
+        return _filterThresholds.TryGetValue(key, out var thresholds) ? thresholds : _thresholds;
+    }
+
+    private Thresholds GetSelectedThresholdsForEdit()
+    {
+        if (string.Equals(SelectedRejectionFilter, AllFiltersScopeLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            return _thresholds;
+        }
+
+        var key = NormalizeFilterKey(SelectedRejectionFilter);
+        if (!_filterThresholds.TryGetValue(key, out var thresholds))
+        {
+            thresholds = _thresholds.Clone();
+            _filterThresholds[key] = thresholds;
+        }
+
+        return thresholds;
+    }
+
+    private Thresholds ResolveThresholdsForFrame(ProcessedFrame frame)
+    {
+        var key = NormalizeFilterKey(frame.FilterName);
+        return _filterThresholds.TryGetValue(key, out var thresholds) ? thresholds : _thresholds;
+    }
+
+    private void RevalidateAllFramesWithResolvedThresholds()
+    {
+        if (!IsAnalyzing && _resultContexts.Count > 0)
+        {
+            _rejectionService.RevalidateAll(_resultContexts.Select(context => context.Frame), _thresholds, _filterThresholds);
+            RebuildResults();
+        }
+
+        RaiseThresholdPanelDiagnosticsChanged();
+    }
+
     private SettingsProfile CreateProfileFromCurrentState(string name)
     {
         return new SettingsProfile
@@ -1713,6 +1784,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             ShowEccentricityMetric = ShowEccentricityMetric,
             ShowTrailMetric = ShowTrailMetric,
             ShowSqmMetric = ShowSqmMetric,
+            ShowSkyTempMetric = ShowSkyTempMetric,
+            ShowMeanBackgroundMetric = ShowMeanBackgroundMetric,
+            ShowScoreMetric = ShowScoreMetric,
             UseScoreFwhm = UseScoreFwhm,
             UseScoreHfr = UseScoreHfr,
             UseScoreStars = UseScoreStars,
@@ -1725,6 +1799,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             ScoreWeightEccentricity = ScoreWeightEccentricity,
             ScoreWeightMeanBackground = ScoreWeightBackground,
             ScoreWeightTrail = ScoreWeightTrail,
+            AutoCalcTrailThreshold = _thresholds.AutoCalcTrailThreshold,
+            AutoCalcFwhmThreshold = _thresholds.AutoCalcFwhmThreshold,
+            AutoCalcFwhmArcsecThreshold = _thresholds.AutoCalcFwhmArcsecThreshold,
+            AutoCalcSqmThreshold = _thresholds.AutoCalcSqmThreshold,
+            AutoCalcSkyTempThreshold = _thresholds.AutoCalcSkyTempThreshold,
+            AutoCalcHfrThreshold = _thresholds.AutoCalcHfrThreshold,
+            AutoCalcEccentricityThreshold = _thresholds.AutoCalcEccentricityThreshold,
+            AutoCalcMeanBackgroundThreshold = _thresholds.AutoCalcMeanBackgroundThreshold,
+            AutoCalcStarsThreshold = _thresholds.AutoCalcStarsThreshold,
+            AutoCalcScoreThreshold = _thresholds.AutoCalcScoreThreshold,
         };
     }
 
@@ -1886,11 +1970,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private void ApplyThresholds(bool updateStatus)
     {
-        var scopedContexts = GetThresholdScopeContexts().ToList();
-        foreach (var context in scopedContexts)
-        {
-            context.Frame.SetAutomaticRejected(_rejectionService.ShouldReject(context.Frame, _thresholds));
-        }
+        _rejectionService.RevalidateAll(_resultContexts.Select(context => context.Frame), _thresholds, _filterThresholds);
 
         RebuildResults();
         if (updateStatus)
@@ -1901,7 +1981,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
             StatusText = Results.Count == 0
                 ? StatusText
-                : $"Applied thresholds to {scopedContexts.Count} frame(s) in {scopeLabel}. {Results.Count(result => result.IsRejected)} currently rejected.";
+                : $"Applied {scopeLabel} thresholds and revalidated {_resultContexts.Count} frame(s). {Results.Count(result => result.IsRejected)} currently rejected.";
         }
 
         RaiseThresholdPanelDiagnosticsChanged();
@@ -2272,17 +2352,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private void ResetThresholds()
     {
         var defaults = new Thresholds();
-        _thresholds.MaxFwhm = defaults.MaxFwhm;
-        _thresholds.MaxFwhmArcsec = defaults.MaxFwhmArcsec;
-        _thresholds.MinSqm = defaults.MinSqm;
-        _thresholds.MaxSkyTemp = defaults.MaxSkyTemp;
-        _thresholds.MaxHfr = defaults.MaxHfr;
-        _thresholds.MaxEccentricity = defaults.MaxEccentricity;
-        _thresholds.MaxMeanBackground = defaults.MaxMeanBackground;
-        _thresholds.MinStars = defaults.MinStars;
-        _thresholds.MinSatelliteConfidence = defaults.MinSatelliteConfidence;
-        _thresholds.MinScore = defaults.MinScore;
+        var thresholds = GetSelectedThresholdsForEdit();
+        thresholds.MaxFwhm = defaults.MaxFwhm;
+        thresholds.MaxFwhmArcsec = defaults.MaxFwhmArcsec;
+        thresholds.MinSqm = defaults.MinSqm;
+        thresholds.MaxSkyTemp = defaults.MaxSkyTemp;
+        thresholds.MaxHfr = defaults.MaxHfr;
+        thresholds.MaxEccentricity = defaults.MaxEccentricity;
+        thresholds.MaxMeanBackground = defaults.MaxMeanBackground;
+        thresholds.MinStars = defaults.MinStars;
+        thresholds.MinSatelliteConfidence = defaults.MinSatelliteConfidence;
+        thresholds.MinScore = defaults.MinScore;
 
+        RaiseAllThresholdPropertiesChanged();
+        PersistSelectedThresholdScopeAndRevalidateAll();
+        StatusText = "Reset rejection thresholds to defaults.";
+    }
+
+    private void RaiseAllThresholdPropertiesChanged()
+    {
         OnPropertyChanged(nameof(MaxFwhm));
         OnPropertyChanged(nameof(MaxFwhmArcsec));
         OnPropertyChanged(nameof(MinSqm));
@@ -2293,10 +2381,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(MinStars));
         OnPropertyChanged(nameof(MinSatelliteConfidence));
         OnPropertyChanged(nameof(MinScore));
-
-        PersistProfileSettings();
-        ReapplyThresholdsFromSidebar();
-        StatusText = "Reset rejection thresholds to defaults.";
     }
 
     private IEnumerable<FrameResultContext> GetFilterScopedContexts()
@@ -2386,7 +2470,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             ? indicatorValue
             : FrameIndicatorColors.Default;
         var rejectionReasons = context.Frame.AutomaticRejected
-            ? _rejectionService.GetRejectionReasons(context.Frame, _thresholds)
+            ? _rejectionService.GetRejectionReasons(context.Frame, ResolveThresholdsForFrame(context.Frame))
             : [];
 
         return new FrameSummaryViewModel(
@@ -2756,18 +2840,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return true;
     }
 
-    private void SetThresholdValue(double currentValue, double nextValue, Action<double> setter, string propertyName)
+    private void SetThresholdValue(
+        Func<Thresholds, double> selector,
+        Action<Thresholds, double> setter,
+        Action<Thresholds, bool> setAutoCalculate,
+        double nextValue,
+        string propertyName)
     {
-        if (Math.Abs(currentValue - nextValue) < 0.0001)
+        var thresholds = GetSelectedThresholdsForEdit();
+        if (Math.Abs(selector(thresholds) - nextValue) < 0.0001)
         {
             return;
         }
 
-        setter(nextValue);
+        setter(thresholds, nextValue);
+        setAutoCalculate(thresholds, false);
         OnPropertyChanged(propertyName);
-        ReapplyThresholdsFromSidebar();
-        RaiseThresholdPanelDiagnosticsChanged();
-        PersistProfileSettings();
+        PersistSelectedThresholdScopeAndRevalidateAll();
     }
 
     private static Bitmap CreateDemoPreview()

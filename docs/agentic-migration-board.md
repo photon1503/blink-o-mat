@@ -206,30 +206,32 @@ Goal: Match WPF settings overlay behavior and persistence profile model.
   - Remaining delta listed: Yes
 
 ### Task 2.2: Profile-Backed Toggle Persistence Parity
-- Status: TODO
+- Status: IN_PROGRESS
 - Objective: Persist and restore all visibility/threshold/score toggles via SettingsProfile.
 - Baseline: src/Models/SettingsProfile.cs, src/Services/AppSettingsService.cs, src/ViewModels/MainViewModel.cs
 - Targets: src/Rejector.Core/Models/SettingsProfile.cs, src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
 - Files expected: 3-8
+- Report: docs/reports/2.2-profile-backed-toggle-persistence-parity.md
 - Acceptance Matrix:
-  - Behavior matched: No
-  - Build passed: No
-  - Tests passed: No
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
   - Screenshot captured: No
-  - Remaining delta listed: No
+  - Remaining delta listed: Yes
 
 ### Task 2.3: Filter-Specific Threshold Workflows
-- Status: TODO
+- Status: IN_PROGRESS
 - Objective: Match per-filter threshold editing and application behavior.
 - Baseline: src/ViewModels/MainViewModel.cs (filter threshold logic)
 - Target: src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
 - Files expected: 2-6
+- Report: docs/reports/2.3-filter-specific-threshold-workflows.md
 - Acceptance Matrix:
-  - Behavior matched: No
-  - Build passed: No
-  - Tests passed: No
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
   - Screenshot captured: No
-  - Remaining delta listed: No
+  - Remaining delta listed: Yes
 
 ## Epic 3: Sort, Filter, and Status Parity
 Goal: Match rule precedence and status/performance semantics.

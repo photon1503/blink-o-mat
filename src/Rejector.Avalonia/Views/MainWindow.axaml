@@ -384,8 +384,8 @@
                         <StackPanel>
                           <TextBlock Text="OPTICS" FontSize="11" FontWeight="SemiBold" Foreground="#7AA7FF" Margin="0,0,0,6" />
                           <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
-                            <TextBlock Text="FWHM (px)" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
-                            <TextBlock Grid.Column="1" Text="{Binding FwhmPixelDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                            <TextBlock Text="FWHM (px)" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" IsVisible="{Binding $parent[Window].DataContext.ShowFwhmMetric}" />
+                            <TextBlock Grid.Column="1" Text="{Binding FwhmPixelDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" IsVisible="{Binding $parent[Window].DataContext.ShowFwhmMetric}" />
                             <TextBlock Grid.Row="1" Text="FWHM (arcsec)" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
                             <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding FwhmArcsecDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
                             <TextBlock Grid.Row="2" Text="HFR" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
@@ -400,8 +400,8 @@
                         <StackPanel>
                           <TextBlock Text="BACKGROUND" FontSize="11" FontWeight="SemiBold" Foreground="#7AA7FF" Margin="0,0,0,6" />
                           <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
-                            <TextBlock Text="Mean BG" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
-                            <TextBlock Grid.Column="1" Text="{Binding MeanBackgroundDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                            <TextBlock Text="Mean BG" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" IsVisible="{Binding $parent[Window].DataContext.ShowMeanBackgroundMetric}" />
+                            <TextBlock Grid.Column="1" Text="{Binding MeanBackgroundDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" IsVisible="{Binding $parent[Window].DataContext.ShowMeanBackgroundMetric}" />
                             <TextBlock Grid.Row="1" Text="Median" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
                             <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MedianDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
                             <TextBlock Grid.Row="2" Text="MAD" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
@@ -415,10 +415,10 @@
                       <StackPanel Grid.Column="4" Margin="0,4,0,0">
                         <TextBlock Text="FRAME" FontSize="11" FontWeight="SemiBold" Foreground="#7AA7FF" Margin="0,0,0,6" />
                         <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
-                          <TextBlock Text="Stars" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
-                          <TextBlock Grid.Column="1" Text="{Binding StarCount}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
-                          <TextBlock Grid.Row="1" Text="Sky temp" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
-                          <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SkyTempDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
+                          <TextBlock Text="Stars" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" IsVisible="{Binding $parent[Window].DataContext.ShowStarsMetric}" />
+                          <TextBlock Grid.Column="1" Text="{Binding StarCount}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" IsVisible="{Binding $parent[Window].DataContext.ShowStarsMetric}" />
+                          <TextBlock Grid.Row="1" Text="Sky temp" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" IsVisible="{Binding $parent[Window].DataContext.ShowSkyTempMetric}" />
+                          <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SkyTempDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" IsVisible="{Binding $parent[Window].DataContext.ShowSkyTempMetric}" />
                           <TextBlock Grid.Row="2" Text="Min / count" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
                           <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding MinDisplay}" FontSize="12" Foreground="#F2F2F2" Margin="12,0,0,2" />
                           <TextBlock Grid.Row="3" Text="Max / count" FontSize="12" Foreground="#D0D0D0" Margin="0,0,0,2" />
@@ -428,7 +428,7 @@
                     </Grid>
                   </Grid>
 
-                  <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="4" Background="#1B1D20" BorderBrush="#303338" BorderThickness="1" CornerRadius="4" Padding="12,10" ClipToBounds="True">
+                  <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="4" Background="#1B1D20" BorderBrush="#303338" BorderThickness="1" CornerRadius="4" Padding="12,10" ClipToBounds="True" IsVisible="{Binding $parent[Window].DataContext.ShowScoreMetric}">
                     <StackPanel>
                       <TextBlock Text="SCORE" FontSize="11" Foreground="#9A9A9A" />
                       <StackPanel Orientation="Horizontal" Margin="0,6,0,2">
@@ -523,7 +523,7 @@
             <TextBlock Text="PROFILES" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
           </Border>
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
-            <TextBox Watermark="Profile name" Text="{Binding NewProfileName, Mode=TwoWay}" />
+            <TextBox PlaceholderText="Profile name" Text="{Binding NewProfileName, Mode=TwoWay}" />
             <Button Grid.Column="1" Content="Create" Command="{Binding CreateProfileCommand}" />
           </Grid>
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
@@ -574,7 +574,7 @@
           <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">
             <TextBlock Text="METRICS VISIBILITY" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
           </Border>
-          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
             <CheckBox Content="FWHM px" IsChecked="{Binding ShowFwhmMetric}" />
             <CheckBox Grid.Column="1" Content="FWHM arcsec" IsChecked="{Binding ShowFwhmArcsecMetric}" />
             <CheckBox Grid.Row="1" Content="HFR" IsChecked="{Binding ShowHfrMetric}" />
@@ -582,6 +582,9 @@
             <CheckBox Grid.Row="2" Content="Eccentricity" IsChecked="{Binding ShowEccentricityMetric}" />
             <CheckBox Grid.Row="2" Grid.Column="1" Content="Trail" IsChecked="{Binding ShowTrailMetric}" />
             <CheckBox Grid.Row="3" Content="SQM" IsChecked="{Binding ShowSqmMetric}" />
+            <CheckBox Grid.Row="3" Grid.Column="1" Content="Sky temperature" IsChecked="{Binding ShowSkyTempMetric}" />
+            <CheckBox Grid.Row="4" Content="Mean background" IsChecked="{Binding ShowMeanBackgroundMetric}" />
+            <CheckBox Grid.Row="4" Grid.Column="1" Content="Score" IsChecked="{Binding ShowScoreMetric}" />
           </Grid>
 
           <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">

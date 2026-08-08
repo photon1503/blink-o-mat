@@ -4,6 +4,34 @@ namespace Rejector.Core.Services;
 
 public sealed class FrameRejectionService
 {
+    public void RevalidateAll(IEnumerable<ProcessedFrame> frames, Thresholds thresholds)
+    {
+        foreach (var frame in frames)
+        {
+            frame.SetAutomaticRejected(ShouldReject(frame, thresholds));
+        }
+    }
+
+    public void RevalidateAll(
+        IEnumerable<ProcessedFrame> frames,
+        Thresholds defaultThresholds,
+        IReadOnlyDictionary<string, Thresholds> filterThresholds)
+    {
+        foreach (var frame in frames)
+        {
+            var filterKey = NormalizeFilterKey(frame.FilterName);
+            var thresholds = filterThresholds.TryGetValue(filterKey, out var filterSpecific)
+                ? filterSpecific
+                : defaultThresholds;
+            frame.SetAutomaticRejected(ShouldReject(frame, thresholds));
+        }
+    }
+
+    private static string NormalizeFilterKey(string? filterName)
+    {
+        return string.IsNullOrWhiteSpace(filterName) ? "(no filter)" : filterName.Trim();
+    }
+
     public bool ShouldReject(ProcessedFrame frame, Thresholds thresholds)
     {
         var metrics = frame.Metrics;
