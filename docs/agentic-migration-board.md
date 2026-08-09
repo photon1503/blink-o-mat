@@ -265,17 +265,18 @@ Goal: Match rule precedence and status/performance semantics.
   - Remaining delta listed: Yes
 
 ### Task 3.3: Bottom Status/Performance Detail Parity
-- Status: TODO
+- Status: DONE
 - Objective: Match WPF status lifecycle timing and detail granularity.
 - Baseline: src/ViewModels/MainViewModel.cs
 - Target: src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
 - Files expected: 1-3
+- Report: docs/reports/3.3-bottom-status-performance-detail-parity.md
 - Acceptance Matrix:
-  - Behavior matched: No
-  - Build passed: No
-  - Tests passed: No
-  - Screenshot captured: No
-  - Remaining delta listed: No
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
+  - Screenshot captured: Yes
+  - Remaining delta listed: Yes
 
 ## Epic 4: Background Runtime Parity
 Goal: Match runtime lifecycle helpers and background workflows.

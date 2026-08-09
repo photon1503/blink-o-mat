@@ -74,6 +74,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _updateBannerText = string.Empty;
     private string _performanceText = "Idle";
     private string _bottomStatusText = "Ready";
+    private TimeSpan? _lastAnalysisElapsed;
+    private int _lastAnalysisFrameCount;
+    private double _lastAnalysisReadGibPerSecond;
     private bool _showFwhmMetric = true;
     private bool _showFwhmArcsecMetric = true;
     private bool _showHfrMetric = true;
@@ -217,6 +220,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
             _statusText = value;
             OnPropertyChanged();
+            BottomStatusText = value;
         }
     }
 
@@ -642,7 +646,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         _manualRoi = next;
         OnPropertyChanged(nameof(CurrentManualRoi));
-        BottomStatusText = $"ROI: {next.Left:F3}, {next.Top:F3}, {next.Width:F3} x {next.Height:F3}";
+        if (!IsAnalyzing)
+        {
+            BottomStatusText = $"ROI: {next.Left:F3}, {next.Top:F3}, {next.Width:F3} x {next.Height:F3}";
+        }
     }
 
     public double PreviewFrameSliderValue
@@ -1298,6 +1305,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         try
         {
+            StatusText = "Scanning folder...";
             var files = _discoveryService.Discover(InputFolder, IncludeSubfolders);
             var totalFiles = files.Count;
             var completedFiles = 0;
@@ -1469,7 +1477,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     _sessionPixelSizeUm ??= item.PixelSizeUm;
                 }
 
+                StatusText = "Finalizing frame comparisons...";
+                RebuildResults();
+                StatusText = "Building filter chips...";
                 RefreshFilterChips();
+                StatusText = "Initializing rejection thresholds...";
+                RaiseAllThresholdPropertiesChanged();
+                StatusText = "Applying rejection thresholds...";
                 ApplyThresholds();
                 SelectedResult = Results.FirstOrDefault();
                 OnPropertyChanged(nameof(SessionFocalLengthText));
@@ -1521,7 +1535,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             var perSecond = stopwatch.Elapsed.TotalSeconds <= 0.001
                 ? _resultContexts.Count
                 : _resultContexts.Count / stopwatch.Elapsed.TotalSeconds;
-            PerformanceText = $"Analyze: {stopwatch.Elapsed.TotalSeconds:F1}s | Frames/s: {perSecond:F2} | Cached previews: {CachedPreviewCount}";
+            _lastAnalysisElapsed = stopwatch.Elapsed;
+            _lastAnalysisFrameCount = _resultContexts.Count;
+            _lastAnalysisReadGibPerSecond = bytesRead / (1024.0 * 1024.0 * 1024.0) / Math.Max(0.001, stopwatch.Elapsed.TotalSeconds);
+            UpdatePerformanceText(perSecond);
 
             if (WatchFolderEnabled)
             {
@@ -2113,8 +2130,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             SelectedPreviewCaption = selected.FileName;
             _cachedPreviewPaths.Add(selected.FilePath);
             OnPropertyChanged(nameof(CachedPreviewCount));
-            PerformanceText = $"Preview cache: {CachedPreviewCount} frame(s)";
-            BottomStatusText = SelectedPreviewCaption;
+            UpdatePerformanceText();
+            if (!IsAnalyzing)
+            {
+                BottomStatusText = SelectedPreviewCaption;
+            }
         }
         catch (Exception ex)
         {
@@ -2131,6 +2151,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool SelectPreviousResult()
     {
         return MoveSelectedResult(-1);
+    }
+
+    private void UpdatePerformanceText(double? framesPerSecond = null)
+    {
+        if (_lastAnalysisElapsed is not TimeSpan elapsed)
+        {
+            PerformanceText = $"Idle | Cached previews: {CachedPreviewCount}";
+            return;
+        }
+
+        var rate = framesPerSecond ?? (elapsed.TotalSeconds <= 0.001
+            ? _lastAnalysisFrameCount
+            : _lastAnalysisFrameCount / elapsed.TotalSeconds);
+        PerformanceText = $"Analyze: {elapsed.TotalSeconds:F1}s | Frames/s: {rate:F2} | Read: {_lastAnalysisReadGibPerSecond:F2} GB/s | Cached: {CachedPreviewCount}";
     }
 
     public void ApplyAutoStretchToSelectedPreview()
