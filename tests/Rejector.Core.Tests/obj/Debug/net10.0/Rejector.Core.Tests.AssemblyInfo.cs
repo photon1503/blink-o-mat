@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Rejector.Core.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3658a56d699ed4949c9071bfeea433a4c698fed7")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+212f1148cf1cbd1d5ceb371a7ebb35f8d244628b")]
 [assembly: System.Reflection.AssemblyProductAttribute("Rejector.Core.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Rejector.Core.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

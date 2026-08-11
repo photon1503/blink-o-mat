@@ -2644,14 +2644,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         var starsWeight = UseScoreStars ? ScoreWeightStars : 0.0;
         var bgWeight = UseScoreBackground ? ScoreWeightBackground : 0.0;
         var totalWeight = fwhmWeight + eccWeight + trailWeight + hfrWeight + starsWeight + bgWeight;
-        if (totalWeight <= 0)
-        {
-            totalWeight = 1.0;
-        }
 
         foreach (var group in contexts.GroupBy(context => NormalizeFilterKey(context.Frame.FilterName), StringComparer.OrdinalIgnoreCase))
         {
             var members = group.ToArray();
+            if (totalWeight <= double.Epsilon)
+            {
+                foreach (var member in members)
+                {
+                    result[member.Frame.FilePath] = 0.0;
+                }
+
+                continue;
+            }
+
             var fwhmPct = RankPercentile(members
                 .Select(member => IsValidFwhmForScoring(member.Frame.Metrics) ? member.Frame.Metrics.Fwhm : double.NaN)
                 .ToArray(), lowerIsBetter: true);
@@ -2664,6 +2670,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             var starsPct = RankPercentile(members.Select(member => (double)member.Frame.Metrics.StarCount).ToArray(), lowerIsBetter: false);
             var bgPct = RankPercentile(members.Select(member => member.Frame.Metrics.MeanBackground).ToArray(), lowerIsBetter: true);
             var trailPct = RankPercentile(members.Select(member => (double)member.Frame.Metrics.SatelliteTrailConfidence).ToArray(), lowerIsBetter: true);
+            var rawScores = new double[members.Length];
 
             for (var index = 0; index < members.Length; index++)
             {
@@ -2680,7 +2687,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     score -= ComputeEccentricityPenalty(members[index].Frame.Metrics.Eccentricity);
                 }
 
-                result[members[index].Frame.FilePath] = Math.Clamp(score, 0.0, 5.0);
+                rawScores[index] = Math.Clamp(score, 0.0, 5.0);
+            }
+
+            // Re-normalize aggregate scores within this filter so cross-filter
+            // metric baselines (for example HA vs L) never share the same scale.
+            var finalPct = RankPercentile(rawScores, lowerIsBetter: false);
+            for (var index = 0; index < members.Length; index++)
+            {
+                result[members[index].Frame.FilePath] = Math.Clamp(finalPct[index] * 5.0, 0.0, 5.0);
             }
         }
 

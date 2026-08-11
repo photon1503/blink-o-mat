@@ -3657,14 +3657,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var bgPct    = RankPercentile(members.Select(m => m.Frame.Metrics.MeanBackground).ToArray(),     lowerIsBetter: true);
             var trailPct = RankPercentile(members.Select(m => (double)m.Frame.Metrics.SatelliteTrailConfidence).ToArray(), lowerIsBetter: true);
 
-            for (var i = 0; i < members.Length; i++)
+            if (totalWeight <= double.Epsilon)
             {
-                if (totalWeight <= double.Epsilon)
+                for (var i = 0; i < members.Length; i++)
                 {
                     members[i].Frame.OverallScore = 0.0;
-                    continue;
                 }
 
+                continue;
+            }
+
+            var rawScores = new double[members.Length];
+
+            for (var i = 0; i < members.Length; i++)
+            {
                 var weighted = fwhmPct[i]  * fwhmWeight
                              + eccPct[i]   * eccWeight
                              + hfrPct[i]   * hfrWeight
@@ -3672,7 +3678,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
                              + bgPct[i]    * bgWeight
                              + trailPct[i] * trailWeight;
 
-                members[i].Frame.OverallScore = Math.Clamp((weighted / totalWeight) * 5.0, 0.0, 5.0);
+                rawScores[i] = Math.Clamp((weighted / totalWeight) * 5.0, 0.0, 5.0);
+            }
+
+            // Re-normalize the aggregate score inside this filter so filters do
+            // not compete against each other on score scale.
+            var finalPct = RankPercentile(rawScores, lowerIsBetter: false);
+            for (var i = 0; i < members.Length; i++)
+            {
+                members[i].Frame.OverallScore = Math.Clamp(finalPct[i] * 5.0, 0.0, 5.0);
             }
         }
     }
