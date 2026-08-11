@@ -18,6 +18,8 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Rejector.Avalonia.ViewModels;
+using System.Text.Json;
+using System.IO;
 
 namespace Rejector.Avalonia.Views;
 
@@ -202,6 +204,99 @@ public sealed class FramePreviewWindow : Window
         };
     });
 
+    private void RestoreWindowPlacement()
+    {
+        if (!File.Exists(WindowPlacementPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(WindowPlacementPath);
+            var settings = JsonSerializer.Deserialize<Dictionary<string, WindowPlacement>>(json);
+            if (settings is null || !settings.TryGetValue("PreviewWindow", out var placement))
+            {
+                return;
+            }
+
+            if (placement.Width <= 0 || placement.Height <= 0)
+            {
+                return;
+            }
+
+            var bounds = new Rect(placement.Left, placement.Top, placement.Width, placement.Height);
+            if (!IsOnScreen(bounds))
+            {
+                return;
+            }
+
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Position = new PixelPoint((int)Math.Round(placement.Left), (int)Math.Round(placement.Top));
+            Width = placement.Width;
+            Height = placement.Height;
+            WindowState = placement.WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal;
+        }
+        catch
+        {
+        }
+    }
+
+    private void SaveWindowPlacement()
+    {
+        try
+        {
+            var placement = new WindowPlacement
+            {
+                Left = Position.X,
+                Top = Position.Y,
+                Width = Width,
+                Height = Height,
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal,
+            };
+
+            var settings = File.Exists(WindowPlacementPath)
+                ? JsonSerializer.Deserialize<Dictionary<string, WindowPlacement>>(File.ReadAllText(WindowPlacementPath)) ?? new Dictionary<string, WindowPlacement>()
+                : new Dictionary<string, WindowPlacement>();
+
+            settings["PreviewWindow"] = placement;
+            Directory.CreateDirectory(Path.GetDirectoryName(WindowPlacementPath)!);
+            File.WriteAllText(WindowPlacementPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool IsOnScreen(Rect bounds)
+    {
+        var screens = Screens.ScreenCount;
+        if (screens == 0)
+        {
+            return true;
+        }
+
+        for (var index = 0; index < screens; index++)
+        {
+            var screen = Screens.ScreenFromBounds(new PixelRect((int)Math.Round(bounds.X), (int)Math.Round(bounds.Y), (int)Math.Round(bounds.Width), (int)Math.Round(bounds.Height)));
+            if (screen is not null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private sealed class WindowPlacement
+    {
+        public double Left { get; set; }
+        public double Top { get; set; }
+        public double Width { get; set; }
+        public double Height { get; set; }
+        public WindowState WindowState { get; set; }
+    }
+
     private static void ApplyPreviewSliderTemplate(Slider slider)
     {
         slider.Template = PreviewSliderTemplate;
@@ -228,6 +323,13 @@ public sealed class FramePreviewWindow : Window
             });
     }
 
+    private const string WindowPlacementDirectoryName = "Rejector";
+    private const string WindowPlacementFileName = "window-placement.json";
+    private static readonly string WindowPlacementPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        WindowPlacementDirectoryName,
+        WindowPlacementFileName);
+
     public FramePreviewWindow()
     {
         Width = 1200;
@@ -235,6 +337,12 @@ public sealed class FramePreviewWindow : Window
         MinWidth = 640;
         MinHeight = 480;
         Background = SolidColorBrush.Parse("#111315");
+
+        RestoreWindowPlacement();
+        PositionChanged += (_, _) => SaveWindowPlacement();
+        SizeChanged += (_, _) => SaveWindowPlacement();
+        WindowStateChanged += (_, _) => SaveWindowPlacement();
+        Closed += (_, _) => SaveWindowPlacement();
 
         var root = new Grid
         {

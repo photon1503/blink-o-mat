@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Rejector.Avalonia.Infrastructure;
 using Rejector.Core.Models;
 using Rejector.Core.Services;
+using System.Net.Http;
 
 namespace Rejector.Avalonia.ViewModels;
 
@@ -20,6 +21,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly FrameRejectionService _rejectionService = new();
     private readonly RustafitsService _analysisService = new();
     private readonly SessionService _sessionService = new();
+    private readonly UpdateCheckService _updateCheckService = new();
     private readonly RelayCommand _analyzeCommand;
     private readonly RelayCommand _applyThresholdsCommand;
     private readonly RelayCommand _moveRejectedCommand;
@@ -138,10 +140,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _resetThresholdsCommand = new RelayCommand(ResetThresholds, () => _resultContexts.Count > 0 && !_isAnalyzing);
         _createProfileCommand = new RelayCommand(CreateSettingsProfile, CanCreateSettingsProfile);
         _dismissUpdateBannerCommand = new RelayCommand(() => IsUpdateBannerVisible = false, () => IsUpdateBannerVisible);
-        _showDebugUpdateBannerCommand = new RelayCommand(() =>
+        _showDebugUpdateBannerCommand = new RelayCommand(async () =>
         {
-            UpdateBannerText = "Update available: parity validation build";
-            IsUpdateBannerVisible = true;
+            await ShowDebugUpdateBannerAsync();
         });
 
         SettingsProfiles.Clear();
@@ -162,6 +163,36 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         NewProfileName = defaultProfile.Name;
 
         SortRules.Add(new SortRuleViewModel(SortFieldOptions[0], true, RebuildResults));
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            _ = CheckForUpdateAsync();
+        }, DispatcherPriority.Background);
+    }
+
+    private async Task CheckForUpdateAsync()
+    {
+        var update = await _updateCheckService.GetLatestUpdateAsync();
+        if (update is not null)
+        {
+            UpdateBannerText = $"Update available: {update.Version} — {update.ReleaseNotesMarkdown}";
+            IsUpdateBannerVisible = true;
+        }
+    }
+
+    private async Task ShowDebugUpdateBannerAsync()
+    {
+        var update = await _updateCheckService.GetLatestReleaseInfoAsync();
+        if (update is not null)
+        {
+            UpdateBannerText = $"Update available: {update.Version} — {update.ReleaseNotesMarkdown}";
+            IsUpdateBannerVisible = true;
+            return;
+        }
+
+        var fallbackVersion = "debug";
+        UpdateBannerText = $"Update available: {fallbackVersion} — local parity validation build";
+        IsUpdateBannerVisible = true;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
