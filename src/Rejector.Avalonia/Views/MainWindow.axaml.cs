@@ -48,7 +48,6 @@ public partial class MainWindow : Window
         RestoreWindowPlacement();
         PositionChanged += (_, _) => SaveWindowPlacement();
         SizeChanged += (_, _) => SaveWindowPlacement();
-        WindowStateChanged += (_, _) => SaveWindowPlacement();
         Closed += (_, _) => SaveWindowPlacement();
     }
 
@@ -116,18 +115,23 @@ public partial class MainWindow : Window
         }
     }
 
-    private static bool IsOnScreen(Rect bounds)
+    private bool IsOnScreen(Rect bounds)
     {
-        var screens = Screens.ScreenCount;
-        if (screens == 0)
+        var screenCount = Screens.ScreenCount;
+        if (screenCount == 0)
         {
             return true;
         }
 
-        for (var index = 0; index < screens; index++)
+        foreach (var screen in Screens.All)
         {
-            var screen = Screens.ScreenFromBounds(new PixelRect((int)Math.Round(bounds.X), (int)Math.Round(bounds.Y), (int)Math.Round(bounds.Width), (int)Math.Round(bounds.Height)));
-            if (screen is not null)
+            var placementRect = new PixelRect(
+                (int)Math.Round(bounds.X),
+                (int)Math.Round(bounds.Y),
+                (int)Math.Round(bounds.Width),
+                (int)Math.Round(bounds.Height));
+
+            if (screen.Bounds.Intersects(placementRect))
             {
                 return true;
             }

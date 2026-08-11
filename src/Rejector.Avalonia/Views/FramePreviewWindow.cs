@@ -20,6 +20,7 @@ using Avalonia.VisualTree;
 using Rejector.Avalonia.ViewModels;
 using System.Text.Json;
 using System.IO;
+using System.Linq;
 
 namespace Rejector.Avalonia.Views;
 
@@ -260,7 +261,7 @@ public sealed class FramePreviewWindow : Window
                 : new Dictionary<string, WindowPlacement>();
 
             settings["PreviewWindow"] = placement;
-            Directory.CreateDirectory(Path.GetDirectoryName(WindowPlacementPath)!);
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(WindowPlacementPath)!);
             File.WriteAllText(WindowPlacementPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch
@@ -268,18 +269,23 @@ public sealed class FramePreviewWindow : Window
         }
     }
 
-    private static bool IsOnScreen(Rect bounds)
+    private bool IsOnScreen(Rect bounds)
     {
-        var screens = Screens.ScreenCount;
-        if (screens == 0)
+        var screenCount = Screens.ScreenCount;
+        if (screenCount == 0)
         {
             return true;
         }
 
-        for (var index = 0; index < screens; index++)
+        foreach (var screen in Screens.All)
         {
-            var screen = Screens.ScreenFromBounds(new PixelRect((int)Math.Round(bounds.X), (int)Math.Round(bounds.Y), (int)Math.Round(bounds.Width), (int)Math.Round(bounds.Height)));
-            if (screen is not null)
+            var placementRect = new PixelRect(
+                (int)Math.Round(bounds.X),
+                (int)Math.Round(bounds.Y),
+                (int)Math.Round(bounds.Width),
+                (int)Math.Round(bounds.Height));
+
+            if (screen.Bounds.Intersects(placementRect))
             {
                 return true;
             }
@@ -325,7 +331,7 @@ public sealed class FramePreviewWindow : Window
 
     private const string WindowPlacementDirectoryName = "Rejector";
     private const string WindowPlacementFileName = "window-placement.json";
-    private static readonly string WindowPlacementPath = Path.Combine(
+    private static readonly string WindowPlacementPath = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         WindowPlacementDirectoryName,
         WindowPlacementFileName);
@@ -341,7 +347,6 @@ public sealed class FramePreviewWindow : Window
         RestoreWindowPlacement();
         PositionChanged += (_, _) => SaveWindowPlacement();
         SizeChanged += (_, _) => SaveWindowPlacement();
-        WindowStateChanged += (_, _) => SaveWindowPlacement();
         Closed += (_, _) => SaveWindowPlacement();
 
         var root = new Grid

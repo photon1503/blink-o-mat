@@ -181,6 +181,49 @@ public sealed class AppSettingsServiceTests
     }
 
     [Fact]
+    public void SaveAndLoad_PreservesSliderVisibilityAndPreviewOverlayState()
+    {
+        var tempRoot = CreateTempDirectory();
+        try
+        {
+            var service = new AppSettingsService(new FixedPathProvider(tempRoot), "Rejector.Tests");
+            service.Save(new AppSettings
+            {
+                Profiles =
+                [
+                    new SettingsProfile
+                    {
+                        Name = "Imaging",
+                        ShowTrailSlider = false,
+                        ShowFwhmSlider = false,
+                        ShowMeanBackgroundSlider = false,
+                        ShowScoreSlider = false,
+                        IsRoiOverlayVisible = false,
+                        IsStarDebugOverlayVisible = true,
+                        IsOrientationDebugOverlayVisible = true,
+                        IsCurvatureViewVisible = true,
+                    },
+                ],
+            });
+
+            var loaded = service.Load().Profiles.Single();
+
+            Assert.False(loaded.ShowTrailSlider);
+            Assert.False(loaded.ShowFwhmSlider);
+            Assert.False(loaded.ShowMeanBackgroundSlider);
+            Assert.False(loaded.ShowScoreSlider);
+            Assert.False(loaded.IsRoiOverlayVisible);
+            Assert.True(loaded.IsStarDebugOverlayVisible);
+            Assert.True(loaded.IsOrientationDebugOverlayVisible);
+            Assert.True(loaded.IsCurvatureViewVisible);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
     public void TryBackupPersistedSettings_MovesExistingSettingsFile()
     {
         var tempRoot = CreateTempDirectory();

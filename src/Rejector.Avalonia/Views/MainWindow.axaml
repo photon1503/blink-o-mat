@@ -135,6 +135,7 @@
               </Grid>
 
               <controls:MetricSliderControl Label="Min. trail confidence"
+                                            IsVisible="{Binding ShowTrailSlider}"
                                             Value="{Binding MinSatelliteConfidence}"
                                             Minimum="0"
                                             Maximum="100"
@@ -145,6 +146,7 @@
                                             ShowRejectCount="True"
                                             RejectCount="{Binding SatelliteTrailRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Max FWHM (as)"
+                                            IsVisible="{Binding ShowFwhmArcsecSlider}"
                                             Value="{Binding MaxFwhmArcsec}"
                                             Minimum="0"
                                             Maximum="30"
@@ -154,6 +156,7 @@
                                             ShowRejectCount="True"
                                             RejectCount="{Binding FwhmArcsecRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Min SQM"
+                                            IsVisible="{Binding ShowSqmSlider}"
                                             Value="{Binding MinSqm}"
                                             Minimum="0"
                                             Maximum="30"
@@ -163,6 +166,7 @@
                                             ShowRejectCount="True"
                                             RejectCount="{Binding SqmRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Max sky temp"
+                                            IsVisible="{Binding ShowSkyTempSlider}"
                                             Value="{Binding MaxSkyTemp}"
                                             Minimum="-50"
                                             Maximum="50"
@@ -172,6 +176,7 @@
                                             ShowRejectCount="True"
                                             RejectCount="{Binding SkyTempRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Max HFR"
+                                            IsVisible="{Binding ShowHfrSlider}"
                                             Value="{Binding MaxHfr}"
                                             Minimum="0"
                                             Maximum="10"
@@ -181,6 +186,7 @@
                                             ShowRejectCount="True"
                                             RejectCount="{Binding HfrRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Max Eccentricity"
+                                            IsVisible="{Binding ShowEccentricitySlider}"
                                             Value="{Binding MaxEccentricity}"
                                             Minimum="0"
                                             Maximum="1"
@@ -190,6 +196,7 @@
                                             ShowRejectCount="True"
                                             RejectCount="{Binding EccentricityRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Max Mean Background"
+                                            IsVisible="{Binding ShowMeanBackgroundSlider}"
                                             Value="{Binding MaxMeanBackground}"
                                             Minimum="0"
                                             Maximum="10000"
@@ -199,6 +206,7 @@
                                             ShowRejectCount="True"
                                             RejectCount="{Binding MeanBackgroundRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Min Stars"
+                                            IsVisible="{Binding ShowStarsSlider}"
                                             Value="{Binding MinStars}"
                                             Minimum="0"
                                             Maximum="20000"
@@ -208,6 +216,7 @@
                                             ShowRejectCount="True"
                                             RejectCount="{Binding StarCountRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Min Score"
+                                            IsVisible="{Binding ShowScoreSlider}"
                                             Value="{Binding MinScore}"
                                             Minimum="0"
                                             Maximum="5"

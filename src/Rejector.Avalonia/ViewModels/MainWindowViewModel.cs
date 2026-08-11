@@ -79,6 +79,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private TimeSpan? _lastAnalysisElapsed;
     private int _lastAnalysisFrameCount;
     private double _lastAnalysisReadGibPerSecond;
+    private bool _showTrailSlider = true;
+    private bool _showFwhmSlider = true;
+    private bool _showFwhmArcsecSlider = true;
+    private bool _showSqmSlider = true;
+    private bool _showSkyTempSlider = true;
+    private bool _showHfrSlider = true;
+    private bool _showEccentricitySlider = true;
+    private bool _showMeanBackgroundSlider = true;
+    private bool _showStarsSlider = true;
+    private bool _showScoreSlider = true;
     private bool _showFwhmMetric = true;
     private bool _showFwhmArcsecMetric = true;
     private bool _showHfrMetric = true;
@@ -583,6 +593,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool ShowTrailSlider { get => _showTrailSlider; set { if (SetBool(ref _showTrailSlider, value)) { PersistProfileSettings(); } } }
+    public bool ShowFwhmSlider { get => _showFwhmSlider; set { if (SetBool(ref _showFwhmSlider, value)) { PersistProfileSettings(); } } }
+    public bool ShowFwhmArcsecSlider { get => _showFwhmArcsecSlider; set { if (SetBool(ref _showFwhmArcsecSlider, value)) { PersistProfileSettings(); } } }
+    public bool ShowSqmSlider { get => _showSqmSlider; set { if (SetBool(ref _showSqmSlider, value)) { PersistProfileSettings(); } } }
+    public bool ShowSkyTempSlider { get => _showSkyTempSlider; set { if (SetBool(ref _showSkyTempSlider, value)) { PersistProfileSettings(); } } }
+    public bool ShowHfrSlider { get => _showHfrSlider; set { if (SetBool(ref _showHfrSlider, value)) { PersistProfileSettings(); } } }
+    public bool ShowEccentricitySlider { get => _showEccentricitySlider; set { if (SetBool(ref _showEccentricitySlider, value)) { PersistProfileSettings(); } } }
+    public bool ShowMeanBackgroundSlider { get => _showMeanBackgroundSlider; set { if (SetBool(ref _showMeanBackgroundSlider, value)) { PersistProfileSettings(); } } }
+    public bool ShowStarsSlider { get => _showStarsSlider; set { if (SetBool(ref _showStarsSlider, value)) { PersistProfileSettings(); } } }
+    public bool ShowScoreSlider { get => _showScoreSlider; set { if (SetBool(ref _showScoreSlider, value)) { PersistProfileSettings(); } } }
     public bool ShowFwhmMetric { get => _showFwhmMetric; set { if (SetBool(ref _showFwhmMetric, value)) { PersistProfileSettings(); } } }
     public bool ShowFwhmArcsecMetric { get => _showFwhmArcsecMetric; set { if (SetBool(ref _showFwhmArcsecMetric, value)) { PersistProfileSettings(); } } }
     public bool ShowHfrMetric { get => _showHfrMetric; set { if (SetBool(ref _showHfrMetric, value)) { PersistProfileSettings(); } } }
@@ -637,10 +657,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public double StfShadows { get => _stfShadows; set => SetStfAndRefresh(ref _stfShadows, value, 0.0, 1.0); }
     public double StfMidtones { get => _stfMidtones; set => SetStfAndRefresh(ref _stfMidtones, value, 0.0, 1.0); }
     public double StfHighlights { get => _stfHighlights; set => SetStfAndRefresh(ref _stfHighlights, value, 0.0, 1.0); }
-    public bool IsRoiOverlayVisible { get => _isRoiOverlayVisible; set => SetBool(ref _isRoiOverlayVisible, value); }
-    public bool IsStarDebugOverlayVisible { get => _isStarDebugOverlayVisible; set => SetBool(ref _isStarDebugOverlayVisible, value); }
-    public bool IsOrientationDebugOverlayVisible { get => _isOrientationDebugOverlayVisible; set => SetBool(ref _isOrientationDebugOverlayVisible, value); }
-    public bool IsCurvatureViewVisible { get => _isCurvatureViewVisible; set => SetBool(ref _isCurvatureViewVisible, value); }
+    public bool IsRoiOverlayVisible { get => _isRoiOverlayVisible; set { if (SetBool(ref _isRoiOverlayVisible, value)) { PersistProfileSettings(); } } }
+    public bool IsStarDebugOverlayVisible { get => _isStarDebugOverlayVisible; set { if (SetBool(ref _isStarDebugOverlayVisible, value)) { PersistProfileSettings(); } } }
+    public bool IsOrientationDebugOverlayVisible { get => _isOrientationDebugOverlayVisible; set { if (SetBool(ref _isOrientationDebugOverlayVisible, value)) { PersistProfileSettings(); } } }
+    public bool IsCurvatureViewVisible { get => _isCurvatureViewVisible; set { if (SetBool(ref _isCurvatureViewVisible, value)) { PersistProfileSettings(); } } }
 
     public bool UseScoreFwhm { get => _useScoreFwhm; set { if (SetBoolAndRebuild(ref _useScoreFwhm, value)) { PersistProfileSettings(); } } }
     public bool UseScoreHfr { get => _useScoreHfr; set { if (SetBoolAndRebuild(ref _useScoreHfr, value)) { PersistProfileSettings(); } } }
@@ -1660,6 +1680,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             WatchFolderEnabled = profile.WatchFolderDefault;
             StfTargetBackground = profile.StfTargetBackgroundDefault;
 
+            ShowTrailSlider = profile.ShowTrailSlider;
+            ShowFwhmSlider = profile.ShowFwhmSlider;
+            ShowFwhmArcsecSlider = profile.ShowFwhmArcsecSlider;
+            ShowSqmSlider = profile.ShowSqmSlider;
+            ShowSkyTempSlider = profile.ShowSkyTempSlider;
+            ShowHfrSlider = profile.ShowHfrSlider;
+            ShowEccentricitySlider = profile.ShowEccentricitySlider;
+            ShowMeanBackgroundSlider = profile.ShowMeanBackgroundSlider;
+            ShowStarsSlider = profile.ShowStarsSlider;
+            ShowScoreSlider = profile.ShowScoreSlider;
             ShowFwhmMetric = profile.ShowFwhmMetric;
             ShowFwhmArcsecMetric = profile.ShowFwhmArcsecMetric;
             ShowHfrMetric = profile.ShowHfrMetric;
@@ -1670,6 +1700,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             ShowSkyTempMetric = profile.ShowSkyTempMetric;
             ShowMeanBackgroundMetric = profile.ShowMeanBackgroundMetric;
             ShowScoreMetric = profile.ShowScoreMetric;
+            IsRoiOverlayVisible = profile.IsRoiOverlayVisible;
+            IsStarDebugOverlayVisible = profile.IsStarDebugOverlayVisible;
+            IsOrientationDebugOverlayVisible = profile.IsOrientationDebugOverlayVisible;
+            IsCurvatureViewVisible = profile.IsCurvatureViewVisible;
 
             UseScoreFwhm = profile.UseScoreFwhm;
             UseScoreHfr = profile.UseScoreHfr;
@@ -1694,6 +1728,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(MinStars));
             OnPropertyChanged(nameof(MinSatelliteConfidence));
             OnPropertyChanged(nameof(MinScore));
+            OnPropertyChanged(nameof(ShowTrailSlider));
+            OnPropertyChanged(nameof(ShowFwhmSlider));
+            OnPropertyChanged(nameof(ShowFwhmArcsecSlider));
+            OnPropertyChanged(nameof(ShowSqmSlider));
+            OnPropertyChanged(nameof(ShowSkyTempSlider));
+            OnPropertyChanged(nameof(ShowHfrSlider));
+            OnPropertyChanged(nameof(ShowEccentricitySlider));
+            OnPropertyChanged(nameof(ShowMeanBackgroundSlider));
+            OnPropertyChanged(nameof(ShowStarsSlider));
+            OnPropertyChanged(nameof(ShowScoreSlider));
             OnPropertyChanged(nameof(ShowFwhmMetric));
             OnPropertyChanged(nameof(ShowFwhmArcsecMetric));
             OnPropertyChanged(nameof(ShowHfrMetric));
@@ -1704,6 +1748,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(ShowSkyTempMetric));
             OnPropertyChanged(nameof(ShowMeanBackgroundMetric));
             OnPropertyChanged(nameof(ShowScoreMetric));
+            OnPropertyChanged(nameof(IsRoiOverlayVisible));
+            OnPropertyChanged(nameof(IsStarDebugOverlayVisible));
+            OnPropertyChanged(nameof(IsOrientationDebugOverlayVisible));
+            OnPropertyChanged(nameof(IsCurvatureViewVisible));
             OnPropertyChanged(nameof(UseScoreFwhm));
             OnPropertyChanged(nameof(UseScoreHfr));
             OnPropertyChanged(nameof(UseScoreStars));
@@ -1837,6 +1885,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             IncludeSubfoldersDefault = IncludeSubfolders,
             WatchFolderDefault = WatchFolderEnabled,
             StfTargetBackgroundDefault = StfTargetBackground,
+            ShowTrailSlider = ShowTrailSlider,
+            ShowFwhmSlider = ShowFwhmSlider,
+            ShowFwhmArcsecSlider = ShowFwhmArcsecSlider,
+            ShowSqmSlider = ShowSqmSlider,
+            ShowSkyTempSlider = ShowSkyTempSlider,
+            ShowHfrSlider = ShowHfrSlider,
+            ShowEccentricitySlider = ShowEccentricitySlider,
+            ShowMeanBackgroundSlider = ShowMeanBackgroundSlider,
+            ShowStarsSlider = ShowStarsSlider,
+            ShowScoreSlider = ShowScoreSlider,
             ShowFwhmMetric = ShowFwhmMetric,
             ShowFwhmArcsecMetric = ShowFwhmArcsecMetric,
             ShowHfrMetric = ShowHfrMetric,
@@ -1847,6 +1905,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             ShowSkyTempMetric = ShowSkyTempMetric,
             ShowMeanBackgroundMetric = ShowMeanBackgroundMetric,
             ShowScoreMetric = ShowScoreMetric,
+            IsRoiOverlayVisible = IsRoiOverlayVisible,
+            IsStarDebugOverlayVisible = IsStarDebugOverlayVisible,
+            IsOrientationDebugOverlayVisible = IsOrientationDebugOverlayVisible,
+            IsCurvatureViewVisible = IsCurvatureViewVisible,
             UseScoreFwhm = UseScoreFwhm,
             UseScoreHfr = UseScoreHfr,
             UseScoreStars = UseScoreStars,

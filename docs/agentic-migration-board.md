@@ -30,7 +30,7 @@ Goal: Match WPF preview interaction and visualization behavior.
   - Remaining delta listed: Yes
 
 ### Task 1.1: ROI Handle Editing Parity
-- Status: DONE
+- Status: IN_PROGRESS
 - Objective: Port WPF ROI move/resize handle semantics and constraints to Avalonia preview.
 - Baseline: src/PreviewWindow.xaml.cs (RoiBody_MouseLeftButtonDown, RoiHandle_MouseLeftButtonDown, RoiOverlay_MouseMove)
 - Target: src/Rejector.Avalonia/Views/FramePreviewWindow.cs
@@ -206,7 +206,7 @@ Goal: Match WPF settings overlay behavior and persistence profile model.
   - Remaining delta listed: Yes
 
 ### Task 2.2: Profile-Backed Toggle Persistence Parity
-- Status: IN_PROGRESS
+- Status: DONE
 - Objective: Persist and restore all visibility/threshold/score toggles via SettingsProfile.
 - Baseline: src/Models/SettingsProfile.cs, src/Services/AppSettingsService.cs, src/ViewModels/MainViewModel.cs
 - Targets: src/Rejector.Core/Models/SettingsProfile.cs, src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
@@ -220,7 +220,7 @@ Goal: Match WPF settings overlay behavior and persistence profile model.
   - Remaining delta listed: Yes
 
 ### Task 2.3: Filter-Specific Threshold Workflows
-- Status: IN_PROGRESS
+- Status: DONE
 - Objective: Match per-filter threshold editing and application behavior.
 - Baseline: src/ViewModels/MainViewModel.cs (filter threshold logic)
 - Target: src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
@@ -295,30 +295,30 @@ Goal: Match runtime lifecycle helpers and background workflows.
   - Remaining delta listed: No
 
 ### Task 4.2: Update Check Pipeline Parity
-- Status: TODO
+- Status: DONE
 - Objective: Port update check service integration and update banner behavior.
 - Baseline: src/Services/UpdateCheckService.cs and src/ViewModels/MainViewModel.cs
 - Target: src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs
 - Files expected: 2-5
 - Acceptance Matrix:
-  - Behavior matched: No
-  - Build passed: No
-  - Tests passed: No
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
   - Screenshot captured: No
-  - Remaining delta listed: No
+  - Remaining delta listed: Yes
 
 ### Task 4.3: Window Placement Persistence for Avalonia
-- Status: TODO
+- Status: DONE
 - Objective: Add main/preview window placement save and restore.
 - Baseline: src/Services/WindowPlacementService.cs
 - Targets: src/Rejector.Avalonia/Views/MainWindow.axaml.cs, src/Rejector.Avalonia/Views/FramePreviewWindow.cs
 - Files expected: 2-5
 - Acceptance Matrix:
-  - Behavior matched: No
-  - Build passed: No
-  - Tests passed: No
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Tests passed: Yes
   - Screenshot captured: No
-  - Remaining delta listed: No
+  - Remaining delta listed: Yes
 
 ## Epic 5: Release and Packaging Cutover
 Goal: Make Avalonia artifacts primary release outputs.

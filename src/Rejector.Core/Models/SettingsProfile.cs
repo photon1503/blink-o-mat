@@ -25,6 +25,11 @@ public sealed class SettingsProfile
     public bool ShowStarsSlider { get; set; } = true;
     public bool ShowScoreSlider { get; set; } = true;
 
+    public bool IsRoiOverlayVisible { get; set; }
+    public bool IsStarDebugOverlayVisible { get; set; }
+    public bool IsOrientationDebugOverlayVisible { get; set; }
+    public bool IsCurvatureViewVisible { get; set; }
+
     public bool ShowTrailMetric { get; set; } = true;
     public bool ShowFwhmMetric { get; set; } = true;
     public bool ShowFwhmArcsecMetric { get; set; } = true;
@@ -138,6 +143,10 @@ public sealed class SettingsProfile
             ShowMeanBackgroundSlider = ShowMeanBackgroundSlider,
             ShowStarsSlider = ShowStarsSlider,
             ShowScoreSlider = ShowScoreSlider,
+            IsRoiOverlayVisible = IsRoiOverlayVisible,
+            IsStarDebugOverlayVisible = IsStarDebugOverlayVisible,
+            IsOrientationDebugOverlayVisible = IsOrientationDebugOverlayVisible,
+            IsCurvatureViewVisible = IsCurvatureViewVisible,
             ShowTrailMetric = ShowTrailMetric,
             ShowFwhmMetric = ShowFwhmMetric,
             ShowFwhmArcsecMetric = ShowFwhmArcsecMetric,
