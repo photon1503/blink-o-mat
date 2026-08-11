@@ -2652,9 +2652,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         foreach (var group in contexts.GroupBy(context => NormalizeFilterKey(context.Frame.FilterName), StringComparer.OrdinalIgnoreCase))
         {
             var members = group.ToArray();
-            var fwhmPct = RankPercentile(members.Select(member => member.Frame.Metrics.Fwhm).ToArray(), lowerIsBetter: true);
-            var eccPct = RankPercentile(members.Select(member => member.Frame.Metrics.Eccentricity).ToArray(), lowerIsBetter: true);
-            var hfrPct = RankPercentile(members.Select(member => member.Frame.Metrics.Hfr).ToArray(), lowerIsBetter: true);
+            var fwhmPct = RankPercentile(members
+                .Select(member => IsValidFwhmForScoring(member.Frame.Metrics) ? member.Frame.Metrics.Fwhm : double.NaN)
+                .ToArray(), lowerIsBetter: true);
+            var eccPct = RankPercentile(members
+                .Select(member => IsValidEccentricityForScoring(member.Frame.Metrics) ? member.Frame.Metrics.Eccentricity : double.NaN)
+                .ToArray(), lowerIsBetter: true);
+            var hfrPct = RankPercentile(members
+                .Select(member => IsValidHfrForScoring(member.Frame.Metrics) ? member.Frame.Metrics.Hfr : double.NaN)
+                .ToArray(), lowerIsBetter: true);
             var starsPct = RankPercentile(members.Select(member => (double)member.Frame.Metrics.StarCount).ToArray(), lowerIsBetter: false);
             var bgPct = RankPercentile(members.Select(member => member.Frame.Metrics.MeanBackground).ToArray(), lowerIsBetter: true);
             var trailPct = RankPercentile(members.Select(member => (double)member.Frame.Metrics.SatelliteTrailConfidence).ToArray(), lowerIsBetter: true);
@@ -2667,11 +2673,53 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                              + starsPct[index] * starsWeight
                              + bgPct[index] * bgWeight
                              + trailPct[index] * trailWeight;
-                result[members[index].Frame.FilePath] = Math.Clamp((weighted / totalWeight) * 5.0, 0.0, 5.0);
+
+                var score = Math.Clamp((weighted / totalWeight) * 5.0, 0.0, 5.0);
+                if (UseScoreEccentricity)
+                {
+                    score -= ComputeEccentricityPenalty(members[index].Frame.Metrics.Eccentricity);
+                }
+
+                result[members[index].Frame.FilePath] = Math.Clamp(score, 0.0, 5.0);
             }
         }
 
         return result;
+    }
+
+    private static double ComputeEccentricityPenalty(double eccentricity)
+    {
+        if (!double.IsFinite(eccentricity) || eccentricity <= 0)
+        {
+            return 0;
+        }
+
+        // Heavy absolute penalty for elongation, independent of frame-to-frame rank.
+        if (eccentricity <= 0.45)
+        {
+            return 0;
+        }
+
+        var normalized = Math.Clamp((eccentricity - 0.45) / 0.55, 0.0, 1.0);
+        return 3.0 * Math.Pow(normalized, 1.55);
+    }
+
+    private static bool IsValidFwhmForScoring(AstroMetrics metrics)
+    {
+        return metrics.StarCount > 0 && metrics.Fwhm > 0 && double.IsFinite(metrics.Fwhm);
+    }
+
+    private static bool IsValidHfrForScoring(AstroMetrics metrics)
+    {
+        return metrics.StarCount > 0 && metrics.Hfr > 0 && double.IsFinite(metrics.Hfr);
+    }
+
+    private static bool IsValidEccentricityForScoring(AstroMetrics metrics)
+    {
+        return metrics.StarCount > 0
+            && metrics.Eccentricity > 0
+            && metrics.Eccentricity < 1.0
+            && double.IsFinite(metrics.Eccentricity);
     }
 
     private static Dictionary<string, FrameIndicatorColors> ComputeIndicatorColors(IReadOnlyList<FrameResultContext> contexts)
