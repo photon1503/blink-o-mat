@@ -2124,9 +2124,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         await MoveRejectedAsync();
     }
 
-    public Task MoveRejectedAsync()
+    public IReadOnlyDictionary<string, int> GetRejectedCountsByFilter()
     {
-        var moved = _moveService.MoveRejected(_resultContexts.Select(context => context.Frame), RejectedFolder);
+        return _moveService.GetRejectedCountsByFilter(_resultContexts.Select(context => context.Frame));
+    }
+
+    public Task MoveRejectedAsync(IReadOnlyCollection<string>? filterKeys = null)
+    {
+        var moved = _moveService.MoveRejected(_resultContexts.Select(context => context.Frame), RejectedFolder, filterKeys);
         StatusText = moved.Count == 0
             ? "No rejected frames were moved."
             : $"Moved {moved.Count} rejected frame(s) to {RejectedFolder}";

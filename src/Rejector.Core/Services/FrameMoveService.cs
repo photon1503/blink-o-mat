@@ -5,6 +5,14 @@ namespace Rejector.Core.Services;
 
 public sealed class FrameMoveService
 {
+    public IReadOnlyDictionary<string, int> GetRejectedCountsByFilter(IEnumerable<ProcessedFrame> frames)
+    {
+        return frames
+            .Where(frame => frame.IsRejected)
+            .GroupBy(frame => string.IsNullOrWhiteSpace(frame.FilterName) ? "(no filter)" : frame.FilterName.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
+    }
+
     public IReadOnlyList<ProcessedFrame> MoveRejected(
         IEnumerable<ProcessedFrame> frames,
         string destinationFolder,
@@ -20,8 +28,8 @@ public sealed class FrameMoveService
         {
             toMove = toMove.Where(frame =>
             {
-                var key = string.IsNullOrWhiteSpace(frame.FilterName) ? "(no filter)" : frame.FilterName;
-                return filterKeys.Contains(key);
+                var key = string.IsNullOrWhiteSpace(frame.FilterName) ? "(no filter)" : frame.FilterName.Trim();
+                return filterKeys.Contains(key, StringComparer.OrdinalIgnoreCase);
             });
         }
 

@@ -45,6 +45,25 @@ public sealed class FrameStatisticsCalculatorTests
             });
     }
 
+    [Fact]
+    public void MoveRejectedSummary_GroupsRejectedFramesByFilterName()
+    {
+        var frames = new[]
+        {
+            CreateRejectedFrame("red-one", "R"),
+            CreateRejectedFrame("red-two", "r"),
+            CreateRejectedFrame("blank-one", " "),
+            CreateRejectedFrame("blue-one", "B"),
+            CreateAcceptedFrame("keep-one", "R")
+        };
+
+        var summary = new FrameMoveService().GetRejectedCountsByFilter(frames);
+
+        Assert.Equal(2, summary["R"]);
+        Assert.Equal(1, summary["B"]);
+        Assert.Equal(1, summary["(no filter)"]);
+    }
+
     private static ProcessedFrame CreateFrame(string fileName, string filterName, double exposureSeconds)
     {
         return new ProcessedFrame
@@ -55,5 +74,19 @@ public sealed class FrameStatisticsCalculatorTests
             ExposureSeconds = exposureSeconds,
             Metrics = new AstroMetrics()
         };
+    }
+
+    private static ProcessedFrame CreateRejectedFrame(string fileName, string filterName)
+    {
+        var frame = CreateFrame(fileName, filterName, 60);
+        frame.SetAutomaticRejected(true);
+        return frame;
+    }
+
+    private static ProcessedFrame CreateAcceptedFrame(string fileName, string filterName)
+    {
+        var frame = CreateFrame(fileName, filterName, 60);
+        frame.SetAutomaticRejected(false);
+        return frame;
     }
 }

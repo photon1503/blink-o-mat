@@ -3686,7 +3686,8 @@ public sealed class RustafitsService
             keptCount++;
         }
 
-        // Measure the brightest subset only (perf); the total kept count is the star count.
+        // Measure the brightest subset only (perf). Star count should reflect
+        // candidates that pass shape measurement, not raw local maxima.
         var measureCount = Math.Min(keptCount, maxMeasuredStars);
         var measurements = new (double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y)[measureCount];
         Parallel.For(0, measureCount, i =>
@@ -3706,7 +3707,21 @@ public sealed class RustafitsService
             }
         }
 
-        return (result, keptCount);
+        if (measureCount == 0)
+        {
+            return (result, 0);
+        }
+
+        var validatedCount = result.Count;
+        if (measureCount < keptCount)
+        {
+            // In very dense fields we only measure the brightest subset for speed;
+            // estimate total valid stars by applying the measured acceptance ratio.
+            var acceptanceRatio = validatedCount / (double)measureCount;
+            validatedCount = (int)Math.Round(Math.Clamp(acceptanceRatio, 0.0, 1.0) * keptCount);
+        }
+
+        return (result, validatedCount);
     }
 
     private static float[] MedianFilter3x3(float[] pixels, int width, int height)

@@ -233,6 +233,19 @@ Goal: Match WPF settings overlay behavior and persistence profile model.
   - Screenshot captured: No
   - Remaining delta listed: Yes
 
+### Task 2.4: Reject Confirmation Dialog Parity
+- Status: DONE
+- Objective: Match the WPF confirmation step that summarizes rejected frames and lets the user choose which filter groups to move before files are relocated.
+- Baseline: src/RejectConfirmDialog.xaml, src/RejectConfirmDialog.xaml.cs, src/MainWindow.xaml.cs (RejectButton_Click)
+- Targets: src/Rejector.Avalonia/Views/RejectConfirmWindow.axaml, src/Rejector.Avalonia/Views/RejectConfirmWindow.cs, src/Rejector.Avalonia/Views/MainWindow.axaml.cs, src/Rejector.Avalonia/ViewModels/MainWindowViewModel.cs, src/Rejector.Core/Services/FrameMoveService.cs
+- Files expected: 2-6
+- Acceptance Matrix:
+  - Behavior matched: Yes
+  - Build passed: Yes
+  - Screenshot captured: No
+  - Tests passed: Yes
+  - Remaining delta listed: Yes
+
 ## Epic 3: Sort, Filter, and Status Parity
 Goal: Match rule precedence and status/performance semantics.
 

@@ -263,6 +263,27 @@ public partial class MainWindow : Window
         _previewWindow.Activate();
     }
 
+    private async void RejectButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var filterCounts = viewModel.GetRejectedCountsByFilter();
+        if (filterCounts.Count == 0)
+        {
+            return;
+        }
+
+        var dialog = new RejectConfirmWindow(viewModel.RejectedFrameCount, viewModel.RejectedFolder, filterCounts);
+        var result = await dialog.ShowDialog<RejectConfirmWindow?>(this);
+        if (result is not null)
+        {
+            await viewModel.MoveRejectedAsync(result.SelectedFilterKeys);
+        }
+    }
+
     private void OpenFolderPanel_Click(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)

@@ -1,0 +1,76 @@
+<Window
+    x:Class="Rejector.Avalonia.Views.RejectConfirmWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:Rejector.Avalonia.Views"
+    x:DataType="x:Object"
+    Title="Confirm Rejection"
+    Width="460"
+    SizeToContent="Height"
+    WindowStartupLocation="CenterOwner"
+    CanResize="False"
+    Background="{DynamicResource WindowBackgroundBrush}"
+    Foreground="{DynamicResource TextBrush}">
+  <StackPanel Margin="24,20,24,20">
+    <TextBlock FontSize="15" FontWeight="SemiBold" Margin="0,0,0,14" Text="Move rejected frames?" />
+
+    <Border Padding="12" Margin="0,0,0,12" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1">
+      <StackPanel>
+        <Grid Margin="0,0,0,6" ColumnDefinitions="Auto,*">
+          <TextBlock Foreground="{DynamicResource MutedTextBrush}" Margin="0,0,10,0" Text="Frames to move:" />
+          <TextBlock Grid.Column="1" FontWeight="SemiBold" x:Name="FrameCountText" />
+        </Grid>
+        <Grid ColumnDefinitions="Auto,*">
+          <TextBlock Foreground="{DynamicResource MutedTextBrush}" Margin="0,0,10,0" Text="Destination:" />
+          <TextBlock Grid.Column="1" x:Name="DestinationText" TextWrapping="Wrap" />
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <Border x:Name="FilterSection" Padding="12" Margin="0,0,0,12" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" IsVisible="False">
+      <StackPanel>
+        <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Margin="0,0,0,8" Text="Select the filters to include in this move:" />
+        <ItemsControl x:Name="FilterChipsList" ItemsSource="{Binding}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="views:RejectFilterChip">
+              <ToggleButton
+                  Margin="0,0,6,6"
+                  Padding="10,4"
+                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                  Content="{Binding Label}"
+                  FontSize="12">
+                <ToggleButton.Styles>
+                  <Style Selector="ToggleButton">
+                    <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                  </Style>
+                  <Style Selector="ToggleButton:checked">
+                    <Setter Property="Background" Value="#55334422" />
+                    <Setter Property="BorderBrush" Value="#77AA7755" />
+                    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                  </Style>
+                  <Style Selector="ToggleButton:pointerover /template/ ContentPresenter">
+                    <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}" />
+                  </Style>
+                </ToggleButton.Styles>
+              </ToggleButton>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
+    <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Margin="0,0,0,18" TextWrapping="Wrap" Text="Subfolder structure will be preserved. Files with conflicting names will be renamed automatically." />
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button Content="Cancel" Padding="16,5" Margin="0,0,10,0" Click="Cancel_Click" />
+      <Button x:Name="ProceedButton" Content="Proceed" Padding="16,5" Click="Proceed_Click" IsDefault="True" Background="#99261414" BorderBrush="#C0392B" Foreground="#FFECACAC" />
+    </StackPanel>
+  </StackPanel>
+</Window>
