@@ -1023,7 +1023,7 @@
     ]
   },
   "packageFolders": {
-    "/Users/gerald/.nuget/packages/": {}
+    "/tmp/.nuget": {}
   },
   "project": {
     "version": "1.0.0",
@@ -1031,11 +1031,11 @@
       "projectUniqueName": "/Users/gerald/git/blink-o-mat/tests/Rejector.Core.Tests/Rejector.Core.Tests.csproj",
       "projectName": "Rejector.Core.Tests",
       "projectPath": "/Users/gerald/git/blink-o-mat/tests/Rejector.Core.Tests/Rejector.Core.Tests.csproj",
-      "packagesPath": "/Users/gerald/.nuget/packages/",
+      "packagesPath": "/tmp/.nuget",
       "outputPath": "/Users/gerald/git/blink-o-mat/tests/Rejector.Core.Tests/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/Users/gerald/.nuget/NuGet/NuGet.Config"
+        "/tmp/.dotnet-home/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net10.0"

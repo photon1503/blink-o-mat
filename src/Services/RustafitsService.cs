@@ -3308,7 +3308,8 @@ public sealed class RustafitsService
         var mad = MedianAbsoluteDeviation(statsSample, median, alreadySorted: true);
         var (minValue, minCount, maxValue, maxCount) = ComputeExtremaWithCounts(pixels);
         var background = median;
-        var sigma = ComputeSigmaFromSample(statsSample, background);
+        // MAD-based sigma is robust: unlike RMS it is not inflated by stars or gradients.
+        var sigma = Math.Max(1.4826 * mad, 1e-6);
         var analysisPixels = CreateAnalysisPixels(pixels, width, height, 1536, out var analysisWidth, out var analysisHeight, out _, out _);
 
         // Derive 768-px trail buffer from the already-computed 1536-px analysis pixels
@@ -3325,7 +3326,7 @@ public sealed class RustafitsService
         }
 
         var (stars, totalStarCount) = DetectStars(pixels, width, height, background, sigma);
-        var orderedStars = stars.OrderByDescending(s => s.Peak).ToList();
+        var orderedStars = stars.OrderByDescending(s => s.Quality).ToList();
 
         // Reject saturated stars (their FWHM is artificially wide because the core
         // is clipped) and excessively eccentric ones (trailed/blended detections).
@@ -3534,79 +3535,109 @@ public sealed class RustafitsService
         return initialized ? (min, minCount, max, maxCount) : (0, 0, 0, 0);
     }
 
-    private static (List<(double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y)> Measurements, int TotalCount) DetectStars(float[] pixels, int width, int height, double background, double sigma)
+    private static (List<(double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y, double Quality)> Measurements, int TotalCount) DetectStars(float[] pixels, int width, int height, double background, double sigma)
     {
-        // Detect on full-resolution image. Use a permissive 3-sigma threshold
-        // similar to PixInsight / Hocus Focus defaults, then suppress duplicates
-        // via a coarse spatial hash so we don't run an O(N^2) scan.
         const int maxMeasuredStars = 2000;
         const double suppressionRadius = 4.0;
         const double suppressionRadiusSq = suppressionRadius * suppressionRadius;
         const int cellSize = 8; // > 2 * suppressionRadius
+        const double detectionSigma = 4.0; // threshold above local background
+        const double supportSigma = 1.5;   // neighbour support level
+        const double minPeakSnr = 5.0;     // brightness-invariant quality gate
 
-        var threshold = background + (3.0 * sigma);
-        var minNeighborLevel = background + (1.5 * sigma);
-
-        if (width < 5 || height < 5)
+        var result = new List<(double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y, double Quality)>();
+        if (width < 7 || height < 7)
         {
-            return (new List<(double, double, double, double, double, double)>(), 0);
+            return (result, 0);
         }
 
-        // Parallel local-max scan over horizontal stripes.
+        // Noise removal: 3x3 binomial smoothing of the whole frame lifts stellar
+        // cores out of pixel-to-pixel noise before any thresholding happens.
+        var smoothed = SmoothForDetection(pixels, width, height);
+
+        // Local background/noise mesh (median + MAD per tile, median-filtered):
+        // detection adapts to gradients and vignetting across the full frame.
+        var mesh = BuildBackgroundMesh(smoothed, width, height);
+        var noiseFloor = (float)Math.Max(0.05 * sigma, 1e-6);
+
         const int stripeHeight = 64;
         var stripeCount = ((height - 2) + stripeHeight - 1) / stripeHeight;
-        var stripeLists = new List<(float Peak, int X, int Y)>[stripeCount];
+        var stripeLists = new List<(float Peak, float Quality, int X, int Y)>[stripeCount];
 
         Parallel.For(0, stripeCount, stripe =>
         {
             var yStart = 1 + (stripe * stripeHeight);
             var yEnd = Math.Min(yStart + stripeHeight, height - 1);
-            var local = new List<(float, int, int)>(1024);
+            var local = new List<(float, float, int, int)>(1024);
 
             for (var y = yStart; y < yEnd; y++)
             {
                 var row = y * width;
                 var rowUp = row - width;
                 var rowDn = row + width;
+                var meshRow = Math.Min(y / mesh.Cell, mesh.MeshH - 1) * mesh.MeshW;
+
                 for (var x = 1; x < width - 1; x++)
                 {
-                    var center = pixels[row + x];
-                    if (center < threshold)
+                    var center = smoothed[row + x];
+                    var meshIdx = meshRow + Math.Min(x / mesh.Cell, mesh.MeshW - 1);
+                    var localBg = mesh.Background[meshIdx];
+                    var localNoise = Math.Max(mesh.Noise[meshIdx], noiseFloor);
+                    if (center < localBg + (detectionSigma * localNoise))
                     {
                         continue;
                     }
 
-                    // Strict 3x3 local maximum.
-                    if (center < pixels[row + x - 1] ||
-                        center <= pixels[row + x + 1] ||
-                        center < pixels[rowUp + x] ||
-                        center <= pixels[rowDn + x] ||
-                        center < pixels[rowUp + x - 1] ||
-                        center <= pixels[rowUp + x + 1] ||
-                        center < pixels[rowDn + x - 1] ||
-                        center <= pixels[rowDn + x + 1])
+                    // Strict 3x3 local maximum on the smoothed image.
+                    if (center < smoothed[row + x - 1] ||
+                        center <= smoothed[row + x + 1] ||
+                        center < smoothed[rowUp + x] ||
+                        center <= smoothed[rowDn + x] ||
+                        center < smoothed[rowUp + x - 1] ||
+                        center <= smoothed[rowUp + x + 1] ||
+                        center < smoothed[rowDn + x - 1] ||
+                        center <= smoothed[rowDn + x + 1])
                     {
                         continue;
                     }
 
-                    // Require at least 3 bright neighbours so single hot pixels
-                    // (with a dark 8-neighbourhood) are rejected.
+                    // A real stellar core keeps most of its neighbourhood above the
+                    // support level after smoothing; isolated noise spikes do not.
+                    var supportLevel = localBg + (supportSigma * localNoise);
                     var support = 0;
-                    if (pixels[row + x - 1] >= minNeighborLevel) support++;
-                    if (pixels[row + x + 1] >= minNeighborLevel) support++;
-                    if (pixels[rowUp + x] >= minNeighborLevel) support++;
-                    if (pixels[rowDn + x] >= minNeighborLevel) support++;
-                    if (pixels[rowUp + x - 1] >= minNeighborLevel) support++;
-                    if (pixels[rowUp + x + 1] >= minNeighborLevel) support++;
-                    if (pixels[rowDn + x - 1] >= minNeighborLevel) support++;
-                    if (pixels[rowDn + x + 1] >= minNeighborLevel) support++;
-
-                    if (support < 3)
+                    if (smoothed[row + x - 1] >= supportLevel) support++;
+                    if (smoothed[row + x + 1] >= supportLevel) support++;
+                    if (smoothed[rowUp + x] >= supportLevel) support++;
+                    if (smoothed[rowDn + x] >= supportLevel) support++;
+                    if (smoothed[rowUp + x - 1] >= supportLevel) support++;
+                    if (smoothed[rowUp + x + 1] >= supportLevel) support++;
+                    if (smoothed[rowDn + x - 1] >= supportLevel) support++;
+                    if (smoothed[rowDn + x + 1] >= supportLevel) support++;
+                    if (support < 5)
                     {
                         continue;
                     }
 
-                    local.Add((center, x, y));
+                    // Hot-pixel rejection on the raw frame: defects concentrate all
+                    // excess flux in a single pixel, stars never do.
+                    var rawSignal = pixels[row + x] - localBg;
+                    var rawNeighborMax = Math.Max(
+                        Math.Max(Math.Max(pixels[row + x - 1], pixels[row + x + 1]), Math.Max(pixels[rowUp + x], pixels[rowDn + x])),
+                        Math.Max(Math.Max(pixels[rowUp + x - 1], pixels[rowUp + x + 1]), Math.Max(pixels[rowDn + x - 1], pixels[rowDn + x + 1]))) - localBg;
+                    if (rawSignal > 0 && rawNeighborMax < rawSignal * 0.2f)
+                    {
+                        continue;
+                    }
+
+                    // Brightness-invariant quality: peak SNR against local noise, so
+                    // dim and bright exposures of the same field rank alike.
+                    var quality = (center - localBg) / localNoise;
+                    if (quality < minPeakSnr)
+                    {
+                        continue;
+                    }
+
+                    local.Add((pixels[row + x], quality, x, y));
                 }
             }
 
@@ -3619,13 +3650,12 @@ public sealed class RustafitsService
             totalCandidates += stripeLists[i]?.Count ?? 0;
         }
 
-        var result = new List<(double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y)>(Math.Min(maxMeasuredStars, totalCandidates));
         if (totalCandidates == 0)
         {
             return (result, 0);
         }
 
-        var candidates = new (float Peak, int X, int Y)[totalCandidates];
+        var candidates = new (float Peak, float Quality, int X, int Y)[totalCandidates];
         var offset = 0;
         for (var i = 0; i < stripeLists.Length; i++)
         {
@@ -3637,21 +3667,22 @@ public sealed class RustafitsService
             }
         }
 
-        // Sort brightest-first.
-        Array.Sort(candidates, (a, b) => b.Peak.CompareTo(a.Peak));
+        // Rank by local-contrast quality, not raw ADU.
+        Array.Sort(candidates, (a, b) => b.Quality.CompareTo(a.Quality));
 
-        // Spatial-hash suppression: keep brightest, reject anything within radius.
+        // Spatial-hash suppression: keep best, reject anything within radius.
         var gridW = (width / cellSize) + 1;
         var gridH = (height / cellSize) + 1;
         var grid = new List<int>[gridW * gridH];
         var keptX = new int[candidates.Length];
         var keptY = new int[candidates.Length];
         var keptPeak = new float[candidates.Length];
+        var keptQuality = new float[candidates.Length];
         var keptCount = 0;
 
         for (var i = 0; i < candidates.Length; i++)
         {
-            var (peak, x, y) = candidates[i];
+            var (peak, quality, x, y) = candidates[i];
             var gx = x / cellSize;
             var gy = y / cellSize;
             var tooClose = false;
@@ -3681,20 +3712,22 @@ public sealed class RustafitsService
             keptX[keptCount] = x;
             keptY[keptCount] = y;
             keptPeak[keptCount] = peak;
+            keptQuality[keptCount] = quality;
             var cellIdx = (gy * gridW) + gx;
             (grid[cellIdx] ??= new List<int>(4)).Add(keptCount);
             keptCount++;
         }
 
-        // Measure the brightest subset only (perf); the total kept count is the star count.
+        // Measure the best subset only (perf); shape measurement validates each
+        // candidate, and the acceptance ratio extrapolates dense fields.
         var measureCount = Math.Min(keptCount, maxMeasuredStars);
-        var measurements = new (double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y)[measureCount];
+        var measurements = new (double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y, double Quality)[measureCount];
         Parallel.For(0, measureCount, i =>
         {
             var cx = Math.Clamp(keptX[i], 3, width - 4);
             var cy = Math.Clamp(keptY[i], 3, height - 4);
             var m = MeasureStar(pixels, width, height, cx, cy, background);
-            measurements[i] = (keptPeak[i], m.Fwhm, m.Hfr, m.Eccentricity, m.X, m.Y);
+            measurements[i] = (keptPeak[i], m.Fwhm, m.Hfr, m.Eccentricity, m.X, m.Y, keptQuality[i]);
         });
 
         for (var i = 0; i < measureCount; i++)
@@ -3706,7 +3739,141 @@ public sealed class RustafitsService
             }
         }
 
-        return (result, keptCount);
+        if (measureCount == 0)
+        {
+            return (result, 0);
+        }
+
+        var validatedCount = result.Count;
+        if (measureCount < keptCount)
+        {
+            var acceptanceRatio = validatedCount / (double)measureCount;
+            validatedCount = (int)Math.Round(Math.Clamp(acceptanceRatio, 0.0, 1.0) * keptCount);
+        }
+
+        return (result, validatedCount);
+    }
+
+    private readonly record struct DetectionMesh(float[] Background, float[] Noise, int MeshW, int MeshH, int Cell);
+
+    private static float[] SmoothForDetection(float[] pixels, int width, int height)
+    {
+        var tmp = new float[pixels.Length];
+        var dst = new float[pixels.Length];
+
+        Parallel.For(0, height, y =>
+        {
+            var row = y * width;
+            tmp[row] = pixels[row];
+            for (var x = 1; x < width - 1; x++)
+            {
+                tmp[row + x] = 0.25f * (pixels[row + x - 1] + (2f * pixels[row + x]) + pixels[row + x + 1]);
+            }
+            tmp[row + width - 1] = pixels[row + width - 1];
+        });
+
+        Parallel.For(0, height, y =>
+        {
+            var row = y * width;
+            if (y == 0 || y == height - 1)
+            {
+                Array.Copy(tmp, row, dst, row, width);
+                return;
+            }
+
+            var up = row - width;
+            var dn = row + width;
+            for (var x = 0; x < width; x++)
+            {
+                dst[row + x] = 0.25f * (tmp[up + x] + (2f * tmp[row + x]) + tmp[dn + x]);
+            }
+        });
+
+        return dst;
+    }
+
+    private static DetectionMesh BuildBackgroundMesh(float[] pixels, int width, int height)
+    {
+        const int cell = 96;
+        var meshW = Math.Max(1, (width + cell - 1) / cell);
+        var meshH = Math.Max(1, (height + cell - 1) / cell);
+        var bg = new float[meshW * meshH];
+        var noise = new float[meshW * meshH];
+
+        Parallel.For(0, meshH, my =>
+        {
+            var samples = new float[((cell / 2) + 1) * ((cell / 2) + 1)];
+            var deviations = new float[samples.Length];
+            var y0 = my * cell;
+            var y1 = Math.Min(height, y0 + cell);
+
+            for (var mx = 0; mx < meshW; mx++)
+            {
+                var x0 = mx * cell;
+                var x1 = Math.Min(width, x0 + cell);
+                var n = 0;
+                for (var y = y0; y < y1; y += 2)
+                {
+                    var row = y * width;
+                    for (var x = x0; x < x1 && n < samples.Length; x += 2)
+                    {
+                        samples[n++] = pixels[row + x];
+                    }
+                }
+
+                var idx = (my * meshW) + mx;
+                if (n == 0)
+                {
+                    bg[idx] = 0;
+                    noise[idx] = 0;
+                    continue;
+                }
+
+                Array.Sort(samples, 0, n);
+                var tileMedian = samples[n / 2];
+                for (var i = 0; i < n; i++)
+                {
+                    deviations[i] = Math.Abs(samples[i] - tileMedian);
+                }
+
+                Array.Sort(deviations, 0, n);
+                bg[idx] = tileMedian;
+                noise[idx] = 1.4826f * deviations[n / 2];
+            }
+        });
+
+        // Median-filter the mesh so star-contaminated tiles cannot skew thresholds.
+        return new DetectionMesh(MedianFilterMesh(bg, meshW, meshH), MedianFilterMesh(noise, meshW, meshH), meshW, meshH, cell);
+    }
+
+    private static float[] MedianFilterMesh(float[] mesh, int meshW, int meshH)
+    {
+        if (meshW < 3 || meshH < 3)
+        {
+            return mesh;
+        }
+
+        var filtered = new float[mesh.Length];
+        Span<float> window = stackalloc float[9];
+        for (var y = 0; y < meshH; y++)
+        {
+            for (var x = 0; x < meshW; x++)
+            {
+                var n = 0;
+                for (var oy = Math.Max(0, y - 1); oy <= Math.Min(meshH - 1, y + 1); oy++)
+                {
+                    for (var ox = Math.Max(0, x - 1); ox <= Math.Min(meshW - 1, x + 1); ox++)
+                    {
+                        window[n++] = mesh[(oy * meshW) + ox];
+                    }
+                }
+
+                window[..n].Sort();
+                filtered[(y * meshW) + x] = window[n / 2];
+            }
+        }
+
+        return filtered;
     }
 
     private static float[] MedianFilter3x3(float[] pixels, int width, int height)

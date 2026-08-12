@@ -90,6 +90,103 @@ public sealed class RustafitsServiceTests
         return pixels;
     }
 
+    [Fact]
+    public void AnalyzeFrame_PureNoiseFrame_YieldsNoStars()
+    {
+        const int width = 256;
+        const int height = 256;
+        var rng = new Random(42);
+        var pixels = new float[width * height];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = 500f + (float)NextGaussian(rng, 0, 20);
+        }
+        var frame = new RustafitsService.LoadedFrame(pixels, width, height);
+
+        var metrics = new RustafitsService().AnalyzeFrame(frame);
+
+        Assert.True(metrics.StarCount <= 2, $"Expected ≤2 stars on pure noise, got {metrics.StarCount}");
+    }
+
+    [Fact]
+    public void AnalyzeFrame_FrameWithGaussianStars_DetectsThem()
+    {
+        const int width = 256;
+        const int height = 256;
+        var pixels = new float[width * height];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = 500f;
+        }
+        AddGaussianStar(pixels, width, height, 60, 80, 4000, 1.4);
+        AddGaussianStar(pixels, width, height, 180, 120, 3000, 1.6);
+        AddGaussianStar(pixels, width, height, 100, 200, 2500, 1.3);
+        var frame = new RustafitsService.LoadedFrame(pixels, width, height);
+
+        var metrics = new RustafitsService().AnalyzeFrame(frame);
+
+        Assert.Equal(3, metrics.StarCount);
+    }
+
+    [Fact]
+    public void AnalyzeFrame_BrightAndDimCopies_ShouldHaveComparableUsableStarCounts()
+    {
+        const int width = 256;
+        const int height = 256;
+        var baseline = new float[width * height];
+        for (var i = 0; i < baseline.Length; i++)
+        {
+            baseline[i] = 500f;
+        }
+
+        AddGaussianStar(baseline, width, height, 60, 80, 4000, 1.3);
+        AddGaussianStar(baseline, width, height, 180, 120, 3200, 1.5);
+        AddGaussianStar(baseline, width, height, 100, 200, 2800, 1.2);
+        AddGaussianStar(baseline, width, height, 220, 60, 2600, 1.4);
+
+        var dimPixels = new float[baseline.Length];
+        var brightPixels = new float[baseline.Length];
+        for (var i = 0; i < baseline.Length; i++)
+        {
+            dimPixels[i] = baseline[i] * 0.35f + 30f;
+            brightPixels[i] = baseline[i] * 2.5f + 150f;
+        }
+
+        var service = new RustafitsService();
+        var dimMetrics = service.AnalyzeFrame(new RustafitsService.LoadedFrame(dimPixels, width, height));
+        var brightMetrics = service.AnalyzeFrame(new RustafitsService.LoadedFrame(brightPixels, width, height));
+
+        var delta = Math.Abs(dimMetrics.StarCount - brightMetrics.StarCount);
+        Assert.True(delta <= 1, $"Expected similar usable star counts across brightness changes, got dim={dimMetrics.StarCount}, bright={brightMetrics.StarCount}, delta={delta}");
+    }
+
+    private static double NextGaussian(Random rng, double mean, double stdDev)
+    {
+        var u1 = 1.0 - rng.NextDouble();
+        var u2 = 1.0 - rng.NextDouble();
+        var normal = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Cos(2.0 * Math.PI * u2);
+        return mean + (stdDev * normal);
+    }
+
+    private static void AddGaussianStar(float[] pixels, int width, int height, double cx, double cy, double peak, double sigma)
+    {
+        var r = (int)Math.Ceiling(sigma * 4);
+        for (var y = (int)cy - r; y <= (int)cy + r; y++)
+        {
+            for (var x = (int)cx - r; x <= (int)cx + r; x++)
+            {
+                if (x < 0 || x >= width || y < 0 || y >= height)
+                {
+                    continue;
+                }
+                var dx = x - cx;
+                var dy = y - cy;
+                var v = peak * Math.Exp(-((dx * dx) + (dy * dy)) / (2 * sigma * sigma));
+                pixels[(y * width) + x] += (float)v;
+            }
+        }
+    }
+
     private static void WriteFitsFile(string filePath, int width, int height, short[] pixels)
     {
         var cards = new[]
