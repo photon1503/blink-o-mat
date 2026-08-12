@@ -1419,11 +1419,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
                     var thumbnailPayload = PreviewPayloadCodec.Encode(previews.Full);
                     var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
+                    var context = new FrameResultContext(frame, raw.Width, raw.Height, raw.NormalizationMax, thumbnailPayload, roiPayload, orientationDebug, false, 0, 0);
                     prepared.Add((
                         candidate.Index,
-                        new FrameResultContext(frame, raw.Width, raw.Height, raw.NormalizationMax, thumbnailPayload, roiPayload, orientationDebug, false, 0, 0),
+                        context,
                         raw.FocalLengthMm,
                         raw.PixelSizeUm));
+
+                    AddPreparedFrameIncremental(context, raw.FocalLengthMm, raw.PixelSizeUm);
 
                     orientationReference = raw;
                     orientationReferenceMetrics = metrics;
@@ -1518,14 +1521,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                         }
 
                         prepared.Add((item.SourceIndex, item.Context, item.Focal, item.Pixel));
+                        AddPreparedFrameIncremental(item.Context, item.Focal, item.Pixel);
                     }
-                }
-
-                foreach (var item in prepared.OrderBy(item => item.SourceIndex))
-                {
-                    _resultContexts.Add(item.Context);
-                    _sessionFocalLengthMm ??= item.FocalLengthMm;
-                    _sessionPixelSizeUm ??= item.PixelSizeUm;
                 }
 
                 StatusText = "Finalizing frame comparisons...";
@@ -2422,6 +2419,27 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _isSynchronizingPreviewSlider = true;
         PreviewFrameSliderValue = index;
         _isSynchronizingPreviewSlider = false;
+    }
+
+    private void AddPreparedFrameIncremental(FrameResultContext context, double? focalLengthMm, double? pixelSizeUm)
+    {
+        _resultContexts.Add(context);
+        _sessionFocalLengthMm ??= focalLengthMm;
+        _sessionPixelSizeUm ??= pixelSizeUm;
+        Results.Add(CreateFrameSummary(_resultContexts[^1]));
+        SelectedResult ??= Results[^1];
+        OnPropertyChanged(nameof(ResultCountText));
+        OnPropertyChanged(nameof(SessionFocalLengthText));
+        OnPropertyChanged(nameof(SessionPixelSizeText));
+        OnPropertyChanged(nameof(TotalFrameCount));
+        OnPropertyChanged(nameof(ApprovedFrameCount));
+        OnPropertyChanged(nameof(RejectedFrameCount));
+        OnPropertyChanged(nameof(OverallAcceptedRatio));
+        OnPropertyChanged(nameof(ApprovedFramePercentageText));
+        OnPropertyChanged(nameof(RejectedFramePercentageText));
+        OnPropertyChanged(nameof(AcceptedIntegrationTimeText));
+        OnPropertyChanged(nameof(TotalIntegrationTimeText));
+        _moveRejectedCommand.RaiseCanExecuteChanged();
     }
 
     private void RefreshFilterChips()
