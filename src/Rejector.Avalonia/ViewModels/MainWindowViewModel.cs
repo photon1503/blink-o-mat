@@ -2776,14 +2776,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         foreach (var context in contexts)
         {
+            // Use score-based coloring for all indicators, so they visibly reflect frame quality
+            var scoreColor = GetScoreColor(context.Frame.OverallScore);
             result[context.Frame.FilePath] = new FrameIndicatorColors(
-                CompareLowerIsBetter(context.Frame.Metrics.Fwhm, avgFwhm),
-                CompareLowerIsBetter(context.Frame.Metrics.Hfr, avgHfr),
-                CompareHigherIsBetter(context.Frame.Metrics.StarCount, avgStars),
-                CompareLowerIsBetter(context.Frame.Metrics.Eccentricity, avgEcc),
-                CompareLowerIsBetter(context.Frame.Metrics.MeanBackground, avgBg),
-                context.Frame.Metrics.SatelliteTrailConfidence >= 60 ? ColorRed : ColorGreen,
-                GetFilterBorderColor(context.Frame.FilterName));
+                scoreColor,  // FWHM color reflects overall score
+                scoreColor,  // HFR color reflects overall score
+                scoreColor,  // Stars color reflects overall score
+                scoreColor,  // Eccentricity color reflects overall score
+                scoreColor,  // MeanBackground color reflects overall score
+                context.Frame.Metrics.SatelliteTrailConfidence >= 60 ? ColorRed : ColorGreen,  // Trail uses threshold
+                scoreColor); // Filter color reflects overall score
         }
 
         return result;
@@ -2899,6 +2901,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             "B" => "#8FB3FF",
             _ => "#6D88C4",
         };
+    }
+
+    private static string GetScoreColor(double score)
+    {
+        return ScoreColorPalette.ForScore(score);
+    }
+
+    private static string GetScoreBackgroundColor(double score)
+    {
+        return ScoreColorPalette.ForBackground(score);
     }
 
     private const string ColorGreen = "#5CA36E";
@@ -3129,6 +3141,20 @@ public sealed record FrameSummaryViewModel(
     IReadOnlyList<MeasuredStar> Stars,
     OrientationDebugInfo? OrientationDebug)
 {
+    private const string ScoreColorGreen = "#5CA36E";
+    private const string ScoreColorYellow = "#DAA520";
+    private const string ScoreColorRed = "#CD5C5C";
+
+    private static string GetScoreColor(double score)
+    {
+        return ScoreColorPalette.ForScore(score);
+    }
+
+    private static string GetScoreBackgroundColor(double score)
+    {
+        return ScoreColorPalette.ForBackground(score);
+    }
+
     public string MetricsText => $"FWHM {Fwhm:F2} px   HFR {Hfr:F2}   Stars {StarCount}   Ecc {Eccentricity:F3}";
 
     public string TimestampDisplay => ExposureDateTime?.ToString("yyyy-MM-dd HH:mm:ss") ?? "n/a";
@@ -3184,19 +3210,9 @@ public sealed record FrameSummaryViewModel(
         _ => "POOR",
     };
 
-    public string QualityColor => OverallScore switch
-    {
-        >= 4.0 => "LimeGreen",
-        >= 2.0 => "Goldenrod",
-        _ => "IndianRed",
-    };
+    public string QualityColor => GetScoreColor(OverallScore);
 
-    public string QualityBackgroundColor => OverallScore switch
-    {
-        >= 4.0 => "#3332CD32",
-        >= 2.0 => "#33DAA520",
-        _ => "#33CD5C5C",
-    };
+    public string QualityBackgroundColor => GetScoreBackgroundColor(OverallScore);
 
     public double ScoreProgressPercent => Math.Clamp((OverallScore / 5.0) * 100.0, 0.0, 100.0);
 
@@ -3212,7 +3228,7 @@ public sealed record FrameSummaryViewModel(
 
     public string TrailIndicatorColor => Indicators.Trail;
 
-    public string FilterIndicatorColor => Indicators.Filter;
+    public string FilterIndicatorColor => GetScoreColor(OverallScore);
 
     public string FilterText => string.IsNullOrWhiteSpace(FilterName) ? "Filter n/a" : $"Filter {FilterName}";
 
