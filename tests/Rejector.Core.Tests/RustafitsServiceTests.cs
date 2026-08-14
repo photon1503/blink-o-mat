@@ -160,6 +160,71 @@ public sealed class RustafitsServiceTests
         Assert.True(delta <= 1, $"Expected similar usable star counts across brightness changes, got dim={dimMetrics.StarCount}, bright={brightMetrics.StarCount}, delta={delta}");
     }
 
+    [Fact]
+    public void AnalyzeFrame_TwoToOneDiagonalTrail_IsDetected()
+    {
+        const int width = 320;
+        const int height = 240;
+        var pixels = new float[width * height];
+        Array.Fill(pixels, 500f);
+
+        for (var x = 24; x < 145; x++)
+        {
+            var y = 30 + (2 * (x - 24));
+            if (y >= height - 2)
+            {
+                break;
+            }
+
+            for (var offset = -1; offset <= 1; offset++)
+            {
+                pixels[(y * width) + x] = 1800f;
+                if (y + offset >= 0 && y + offset < height)
+                {
+                    pixels[((y + offset) * width) + x] = 1800f;
+                }
+            }
+        }
+
+        var metrics = new RustafitsService().AnalyzeFrame(new RustafitsService.LoadedFrame(pixels, width, height));
+
+        Assert.True(metrics.SatelliteTrailConfidence > 0);
+        Assert.NotNull(metrics.TrailX1);
+        Assert.NotNull(metrics.TrailY1);
+        Assert.NotNull(metrics.TrailX2);
+        Assert.NotNull(metrics.TrailY2);
+    }
+
+    [Fact]
+    public void AnalyzeFrame_ArbitraryAngleTrail_IsDetected()
+    {
+        const int width = 400;
+        const int height = 240;
+        var pixels = new float[width * height];
+        Array.Fill(pixels, 500f);
+
+        var slope = Math.Tan(17.0 * Math.PI / 180.0);
+        for (var x = 24; x < 320; x++)
+        {
+            var y = 80 + (int)Math.Round((x - 24) * slope);
+            for (var offset = -1; offset <= 1; offset++)
+            {
+                if (y + offset >= 0 && y + offset < height)
+                {
+                    pixels[((y + offset) * width) + x] = 1800f;
+                }
+            }
+        }
+
+        var metrics = new RustafitsService().AnalyzeFrame(new RustafitsService.LoadedFrame(pixels, width, height));
+
+        Assert.True(metrics.SatelliteTrailConfidence > 0);
+        Assert.NotNull(metrics.TrailX1);
+        Assert.NotNull(metrics.TrailY1);
+        Assert.NotNull(metrics.TrailX2);
+        Assert.NotNull(metrics.TrailY2);
+    }
+
     private static double NextGaussian(Random rng, double mean, double stdDev)
     {
         var u1 = 1.0 - rng.NextDouble();

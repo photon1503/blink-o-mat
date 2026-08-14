@@ -4274,10 +4274,10 @@ public sealed class RustafitsService
         // Stars appear here as isolated blobs; a trail appears as a connected stripe.
         var threshold = Math.Max(1e-6, PercentileFromSorted(sample, 0.997));
 
-        // ── Directional candidate collection ─────────────────────────────────
-        // A pixel is a candidate only if it has STRONG directional support in
-        // exactly one axis (bestSupport > 2.5 × secondSupport).
-        // Stars are nearly isotropic → they fail this test convincingly.
+        // ── Candidate collection ─────────────────────────────────────────────
+        // Keep every high-residual pixel here. Direction must not be quantized by
+        // a hand-picked list of slopes; the Hough stage below evaluates the full
+        // 0–180° range and is the orientation filter.
         var points = new List<(int X, int Y, double Signal)>(1024);
         var cx = (width - 1) * 0.5;
         var cy = (height - 1) * 0.5;
@@ -4291,27 +4291,7 @@ public sealed class RustafitsService
                 if (center < threshold)
                     continue;
 
-                var h = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, 0);
-                var v = ComputeDirectionalTrailSupport(enhanced, width, x, y, 0, 1);
-                var d1 = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, 1);
-                var d2 = ComputeDirectionalTrailSupport(enhanced, width, x, y, 1, -1);
-
-                var best = h;
-                var second = 0.0;
-                UpdateTopTwo(v, ref best, ref second);
-                UpdateTopTwo(d1, ref best, ref second);
-                UpdateTopTwo(d2, ref best, ref second);
-
-                // Hard dominance gate — stars have similar support in all 4 directions.
-                if (best <= 2.0 * Math.Max(0.0, second))
-                    continue;
-
-                // Signal must also clear the threshold in absolute terms.
-                var signal = best - second;
-                if (signal < threshold * 2.0)
-                    continue;
-
-                points.Add((x, y, signal));
+                points.Add((x, y, center));
             }
         }
 
@@ -4540,61 +4520,6 @@ public sealed class RustafitsService
             height <= 1 ? 0.5 : Math.Clamp(y1 / (height - 1), 0.0, 1.0),
             width <= 1 ? 0.5 : Math.Clamp(x2 / (width - 1), 0.0, 1.0),
             height <= 1 ? 0.5 : Math.Clamp(y2 / (height - 1), 0.0, 1.0));
-    }
-
-    private static double ComputeDirectionalTrailSupport(float[] pixels, int width, int x, int y, int dx, int dy)
-    {
-        var center = pixels[(y * width) + x] * 1.25;
-        var sum = center;
-        var perpX = -dy;
-        var perpY = dx;
-
-        // Sample 5 steps along the trail direction (longer reach catches faint trails).
-        double[] alongWeights = [1.0, 0.85, 0.70, 0.55, 0.40];
-        for (var step = 1; step <= 5; step++)
-        {
-            var nx = x + (dx * step);
-            var ny = y + (dy * step);
-            if ((uint)nx >= (uint)width || (uint)ny >= (uint)(pixels.Length / width)) break;
-            sum += alongWeights[step - 1] * pixels[(ny * width) + nx];
-
-            nx = x - (dx * step);
-            ny = y - (dy * step);
-            if ((uint)nx >= (uint)width || (uint)ny >= (uint)(pixels.Length / width)) break;
-            sum += alongWeights[step - 1] * pixels[(ny * width) + nx];
-        }
-
-        // Subtract perpendicular neighbours — suppresses point sources and blobs.
-        double[] perpWeights = [1.0, 0.70, 0.45];
-        for (var step = 1; step <= 3; step++)
-        {
-            var nx = x + (perpX * step);
-            var ny = y + (perpY * step);
-            if ((uint)nx < (uint)width && (uint)ny < (uint)(pixels.Length / width))
-                sum -= perpWeights[step - 1] * pixels[(ny * width) + nx];
-
-            nx = x - (perpX * step);
-            ny = y - (perpY * step);
-            if ((uint)nx < (uint)width && (uint)ny < (uint)(pixels.Length / width))
-                sum -= perpWeights[step - 1] * pixels[(ny * width) + nx];
-        }
-
-        return sum;
-    }
-
-    private static void UpdateTopTwo(double candidate, ref double best, ref double second)
-    {
-        if (candidate >= best)
-        {
-            second = best;
-            best = candidate;
-            return;
-        }
-
-        if (candidate > second)
-        {
-            second = candidate;
-        }
     }
 
     private static double Median9(float[] pixels, int width, int x, int y)
