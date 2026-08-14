@@ -2780,7 +2780,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
             for (var index = 0; index < members.Length; index++)
             {
-                var overallColor = GetScoreColor(members[index].Frame.OverallScore);
                 result[members[index].Frame.FilePath] = new FrameIndicatorColors(
                     GetScoreColor(fwhmScores[index] * 5.0),
                     GetScoreColor(hfrScores[index] * 5.0),
@@ -2788,7 +2787,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     GetScoreColor(eccScores[index] * 5.0),
                     GetScoreColor(backgroundScores[index] * 5.0),
                     GetScoreColor(trailScores[index] * 5.0),
-                    overallColor);
+                    GetFilterBorderColor(members[index].Frame.FilterName));
             }
         }
 
@@ -3232,7 +3231,7 @@ public sealed record FrameSummaryViewModel(
 
     public string TrailIndicatorColor => Indicators.Trail;
 
-    public string FilterIndicatorColor => GetScoreColor(OverallScore);
+    public string FilterIndicatorColor => Indicators.Filter;
 
     public string FilterText => string.IsNullOrWhiteSpace(FilterName) ? "Filter n/a" : $"Filter {FilterName}";
 
