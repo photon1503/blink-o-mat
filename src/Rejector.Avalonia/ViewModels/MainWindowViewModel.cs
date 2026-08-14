@@ -1116,6 +1116,24 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public int MinCloudConfidence
+    {
+        get => GetSelectedThresholds().MinCloudConfidence;
+        set
+        {
+            var thresholds = GetSelectedThresholdsForEdit();
+            if (thresholds.MinCloudConfidence == value)
+            {
+                return;
+            }
+
+            thresholds.MinCloudConfidence = value;
+            thresholds.AutoCalcCloudThreshold = false;
+            OnPropertyChanged();
+            PersistSelectedThresholdScopeAndRevalidateAll();
+        }
+    }
+
     public double MinScore
     {
         get => GetSelectedThresholds().MinScore;
@@ -1124,6 +1142,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public int SatelliteTrailRejectedFrameCount => CountThresholdRejects(context =>
         GetSelectedThresholds().MinSatelliteConfidence > 0 && context.Frame.Metrics.SatelliteTrailConfidence >= GetSelectedThresholds().MinSatelliteConfidence);
+
+    public int CloudRejectedFrameCount => CountThresholdRejects(context =>
+        GetSelectedThresholds().MinCloudConfidence > 0 && context.Frame.CloudConfidence >= GetSelectedThresholds().MinCloudConfidence);
 
     public int FwhmRejectedFrameCount => CountThresholdRejects(context => context.Frame.Metrics.Fwhm > GetSelectedThresholds().MaxFwhm);
 
@@ -1169,6 +1190,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             MinSqm = _thresholds.MinSqm,
             MaxSkyTemp = _thresholds.MaxSkyTemp,
             MinSatelliteConfidence = _thresholds.MinSatelliteConfidence,
+            MinCloudConfidence = _thresholds.MinCloudConfidence,
             MinScore = _thresholds.MinScore,
             Frames = _resultContexts.Select(context => new SessionFrameEntry
             {
@@ -1193,6 +1215,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 Max = context.Frame.Metrics.Max,
                 MaxCount = context.Frame.Metrics.MaxCount,
                 SatelliteTrailConfidence = context.Frame.Metrics.SatelliteTrailConfidence,
+                CloudConfidence = context.Frame.CloudConfidence,
                 TrailX1 = context.Frame.Metrics.TrailX1,
                 TrailY1 = context.Frame.Metrics.TrailY1,
                 TrailX2 = context.Frame.Metrics.TrailX2,
@@ -1249,6 +1272,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _thresholds.MinSqm = session.MinSqm;
         _thresholds.MaxSkyTemp = session.MaxSkyTemp;
         _thresholds.MinSatelliteConfidence = session.MinSatelliteConfidence;
+        _thresholds.MinCloudConfidence = session.MinCloudConfidence;
         _thresholds.MinScore = session.MinScore;
         OnPropertyChanged(nameof(MaxFwhm));
         OnPropertyChanged(nameof(MaxFwhmArcsec));
@@ -1259,6 +1283,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(MaxMeanBackground));
         OnPropertyChanged(nameof(MinStars));
         OnPropertyChanged(nameof(MinSatelliteConfidence));
+        OnPropertyChanged(nameof(MinCloudConfidence));
         OnPropertyChanged(nameof(MinScore));
         RaiseThresholdPanelDiagnosticsChanged();
 
@@ -1303,6 +1328,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
             frame.SetAutomaticRejected(entry.AutoRejected);
             frame.SetManualRejectedOverride(entry.ManualRejectedOverride);
+            frame.CloudConfidence = entry.CloudConfidence;
 
             var thumbnail = PreviewPayloadCodec.DecodeToBitmap(entry.ThumbnailPng);
             var roiImage = PreviewPayloadCodec.DecodeToBitmap(entry.RoiPng);
@@ -1724,6 +1750,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(MaxMeanBackground));
             OnPropertyChanged(nameof(MinStars));
             OnPropertyChanged(nameof(MinSatelliteConfidence));
+            OnPropertyChanged(nameof(MinCloudConfidence));
             OnPropertyChanged(nameof(MinScore));
             OnPropertyChanged(nameof(ShowTrailSlider));
             OnPropertyChanged(nameof(ShowFwhmSlider));
@@ -1861,6 +1888,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         if (!IsAnalyzing && _resultContexts.Count > 0)
         {
+            CloudMetricService.Compute(_resultContexts.Select(context => context.Frame));
             _rejectionService.RevalidateAll(_resultContexts.Select(context => context.Frame), _thresholds, _filterThresholds);
             RebuildResults();
         }
@@ -1919,6 +1947,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             ScoreWeightMeanBackground = ScoreWeightBackground,
             ScoreWeightTrail = ScoreWeightTrail,
             AutoCalcTrailThreshold = _thresholds.AutoCalcTrailThreshold,
+            AutoCalcCloudThreshold = _thresholds.AutoCalcCloudThreshold,
             AutoCalcFwhmThreshold = _thresholds.AutoCalcFwhmThreshold,
             AutoCalcFwhmArcsecThreshold = _thresholds.AutoCalcFwhmArcsecThreshold,
             AutoCalcSqmThreshold = _thresholds.AutoCalcSqmThreshold,
@@ -2089,6 +2118,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private void ApplyThresholds(bool updateStatus)
     {
+        CloudMetricService.Compute(_resultContexts.Select(context => context.Frame));
         _rejectionService.RevalidateAll(_resultContexts.Select(context => context.Frame), _thresholds, _filterThresholds);
 
         RebuildResults();
@@ -2510,6 +2540,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private void RaiseThresholdPanelDiagnosticsChanged()
     {
         OnPropertyChanged(nameof(SatelliteTrailRejectedFrameCount));
+        OnPropertyChanged(nameof(CloudRejectedFrameCount));
         OnPropertyChanged(nameof(FwhmRejectedFrameCount));
         OnPropertyChanged(nameof(FwhmArcsecRejectedFrameCount));
         OnPropertyChanged(nameof(SqmRejectedFrameCount));
@@ -2551,6 +2582,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(MaxMeanBackground));
         OnPropertyChanged(nameof(MinStars));
         OnPropertyChanged(nameof(MinSatelliteConfidence));
+        OnPropertyChanged(nameof(MinCloudConfidence));
         OnPropertyChanged(nameof(MinScore));
     }
 
@@ -2631,6 +2663,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             context.Frame.Metrics.Max,
             context.Frame.Metrics.MaxCount,
             context.Frame.Metrics.SatelliteTrailConfidence,
+            context.Frame.CloudConfidence,
             context.Frame.IsRejected,
             context.Frame.AutomaticRejected,
             context.Frame.ManualRejectedOverride,
@@ -2777,6 +2810,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             var eccScores = RankPercentile(members.Select(context => IsValidEccentricityForScoring(context.Frame.Metrics) ? context.Frame.Metrics.Eccentricity : double.NaN).ToArray(), lowerIsBetter: true);
             var backgroundScores = RankPercentile(members.Select(context => context.Frame.Metrics.MeanBackground).ToArray(), lowerIsBetter: true);
             var trailScores = RankPercentile(members.Select(context => (double)context.Frame.Metrics.SatelliteTrailConfidence).ToArray(), lowerIsBetter: true);
+            var cloudScores = RankPercentile(members.Select(context => (double)context.Frame.CloudConfidence).ToArray(), lowerIsBetter: true);
 
             for (var index = 0; index < members.Length; index++)
             {
@@ -2787,6 +2821,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     GetScoreColor(eccScores[index] * 5.0),
                     GetScoreColor(backgroundScores[index] * 5.0),
                     GetScoreColor(trailScores[index] * 5.0),
+                    GetScoreColor(cloudScores[index] * 5.0),
                     GetFilterBorderColor(members[index].Frame.FilterName));
             }
         }
@@ -2970,8 +3005,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             MaxMeanBackground = _thresholds.MaxMeanBackground,
             MinStars = _thresholds.MinStars,
             MinSatelliteConfidence = _thresholds.MinSatelliteConfidence,
+            MinCloudConfidence = _thresholds.MinCloudConfidence,
             MinScore = _thresholds.MinScore,
             AutoCalcTrailThreshold = _thresholds.AutoCalcTrailThreshold,
+            AutoCalcCloudThreshold = _thresholds.AutoCalcCloudThreshold,
             AutoCalcFwhmThreshold = _thresholds.AutoCalcFwhmThreshold,
             AutoCalcFwhmArcsecThreshold = _thresholds.AutoCalcFwhmArcsecThreshold,
             AutoCalcSqmThreshold = _thresholds.AutoCalcSqmThreshold,
@@ -3124,6 +3161,7 @@ public sealed record FrameSummaryViewModel(
     double Max,
     int MaxCount,
     int SatelliteTrailConfidence,
+    int CloudConfidence,
     bool IsRejected,
     bool AutomaticRejected,
     bool? ManualRejectedOverride,
@@ -3190,6 +3228,8 @@ public sealed record FrameSummaryViewModel(
 
     public string TrailText => SatelliteTrailConfidence > 0 ? $"{SatelliteTrailConfidence}%" : "–";
 
+    public string CloudText => CloudConfidence > 0 ? $"{CloudConfidence}%" : "–";
+
     public string VerdictText => IsRejected ? "Rejected" : "Keep";
 
     public string RejectionStateLabel
@@ -3231,6 +3271,8 @@ public sealed record FrameSummaryViewModel(
 
     public string TrailIndicatorColor => Indicators.Trail;
 
+    public string CloudIndicatorColor => Indicators.Cloud;
+
     public string FilterIndicatorColor => Indicators.Filter;
 
     public string FilterText => string.IsNullOrWhiteSpace(FilterName) ? "Filter n/a" : $"Filter {FilterName}";
@@ -3247,9 +3289,10 @@ public sealed record FrameIndicatorColors(
     string Eccentricity,
     string MeanBackground,
     string Trail,
+    string Cloud,
     string Filter)
 {
-    public static readonly FrameIndicatorColors Default = new("#DAA520", "#DAA520", "#DAA520", "#DAA520", "#DAA520", "#DAA520", "#6D88C4");
+    public static readonly FrameIndicatorColors Default = new("#DAA520", "#DAA520", "#DAA520", "#DAA520", "#DAA520", "#DAA520", "#DAA520", "#6D88C4");
 }
 
 public sealed class FilterChipViewModel : INotifyPropertyChanged

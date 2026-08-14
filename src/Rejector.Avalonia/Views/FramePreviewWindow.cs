@@ -1207,6 +1207,7 @@ public sealed class FramePreviewWindow : Window
                                 MetricRow("Min", "SelectedResult.MinDisplay"),
                                 MetricRow("Max", "SelectedResult.MaxDisplay"),
                                 MetricRow("Trail conf.", "SelectedResult.TrailText", "SelectedResult.TrailIndicatorColor"),
+                                MetricRow("Clouds", "SelectedResult.CloudText", "SelectedResult.CloudIndicatorColor"),
                             },
                         },
                     },

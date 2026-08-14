@@ -145,6 +145,16 @@
                                             Suffix="%"
                                             ShowRejectCount="True"
                                             RejectCount="{Binding SatelliteTrailRejectedFrameCount}" />
+              <controls:MetricSliderControl Label="Min. cloud confidence"
+                                            Value="{Binding MinCloudConfidence}"
+                                            Minimum="0"
+                                            Maximum="100"
+                                            TickFrequency="5"
+                                            LargeChange="10"
+                                            Decimals="0"
+                                            Suffix="%"
+                                            ShowRejectCount="True"
+                                            RejectCount="{Binding CloudRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Max FWHM (as)"
                                             IsVisible="{Binding ShowFwhmArcsecSlider}"
                                             Value="{Binding MaxFwhmArcsec}"
@@ -378,6 +388,12 @@
                         <StackPanel Orientation="Horizontal">
                           <TextBlock Text="TRAIL" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
                           <TextBlock Text="{Binding TrailText}" Foreground="{Binding TrailIndicatorColor}" FontWeight="SemiBold" />
+                        </StackPanel>
+                      </Border>
+                      <Border Background="#202224" BorderBrush="{Binding CloudIndicatorColor}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,8">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="CLOUD" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
+                          <TextBlock Text="{Binding CloudText}" Foreground="{Binding CloudIndicatorColor}" FontWeight="SemiBold" />
                         </StackPanel>
                       </Border>
                       <Border Background="#202224" BorderBrush="#4C9AFF" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,8" IsVisible="{Binding $parent[Window].DataContext.ShowSqmMetric}">

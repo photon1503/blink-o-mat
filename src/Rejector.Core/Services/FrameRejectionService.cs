@@ -45,6 +45,7 @@ public sealed class FrameRejectionService
                || metrics.MeanBackground > thresholds.MaxMeanBackground
                || metrics.StarCount < thresholds.MinStars
                || (thresholds.MinSatelliteConfidence > 0 && metrics.SatelliteTrailConfidence >= thresholds.MinSatelliteConfidence)
+               || (thresholds.MinCloudConfidence > 0 && frame.CloudConfidence >= thresholds.MinCloudConfidence)
                || (thresholds.MinScore > 0 && frame.OverallScore < thresholds.MinScore);
     }
 
@@ -96,6 +97,11 @@ public sealed class FrameRejectionService
         if (thresholds.MinSatelliteConfidence > 0 && metrics.SatelliteTrailConfidence >= thresholds.MinSatelliteConfidence)
         {
             reasons.Add($"Satellite trail confidence {metrics.SatelliteTrailConfidence}%  ≥  limit {thresholds.MinSatelliteConfidence}%");
+        }
+
+        if (thresholds.MinCloudConfidence > 0 && frame.CloudConfidence >= thresholds.MinCloudConfidence)
+        {
+            reasons.Add($"Cloud confidence {frame.CloudConfidence}%  ≥  limit {thresholds.MinCloudConfidence}%");
         }
 
         if (thresholds.MinScore > 0 && frame.OverallScore < thresholds.MinScore)

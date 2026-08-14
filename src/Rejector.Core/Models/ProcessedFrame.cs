@@ -15,6 +15,9 @@ public sealed class ProcessedFrame
     public string? FilterName { get; init; }
     public double OverallScore { get; set; }
 
+    // Cross-frame cloud obscurance confidence (0–100), computed per filter group.
+    public int CloudConfidence { get; set; }
+
     public bool AutomaticRejected => _automaticRejected;
 
     public bool? ManualRejectedOverride => _manualRejectedOverride;

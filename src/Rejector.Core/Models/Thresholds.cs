@@ -11,9 +11,11 @@ public sealed class Thresholds
     public double MaxMeanBackground { get; set; } = 2000.0;
     public double MinStars { get; set; } = 0;
     public int MinSatelliteConfidence { get; set; } = 80;
+    public int MinCloudConfidence { get; set; } = 80;
     public double MinScore { get; set; } = 0.0;
 
     public bool AutoCalcTrailThreshold { get; set; } = true;
+    public bool AutoCalcCloudThreshold { get; set; } = true;
     public bool AutoCalcFwhmThreshold { get; set; } = true;
     public bool AutoCalcFwhmArcsecThreshold { get; set; } = true;
     public bool AutoCalcSqmThreshold { get; set; } = true;
@@ -52,8 +54,10 @@ public sealed class Thresholds
             MaxMeanBackground = MaxOrDefault(materialized.Select(frame => frame.Metrics.MeanBackground), defaults.MaxMeanBackground),
             MinStars = materialized.Count > 0 ? materialized.Min(frame => (double)frame.Metrics.StarCount) : defaults.MinStars,
             MinSatelliteConfidence = 0,
+            MinCloudConfidence = 0,
             MinScore = MinOrDefault(materialized.Select(frame => frame.OverallScore), defaults.MinScore),
             AutoCalcTrailThreshold = false,
+            AutoCalcCloudThreshold = false,
             AutoCalcFwhmThreshold = false,
             AutoCalcFwhmArcsecThreshold = false,
             AutoCalcSqmThreshold = false,
@@ -79,8 +83,10 @@ public sealed class Thresholds
             MaxMeanBackground = MaxMeanBackground,
             MinStars = MinStars,
             MinSatelliteConfidence = MinSatelliteConfidence,
+            MinCloudConfidence = MinCloudConfidence,
             MinScore = MinScore,
             AutoCalcTrailThreshold = AutoCalcTrailThreshold,
+            AutoCalcCloudThreshold = AutoCalcCloudThreshold,
             AutoCalcFwhmThreshold = AutoCalcFwhmThreshold,
             AutoCalcFwhmArcsecThreshold = AutoCalcFwhmArcsecThreshold,
             AutoCalcSqmThreshold = AutoCalcSqmThreshold,

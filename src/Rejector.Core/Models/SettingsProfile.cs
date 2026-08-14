@@ -42,6 +42,7 @@ public sealed class SettingsProfile
     public bool ShowScoreMetric { get; set; } = true;
 
     public bool AutoCalcTrailThreshold { get; set; } = true;
+    public bool AutoCalcCloudThreshold { get; set; } = true;
     public bool AutoCalcFwhmThreshold { get; set; } = true;
     public bool AutoCalcFwhmArcsecThreshold { get; set; } = true;
     public bool AutoCalcSqmThreshold { get; set; } = true;
@@ -71,6 +72,7 @@ public sealed class SettingsProfile
         Thresholds = thresholds.Clone();
         FilterThresholds.Clear();
         AutoCalcTrailThreshold = Thresholds.AutoCalcTrailThreshold;
+        AutoCalcCloudThreshold = Thresholds.AutoCalcCloudThreshold;
         AutoCalcFwhmThreshold = Thresholds.AutoCalcFwhmThreshold;
         AutoCalcFwhmArcsecThreshold = Thresholds.AutoCalcFwhmArcsecThreshold;
         AutoCalcSqmThreshold = Thresholds.AutoCalcSqmThreshold;
@@ -158,6 +160,7 @@ public sealed class SettingsProfile
             ShowStarsMetric = ShowStarsMetric,
             ShowScoreMetric = ShowScoreMetric,
             AutoCalcTrailThreshold = AutoCalcTrailThreshold,
+            AutoCalcCloudThreshold = AutoCalcCloudThreshold,
             AutoCalcFwhmThreshold = AutoCalcFwhmThreshold,
             AutoCalcFwhmArcsecThreshold = AutoCalcFwhmArcsecThreshold,
             AutoCalcSqmThreshold = AutoCalcSqmThreshold,

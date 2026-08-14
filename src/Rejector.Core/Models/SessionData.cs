@@ -16,6 +16,7 @@ public sealed class SessionData
     public double MinSqm { get; set; }
     public double MaxSkyTemp { get; set; }
     public int MinSatelliteConfidence { get; set; }
+    public int MinCloudConfidence { get; set; }
     public bool RejectSatelliteTrail { get; set; }
     public double MinScore { get; set; }
     public double StfShadows { get; set; }
@@ -100,6 +101,7 @@ public sealed class SessionFrameEntry
     public double Max { get; set; }
     public int MaxCount { get; set; }
     public int SatelliteTrailConfidence { get; set; }
+    public int CloudConfidence { get; set; }
     public double? TrailX1 { get; set; }
     public double? TrailY1 { get; set; }
     public double? TrailX2 { get; set; }
