@@ -2768,24 +2768,28 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return result;
         }
 
-        var avgFwhm = contexts.Average(context => context.Frame.Metrics.Fwhm);
-        var avgHfr = contexts.Average(context => context.Frame.Metrics.Hfr);
-        var avgStars = contexts.Average(context => context.Frame.Metrics.StarCount);
-        var avgEcc = contexts.Average(context => context.Frame.Metrics.Eccentricity);
-        var avgBg = contexts.Average(context => context.Frame.Metrics.MeanBackground);
-
-        foreach (var context in contexts)
+        foreach (var group in contexts.GroupBy(context => NormalizeFilterKey(context.Frame.FilterName), StringComparer.OrdinalIgnoreCase))
         {
-            // Use score-based coloring for all indicators, so they visibly reflect frame quality
-            var scoreColor = GetScoreColor(context.Frame.OverallScore);
-            result[context.Frame.FilePath] = new FrameIndicatorColors(
-                scoreColor,  // FWHM color reflects overall score
-                scoreColor,  // HFR color reflects overall score
-                scoreColor,  // Stars color reflects overall score
-                scoreColor,  // Eccentricity color reflects overall score
-                scoreColor,  // MeanBackground color reflects overall score
-                context.Frame.Metrics.SatelliteTrailConfidence >= 60 ? ColorRed : ColorGreen,  // Trail uses threshold
-                scoreColor); // Filter color reflects overall score
+            var members = group.ToArray();
+            var fwhmScores = RankPercentile(members.Select(context => IsValidFwhmForScoring(context.Frame.Metrics) ? context.Frame.Metrics.Fwhm : double.NaN).ToArray(), lowerIsBetter: true);
+            var hfrScores = RankPercentile(members.Select(context => IsValidHfrForScoring(context.Frame.Metrics) ? context.Frame.Metrics.Hfr : double.NaN).ToArray(), lowerIsBetter: true);
+            var starScores = RankPercentile(members.Select(context => (double)context.Frame.Metrics.StarCount).ToArray(), lowerIsBetter: false);
+            var eccScores = RankPercentile(members.Select(context => IsValidEccentricityForScoring(context.Frame.Metrics) ? context.Frame.Metrics.Eccentricity : double.NaN).ToArray(), lowerIsBetter: true);
+            var backgroundScores = RankPercentile(members.Select(context => context.Frame.Metrics.MeanBackground).ToArray(), lowerIsBetter: true);
+            var trailScores = RankPercentile(members.Select(context => (double)context.Frame.Metrics.SatelliteTrailConfidence).ToArray(), lowerIsBetter: true);
+
+            for (var index = 0; index < members.Length; index++)
+            {
+                var overallColor = GetScoreColor(members[index].Frame.OverallScore);
+                result[members[index].Frame.FilePath] = new FrameIndicatorColors(
+                    GetScoreColor(fwhmScores[index] * 5.0),
+                    GetScoreColor(hfrScores[index] * 5.0),
+                    GetScoreColor(starScores[index] * 5.0),
+                    GetScoreColor(eccScores[index] * 5.0),
+                    GetScoreColor(backgroundScores[index] * 5.0),
+                    GetScoreColor(trailScores[index] * 5.0),
+                    overallColor);
+            }
         }
 
         return result;

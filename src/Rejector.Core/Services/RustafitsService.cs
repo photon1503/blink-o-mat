@@ -3542,8 +3542,8 @@ public sealed class RustafitsService
         const double suppressionRadiusSq = suppressionRadius * suppressionRadius;
         const int cellSize = 8; // > 2 * suppressionRadius
         const double detectionSigma = 4.0; // threshold above local background
-        const double supportSigma = 1.5;   // neighbour support level
-        const double minPeakSnr = 5.0;     // brightness-invariant quality gate
+        const double supportSigma = 1.25;  // neighbour support level
+        const double minPeakSnr = 4.5;     // brightness-invariant quality gate
 
         var result = new List<(double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y, double Quality)>();
         if (width < 7 || height < 7)
@@ -3613,7 +3613,7 @@ public sealed class RustafitsService
                     if (smoothed[rowUp + x + 1] >= supportLevel) support++;
                     if (smoothed[rowDn + x - 1] >= supportLevel) support++;
                     if (smoothed[rowDn + x + 1] >= supportLevel) support++;
-                    if (support < 5)
+                    if (support < 3)
                     {
                         continue;
                     }

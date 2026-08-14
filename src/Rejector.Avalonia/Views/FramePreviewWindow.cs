@@ -998,7 +998,7 @@ public sealed class FramePreviewWindow : Window
             }
         };
 
-        Control MetricRow(string label, string path, string? indicatorColor = null)
+        Control MetricRow(string label, string path, string? indicatorPath = null)
         {
             var row = new Grid
             {
@@ -1006,15 +1006,15 @@ public sealed class FramePreviewWindow : Window
                 ColumnSpacing = 6,
             };
 
-            if (!string.IsNullOrWhiteSpace(indicatorColor))
+            if (!string.IsNullOrWhiteSpace(indicatorPath))
             {
                 var marker = new Ellipse
                 {
                     Width = 8,
                     Height = 8,
-                    Fill = SolidColorBrush.Parse(indicatorColor),
                     VerticalAlignment = VerticalAlignment.Center,
                 };
+                marker.Bind(Shape.FillProperty, new Binding(indicatorPath));
                 row.Children.Add(marker);
             }
 
@@ -1037,6 +1037,10 @@ public sealed class FramePreviewWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Right,
             };
             valueText.Bind(TextBlock.TextProperty, new Binding(path));
+            if (!string.IsNullOrWhiteSpace(indicatorPath))
+            {
+                valueText.Bind(TextBlock.ForegroundProperty, new Binding(indicatorPath));
+            }
             Grid.SetColumn(valueText, 3);
             row.Children.Add(valueText);
             return row;
@@ -1190,19 +1194,19 @@ public sealed class FramePreviewWindow : Window
                                 new TextBlock { Text = "METRICS", Foreground = SolidColorBrush.Parse("#D0D8E0"), FontSize = 11, FontWeight = FontWeight.SemiBold },
                                 MetricRow("Date/time", "SelectedResult.TimestampDisplay"),
                                 MetricRow("Filter", "SelectedResult.FilterDisplay"),
-                                MetricRow("FWHM", "SelectedResult.FwhmPixelDisplay", "#D96868"),
-                                MetricRow("FWHM sky", "SelectedResult.FwhmArcsecDisplay", "#D96868"),
-                                MetricRow("HFR", "SelectedResult.HfrDisplay", "#D96868"),
-                                MetricRow("Stars", "SelectedResult.StarCount", "#D96868"),
+                                MetricRow("FWHM", "SelectedResult.FwhmPixelDisplay", "SelectedResult.FwhmIndicatorColor"),
+                                MetricRow("FWHM sky", "SelectedResult.FwhmArcsecDisplay", "SelectedResult.FwhmIndicatorColor"),
+                                MetricRow("HFR", "SelectedResult.HfrDisplay", "SelectedResult.HfrIndicatorColor"),
+                                MetricRow("Stars", "SelectedResult.StarCount", "SelectedResult.StarsIndicatorColor"),
                                 MetricRow("SQM", "SelectedResult.SqmDisplay"),
                                 MetricRow("Sky temp", "SelectedResult.SkyTempDisplay"),
-                                MetricRow("Eccentricity", "SelectedResult.EccentricityDisplay", "#E1B42E"),
-                                MetricRow("Mean BG", "SelectedResult.MeanBackgroundDisplay", "#D96868"),
+                                MetricRow("Eccentricity", "SelectedResult.EccentricityDisplay", "SelectedResult.EccentricityIndicatorColor"),
+                                MetricRow("Mean BG", "SelectedResult.MeanBackgroundDisplay", "SelectedResult.MeanBackgroundIndicatorColor"),
                                 MetricRow("Median", "SelectedResult.MedianDisplay"),
                                 MetricRow("MAD", "SelectedResult.MadDisplay"),
                                 MetricRow("Min", "SelectedResult.MinDisplay"),
                                 MetricRow("Max", "SelectedResult.MaxDisplay"),
-                                MetricRow("Trail conf.", "SelectedResult.TrailText", "#56C269"),
+                                MetricRow("Trail conf.", "SelectedResult.TrailText", "SelectedResult.TrailIndicatorColor"),
                             },
                         },
                     },
