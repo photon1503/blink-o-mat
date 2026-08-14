@@ -79,10 +79,6 @@
                 <TextBlock Text="Total frames" Foreground="{DynamicResource MutedTextBrush}" FontSize="12" />
                 <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding TotalFrameCount}" FontSize="12" />
               </Grid>
-              <Grid Height="7" Margin="0,0,0,3" ColumnDefinitions="*,*">
-                <Border Grid.Column="0" Background="#5CA36E" CornerRadius="3,0,0,3" />
-                <Border Grid.Column="1" Background="#B85C5C" CornerRadius="0,3,3,0" />
-              </Grid>
               <ProgressBar Height="7" Minimum="0" Maximum="1" Value="{Binding OverallAcceptedRatio}" Foreground="#5CA36E" Background="#B85C5C" Margin="0,0,0,6" />
               <Grid Margin="0,0,0,2" ColumnDefinitions="*,Auto">
                 <StackPanel Orientation="Horizontal">
