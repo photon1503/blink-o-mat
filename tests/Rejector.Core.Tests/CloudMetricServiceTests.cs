@@ -111,6 +111,31 @@ public sealed class CloudMetricServiceTests
     }
 
     [Fact]
+    public void Compute_SustainedCloudBank_IsFlaggedDespiteCloudyNeighbours()
+    {
+        // A multi-frame cloud bank: local neighbours are cloudy too, so only the
+        // clear-sky baseline can expose it.
+        var frames = new List<ProcessedFrame>();
+        var start = new DateTimeOffset(2026, 7, 9, 0, 0, 0, TimeSpan.Zero);
+        for (var i = 0; i < 6; i++)
+        {
+            frames.Add(CreateFrame($"clear{i}.fit", "L", 1500 + (i * 10), 80, start.AddMinutes(i * 5)));
+        }
+
+        for (var i = 0; i < 5; i++)
+        {
+            frames.Add(CreateFrame($"bank{i}.fit", "L", 4100 + (i * 15), 18, start.AddMinutes(30 + (i * 5))));
+        }
+
+        CloudMetricService.Compute(frames);
+
+        Assert.All(frames.Where(frame => frame.FileName.StartsWith("bank")), frame =>
+            Assert.True(frame.CloudConfidence >= 60, $"{frame.FileName} expected >=60, got {frame.CloudConfidence}"));
+        Assert.All(frames.Where(frame => frame.FileName.StartsWith("clear")), frame =>
+            Assert.True(frame.CloudConfidence <= 10, $"{frame.FileName} unexpectedly flagged with {frame.CloudConfidence}"));
+    }
+
+    [Fact]
     public void ShouldReject_UsesCloudConfidenceThreshold()
     {
         var service = new FrameRejectionService();
