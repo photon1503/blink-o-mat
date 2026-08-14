@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.0
+
+### Added
+- Migrated the desktop application to **Avalonia UI**, bringing the main workflow to Windows, macOS, and Linux while preserving FITS/XISF analysis.
+- Added per-filter **cloud confidence** detection based on sky-background invariance with star-count corroboration.
+- Added cloud confidence display to frame cards and the preview metrics panel.
+- Added a per-filter minimum cloud-confidence rejection slider with live reject counts and session/profile persistence.
+- Added **Cloud confidence** to the sort filter.
+
+### Changed
+- Improved satellite-trail detection with orientation-independent full-angle Hough analysis for trails at arbitrary angles.
+- Improved star detection for faint stars and varying background levels while reducing false detections from noise, saturated sources, and non-stellar structures.
+- Improved per-filter metric colors across frame cards and preview metrics.
+- Clarified minimum and maximum pixel-value/count sort labels while preserving compatibility with existing saved sort rules.
+
+### Fixed
+- Tracking-elongated frames with stable sky backgrounds no longer receive cloud confidence solely because fewer stars were detected.
+- Invalid or incomplete star measurements no longer inflate frame quality scores.
+
 ## 1.0.36
 ### Changed
 - Improved reliability of app startup and settings migration when loading data from older versions. The app now normalizes and validates migrated settings data before applying it, and if critical incompatibilities are detected, it creates a backup of the old settings and retries launch with fresh defaults instead of failing to start.

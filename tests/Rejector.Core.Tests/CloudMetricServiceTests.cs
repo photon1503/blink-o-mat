@@ -73,6 +73,24 @@ public sealed class CloudMetricServiceTests
     }
 
     [Fact]
+    public void Compute_StarLossWithStableBackground_IsNotFlaggedAsClouds()
+    {
+        // Tracking/wind elongation suppresses detected stars but leaves the sky background invariant.
+        var frames = new[]
+        {
+            CreateFrame("l1.fit", "L", 400, 60),
+            CreateFrame("l2.fit", "L", 405, 62),
+            CreateFrame("l3.fit", "L", 398, 58),
+            CreateFrame("l4.fit", "L", 402, 61),
+            CreateFrame("elongated.fit", "L", 401, 8),
+        };
+
+        CloudMetricService.Compute(frames);
+
+        Assert.Equal(0, frames[^1].CloudConfidence);
+    }
+
+    [Fact]
     public void ShouldReject_UsesCloudConfidenceThreshold()
     {
         var service = new FrameRejectionService();

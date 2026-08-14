@@ -505,11 +505,28 @@ All threshold arguments are optional; omitting one keeps its default value.
 
 ## Requirements
 
-- **Windows 10 or later** (the UI is WPF; the headless mode is also Windows-only).
+- **Windows 10 or later, macOS, or Linux** (the desktop UI is built with Avalonia).
 - **.NET 10** runtime. The installer bundles what it needs.
 
 ---
 
 ## Changelog
+
+### 2.0
+
+#### Added
+
+- Migrated the desktop application to **Avalonia UI**, bringing the main workflow to Windows, macOS, and Linux while preserving the FITS/XISF analysis pipeline.
+- Added a per-filter **cloud confidence** metric based on sky-background invariance across frames, with star-count corroboration to identify frames obscured by clouds.
+- Added cloud confidence to frame cards and the preview metrics panel.
+- Added a per-filter **minimum cloud confidence** rejection slider with live rejection counts and saved session/profile settings.
+
+#### Improved
+
+- Improved satellite-trail detection with orientation-independent full-angle Hough analysis, supporting trails at arbitrary angles.
+- Improved star detection for faint stars and varying background levels while reducing false detections from noise, saturated sources, and non-stellar structures.
+- Improved per-filter metric coloring so cards and preview metrics consistently reflect each frame's filter-specific score.
+- Improved handling of invalid or incomplete star measurements so missing values cannot inflate frame quality scores.
+- Added full-resolution preview rendering, zoom/pan state preservation, ROI tools, cached previews, watch-folder updates, and cross-platform file-manager integration.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full version history.

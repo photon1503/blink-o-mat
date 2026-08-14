@@ -73,11 +73,32 @@ public sealed class FrameSortComparerTests
             frame => Assert.Equal("missing", frame.FileName));
     }
 
+    [Fact]
+    public void Compare_SortsCloudConfidenceAndClarifiedPixelValueFields()
+    {
+        var frames = new List<ProcessedFrame>
+        {
+            CreateFrame("clear", fwhm: 1.0, hfr: 2.0, min: 500),
+            CreateFrame("cloudy", fwhm: 1.0, hfr: 2.0, min: 100),
+        };
+        frames[0].CloudConfidence = 10;
+        frames[1].CloudConfidence = 85;
+
+        var cloudComparer = new FrameSortComparer([new FrameSortRule("Cloud confidence", IsAscending: false)]);
+        var cloudOrdered = frames.OrderBy(frame => frame, cloudComparer).ToList();
+        Assert.Equal("cloudy", cloudOrdered[0].FileName);
+
+        var minimumComparer = new FrameSortComparer([new FrameSortRule("Minimum pixel value", IsAscending: true)]);
+        var minimumOrdered = frames.OrderBy(frame => frame, minimumComparer).ToList();
+        Assert.Equal("cloudy", minimumOrdered[0].FileName);
+    }
+
     private static ProcessedFrame CreateFrame(
         string fileName,
         double fwhm,
         double hfr,
-        DateTimeOffset? observationDate = null)
+        DateTimeOffset? observationDate = null,
+        double min = 0)
     {
         return new ProcessedFrame
         {
@@ -88,6 +109,7 @@ public sealed class FrameSortComparerTests
             {
                 Fwhm = fwhm,
                 Hfr = hfr,
+                Min = min,
             }
         };
     }

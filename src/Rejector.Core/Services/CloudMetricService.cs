@@ -42,7 +42,9 @@ public static class CloudMetricService
                     ? Math.Clamp((((medianStars - frame.Metrics.StarCount) / medianStars) - 0.3) / 0.5, 0.0, 1.0)
                     : 0.0;
 
-                frame.CloudConfidence = (int)Math.Round(100.0 * Math.Clamp((0.7 * backgroundSignal) + (0.3 * starDeficit), 0.0, 1.0));
+                // Star deficit only corroborates a background deviation; alone it is
+                // ambiguous (tracking/wind elongation also suppresses detected stars).
+                frame.CloudConfidence = (int)Math.Round(100.0 * backgroundSignal * (0.7 + (0.3 * starDeficit)));
             }
         }
     }

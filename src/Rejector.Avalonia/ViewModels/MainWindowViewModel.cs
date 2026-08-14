@@ -782,14 +782,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         "Sky temp",
         "HFR",
         "Stars",
+        "Cloud confidence",
         "Eccentricity",
         "Mean background",
         "Median",
         "MAD",
-        "Min",
-        "Min count",
-        "Max",
-        "Max count"
+        "Minimum pixel value",
+        "Minimum pixel count",
+        "Maximum pixel value",
+        "Maximum pixel count"
     ];
 
     public Bitmap DemoPreview { get; } = CreateDemoPreview();
