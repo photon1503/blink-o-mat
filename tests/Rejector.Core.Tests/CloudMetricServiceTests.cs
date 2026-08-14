@@ -91,6 +91,26 @@ public sealed class CloudMetricServiceTests
     }
 
     [Fact]
+    public void Compute_SuddenJumpDuringGradualNightlyDrift_IsFlagged()
+    {
+        // Background rises steadily over the night (moon/twilight); one frame jumps.
+        var frames = new List<ProcessedFrame>();
+        var start = new DateTimeOffset(2026, 7, 12, 21, 0, 0, TimeSpan.Zero);
+        for (var i = 0; i < 10; i++)
+        {
+            frames.Add(CreateFrame($"g{i:D2}.fit", "G", 400 + (i * 33), 60, start.AddMinutes(i * 10)));
+        }
+
+        frames.Add(CreateFrame("cloudy.fit", "G", 1000, 20, start.AddMinutes(45)));
+
+        CloudMetricService.Compute(frames);
+
+        var cloudy = frames.Single(frame => frame.FileName == "cloudy.fit");
+        Assert.True(cloudy.CloudConfidence >= 60, $"Expected drift-immune detection, got {cloudy.CloudConfidence}");
+        Assert.All(frames.Where(frame => frame != cloudy), frame => Assert.True(frame.CloudConfidence <= 10, $"{frame.FileName} unexpectedly flagged with {frame.CloudConfidence}"));
+    }
+
+    [Fact]
     public void ShouldReject_UsesCloudConfidenceThreshold()
     {
         var service = new FrameRejectionService();
@@ -105,13 +125,14 @@ public sealed class CloudMetricServiceTests
         Assert.False(service.ShouldReject(frame, disabled));
     }
 
-    private static ProcessedFrame CreateFrame(string fileName, string filterName, double meanBackground, int starCount)
+    private static ProcessedFrame CreateFrame(string fileName, string filterName, double meanBackground, int starCount, DateTimeOffset? exposureDateTime = null)
     {
         return new ProcessedFrame
         {
             FilePath = fileName,
             FileName = fileName,
             FilterName = filterName,
+            ExposureDateTime = exposureDateTime,
             Metrics = new AstroMetrics
             {
                 MeanBackground = meanBackground,
