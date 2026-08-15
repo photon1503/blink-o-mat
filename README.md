@@ -67,7 +67,13 @@ The portable **Rejector-{version}-win-x64.zip** contains the same self-contained
 
 1. Download **Rejector-{version}-osx-arm64.dmg** for Apple Silicon Macs.
 2. Open the DMG and drag **Rejector** to **Applications**.
-3. Launch **Rejector** from Applications. macOS may require confirmation the first time an app downloaded from the internet is opened.
+3. Launch **Rejector** from Applications. The current DMG is unsigned, so Gatekeeper may block it. If that happens, run this command in Terminal:
+
+  ```bash
+  xattr -cr /Applications/Rejector.app
+  ```
+
+  Then launch **Rejector** again. Only use this workaround for an application downloaded from a source you trust.
 
 The published macOS release currently targets Apple Silicon (`osx-arm64`). Intel Mac users should build the application with the `osx-x64` runtime or use a compatible release artifact when one is provided.
 
