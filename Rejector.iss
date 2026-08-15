@@ -1,5 +1,5 @@
 #define MyAppName "Rejector"
-#define MyAppExeName "Rejector.exe"
+#define MyAppExeName "Rejector.Avalonia.exe"
 #ifndef MyAppVersion
   #define MyAppVersion "1.0.4"
 #endif

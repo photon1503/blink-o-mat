@@ -69,7 +69,6 @@ jobs:
             -r win-x64 `
             --self-contained true `
             -o "${{ github.workspace }}\artifacts\publish-win-x64" `
-            /p:AssemblyName=Rejector `
             /p:Version=${{ steps.version.outputs.version }} `
             /p:AssemblyVersion=${{ steps.version.outputs.version }} `
             /p:FileVersion=${{ steps.version.outputs.version }} `
