@@ -337,7 +337,7 @@ Goal: Match runtime lifecycle helpers and background workflows.
 Goal: Make Avalonia artifacts primary release outputs.
 
 ### Task 5.1: CI Artifact Ownership Cutover
-- Status: TODO
+- Status: IN_PROGRESS
 - Objective: Produce and publish Avalonia artifacts for Windows and macOS.
 - Baseline: .github/workflows/release.yml
 - Targets: .github/workflows/release.yml and related scripts
@@ -350,7 +350,7 @@ Goal: Make Avalonia artifacts primary release outputs.
   - Remaining delta listed: No
 
 ### Task 5.2: Migration Exit Checklist Run
-- Status: TODO
+- Status: IN_PROGRESS
 - Objective: Execute full parity checklist on Windows and macOS and record signoff.
 - Baseline: docs/agentic-coding-spec.md
 - Targets: docs/parity-signoff.md

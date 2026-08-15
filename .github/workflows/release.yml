@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (for example 1.0.21 or v1.0.21)'
+        description: 'Version to release (for example 2.0.0 or v2.0.0)'
         required: true
         type: string
 
@@ -16,15 +16,21 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    runs-on: windows-latest
+  build:
+    name: Build ${{ matrix.os }} artifact
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
 
     env:
       DOTNET_CONFIGURATION: Release
-      PROJECT_PATH: ${{ github.workspace }}\src\blink-o-mat.csproj
-      PUBLISH_DIR: ${{ github.workspace }}\artifacts\publish
-      INSTALLER_DIR: ${{ github.workspace }}\installer
-      INSTALLER_SCRIPT: ${{ github.workspace }}\Rejector.iss
+      AVALONIA_PROJECT: src/Rejector.Avalonia/Rejector.Avalonia.csproj
 
     steps:
       - name: Checkout
@@ -37,62 +43,105 @@ jobs:
 
       - name: Resolve release version
         id: version
-        shell: pwsh
+        shell: bash
         run: |
-          $inputVersion = "${{ github.event.inputs.version }}"
-          if (-not [string]::IsNullOrWhiteSpace($inputVersion)) {
-            $version = $inputVersion -replace '^v', ''
-            $tag = "v$version"
-          }
-          else {
-            $tag = "${{ github.ref_name }}"
-            $version = $tag -replace '^v', ''
-          }
-
-          "tag=$tag" >> $env:GITHUB_OUTPUT
-          "version=$version" >> $env:GITHUB_OUTPUT
+          input_version='${{ github.event.inputs.version }}'
+          if [ -n "$input_version" ]; then
+            version="${input_version#v}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
       - name: Restore
-        run: dotnet restore "${{ env.PROJECT_PATH }}"
+        run: dotnet restore Rejector.CrossPlatform.slnx
 
-      - name: Publish application
-        run: >
-          dotnet publish "${{ env.PROJECT_PATH }}"
-          -c ${{ env.DOTNET_CONFIGURATION }}
-          -o "${{ env.PUBLISH_DIR }}"
-          /p:Version=${{ steps.version.outputs.version }}
-          /p:AssemblyVersion=${{ steps.version.outputs.version }}
-          /p:FileVersion=${{ steps.version.outputs.version }}
-          /p:InformationalVersion=${{ steps.version.outputs.tag }}
+      - name: Run core tests
+        run: dotnet test tests/Rejector.Core.Tests/Rejector.Core.Tests.csproj --configuration "$DOTNET_CONFIGURATION" --no-restore
+
+      - name: Publish Avalonia Windows app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          dotnet publish "$env:AVALONIA_PROJECT" `
+            -c $env:DOTNET_CONFIGURATION `
+            -r win-x64 `
+            --self-contained true `
+            -o "${{ github.workspace }}\artifacts\publish-win-x64" `
+            /p:AssemblyName=Rejector `
+            /p:Version=${{ steps.version.outputs.version }} `
+            /p:AssemblyVersion=${{ steps.version.outputs.version }} `
+            /p:FileVersion=${{ steps.version.outputs.version }} `
+            /p:InformationalVersion=${{ steps.version.outputs.tag }}
 
       - name: Setup Inno Setup
+        if: runner.os == 'Windows'
         shell: pwsh
         run: choco install innosetup --no-progress -y
 
-      - name: Build installer
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) {
-            throw "Inno Setup compiler not found at $iscc"
-          }
+          & $iscc `
+            "/DMyAppVersion=${{ steps.version.outputs.version }}" `
+            "/DMyAppPublishDir=${{ github.workspace }}\artifacts\publish-win-x64" `
+            "${{ github.workspace }}\Rejector.iss"
 
-          $arguments = @(
-            "/DMyAppVersion=${{ steps.version.outputs.version }}",
-            "/DMyAppPublishDir=${{ env.PUBLISH_DIR }}",
-            "${{ env.INSTALLER_SCRIPT }}"
-          )
-
-          & $iscc @arguments
-
-      - name: Create portable zip
+      - name: Create Windows portable zip
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $zipPath = Join-Path "${{ github.workspace }}\artifacts" "Rejector-${{ steps.version.outputs.version }}-win-x64.zip"
-          if (Test-Path $zipPath) {
-            Remove-Item $zipPath -Force
-          }
-          Compress-Archive -Path "${{ env.PUBLISH_DIR }}\*" -DestinationPath $zipPath
+          Compress-Archive `
+            -Path "${{ github.workspace }}\artifacts\publish-win-x64\*" `
+            -DestinationPath "${{ github.workspace }}\artifacts\Rejector-${{ steps.version.outputs.version }}-win-x64.zip"
+
+      - name: Build macOS DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          chmod +x scripts/build-macos-dmg.sh
+          scripts/build-macos-dmg.sh \
+            --version '${{ steps.version.outputs.version }}' \
+            --rid osx-arm64 \
+            --out-dir artifacts/macos
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rejector-${{ matrix.rid }}
+          path: |
+            artifacts/Rejector-Setup-*.exe
+            artifacts/Rejector-*-win-x64.zip
+            artifacts/macos/*.dmg
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          input_version='${{ github.event.inputs.version }}'
+          if [ -n "$input_version" ]; then
+            version="${input_version#v}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -101,6 +150,4 @@ jobs:
           name: Rejector ${{ steps.version.outputs.version }}
           target_commitish: ${{ github.sha }}
           generate_release_notes: true
-          files: |
-            ${{ env.INSTALLER_DIR }}\Rejector-Setup-${{ steps.version.outputs.version }}.exe
-            ${{ github.workspace }}\artifacts\Rejector-${{ steps.version.outputs.version }}-win-x64.zip
+          files: release-artifacts/**/*

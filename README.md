@@ -53,9 +53,25 @@ The videos are using IMX571 FITS images and are in realtime.
 
 ## Install & launch
 
-1. Download the latest installer from the [Releases page](https://github.com/photon1503/blink-o-mat/releases) and run it.
-2. Find **Rejector** in the Windows Start menu and open it.
-3. On startup, Rejector silently checks GitHub for a newer version. When one is available, a green banner appears below the toolbar with a **View release** link; dismiss it with **✕** and it will not return until the next launch.
+Download the latest release from the [Releases page](https://github.com/photon1503/blink-o-mat/releases), then follow the instructions for your platform.
+
+### Windows
+
+1. Download and run **Rejector-Setup-{version}.exe**.
+2. Optionally choose the desktop shortcut during installation.
+3. Launch **Rejector** from the Start menu or desktop shortcut.
+
+The portable **Rejector-{version}-win-x64.zip** contains the same self-contained Avalonia application without an installer.
+
+### macOS
+
+1. Download **Rejector-{version}-osx-arm64.dmg** for Apple Silicon Macs.
+2. Open the DMG and drag **Rejector** to **Applications**.
+3. Launch **Rejector** from Applications. macOS may require confirmation the first time an app downloaded from the internet is opened.
+
+The published macOS release currently targets Apple Silicon (`osx-arm64`). Intel Mac users should build the application with the `osx-x64` runtime or use a compatible release artifact when one is provided.
+
+On startup, Rejector silently checks GitHub for a newer version. When one is available, a green banner appears below the toolbar with a **View release** link; dismiss it with **✕** and it will not return until the next launch.
 
 > No internet connection is required to use the program — the update check is fire-and-forget and never blocks the UI.
 
@@ -505,8 +521,10 @@ All threshold arguments are optional; omitting one keeps its default value.
 
 ## Requirements
 
-- **Windows 10 or later, macOS, or Linux** (the desktop UI is built with Avalonia).
-- **.NET 10** runtime. The installer bundles what it needs.
+- **Windows 10 or later**: use the self-contained installer or portable ZIP.
+- **macOS 12 or later**: use the self-contained Apple Silicon DMG (`osx-arm64`).
+- **Linux**: build and run the Avalonia project from source; a packaged Linux artifact is not currently published.
+- The release artifacts bundle the **.NET 10** runtime. A source build requires the .NET 10 SDK.
 
 ---
 
