@@ -5,6 +5,7 @@
   xmlns:controls="using:Rejector.Avalonia.Controls"
     xmlns:vm="using:Rejector.Avalonia.ViewModels"
     x:DataType="vm:MainWindowViewModel"
+    Icon="avares://Rejector.Avalonia/Assets/icon.ico"
     Background="{DynamicResource WindowBackgroundBrush}"
     Width="1550"
     Height="1000"

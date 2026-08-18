@@ -18,6 +18,11 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Rejector.Avalonia</RootNamespace>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationIcon>..\Icon\6dd39f16-9f8b-454e-86c4-b44c409cb647.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="..\Icon\6dd39f16-9f8b-454e-86c4-b44c409cb647.ico" Link="Assets\icon.ico" />
+  </ItemGroup>
 
 </Project>

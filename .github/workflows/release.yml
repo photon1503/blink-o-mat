@@ -87,6 +87,7 @@ jobs:
           & $iscc `
             "/DMyAppVersion=${{ steps.version.outputs.version }}" `
             "/DMyAppPublishDir=${{ github.workspace }}\artifacts\publish-win-x64" `
+            "/O${{ github.workspace }}\artifacts" `
             "${{ github.workspace }}\Rejector.iss"
 
       - name: Create Windows portable zip

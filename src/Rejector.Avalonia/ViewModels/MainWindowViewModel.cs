@@ -207,7 +207,24 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public string Title => "Rejector";
+    public string Title
+    {
+        get
+        {
+            var v = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version;
+            var profileSuffix = string.IsNullOrWhiteSpace(SelectedProfileName)
+                ? string.Empty
+                : $" (Profile: {SelectedProfileName})";
+
+            // Version 1.0.0.0 is the default (unstamped dev build) — omit it.
+            if (v is null || v == new Version(1, 0, 0, 0))
+            {
+                return $"Rejector{profileSuffix}";
+            }
+
+            return $"Rejector {v.Major}.{v.Minor}.{v.Build}{profileSuffix}";
+        }
+    }
 
     public bool IsSettingsOpen
     {
@@ -863,6 +880,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedProfileName));
             OnPropertyChanged(nameof(IsSelectedProfileDefault));
+            OnPropertyChanged(nameof(Title));
             if (value is null || _isApplyingProfile)
             {
                 return;

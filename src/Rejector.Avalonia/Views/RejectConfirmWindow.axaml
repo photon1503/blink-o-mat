@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:views="using:Rejector.Avalonia.Views"
     x:DataType="x:Object"
+    Icon="avares://Rejector.Avalonia/Assets/icon.ico"
     Title="Confirm Rejection"
     Width="460"
     SizeToContent="Height"
