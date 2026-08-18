@@ -225,6 +225,116 @@ public sealed class RustafitsServiceTests
         Assert.NotNull(metrics.TrailY2);
     }
 
+    [Fact]
+    public void AnalyzeFrame_FaintLongThinTrailInNoisyField_IsDetected()
+    {
+        // Regression test: a faint (low-contrast), thin satellite trail spanning nearly the
+        // full frame against a noisy background must still be detected. A previous tightening
+        // of the trail-detection gates (to reduce false positives) caused this kind of real,
+        // subtle trail to be missed (0% confidence).
+        const int width = 512;
+        const int height = 512;
+        var rng = new Random(1234);
+        var pixels = new float[width * height];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = (float)Math.Max(0.0, 500.0 + NextGaussian(rng, 0, 25));
+        }
+
+        var slope = Math.Tan(60.0 * Math.PI / 180.0);
+        for (var x = 20; x < 480; x++)
+        {
+            var y = 30 + (int)Math.Round((x - 20) * slope);
+            if (y < 0 || y >= height)
+            {
+                continue;
+            }
+
+            pixels[(y * width) + x] += 90f;
+        }
+
+        var metrics = new RustafitsService().AnalyzeFrame(new RustafitsService.LoadedFrame(pixels, width, height));
+
+        Assert.True(metrics.SatelliteTrailConfidence > 0);
+        Assert.NotNull(metrics.TrailX1);
+        Assert.NotNull(metrics.TrailY1);
+        Assert.NotNull(metrics.TrailX2);
+        Assert.NotNull(metrics.TrailY2);
+    }
+
+    [Fact]
+    public void AnalyzeFrame_BusyStarFieldWithoutTrail_ReportsNoConfidence()
+    {
+        // Regression test: a star-rich field with no satellite trail must not be flagged.
+        // Star cores/wings survive background subtraction as bright residual blobs, and with
+        // enough stars a Hough transform can find a spurious near-collinear alignment among
+        // otherwise unrelated stars, producing a false-positive "trail".
+        const int width = 512;
+        const int height = 512;
+        var rng = new Random(42);
+        var pixels = new float[width * height];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = (float)Math.Max(0.0, 500.0 + NextGaussian(rng, 0, 25));
+        }
+
+        for (var i = 0; i < 80; i++)
+        {
+            var sx = rng.NextDouble() * (width - 40) + 20;
+            var sy = rng.NextDouble() * (height - 40) + 20;
+            var peak = 1500 + (rng.NextDouble() * 3500);
+            AddGaussianStar(pixels, width, height, sx, sy, peak, 1.4);
+        }
+
+        var metrics = new RustafitsService().AnalyzeFrame(new RustafitsService.LoadedFrame(pixels, width, height));
+
+        Assert.Equal(0, metrics.SatelliteTrailConfidence);
+        Assert.Null(metrics.TrailX1);
+        Assert.Null(metrics.TrailY1);
+        Assert.Null(metrics.TrailX2);
+        Assert.Null(metrics.TrailY2);
+    }
+
+    [Fact]
+    public void AnalyzeFrame_CollinearStarChainWithoutTrail_ReportsNoConfidence()
+    {
+        // Regression test: several unrelated stars that happen to line up (chance collinear
+        // alignment) must not be reported as a trail. Unlike a real trail, the gaps of plain
+        // background between the star blobs break the fine-grained continuity check.
+        const int width = 512;
+        const int height = 512;
+        var rng = new Random(7);
+        var pixels = new float[width * height];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = (float)Math.Max(0.0, 500.0 + NextGaussian(rng, 0, 25));
+        }
+
+        for (var i = 0; i < 8; i++)
+        {
+            var t = i / 7.0;
+            var sx = 40 + (t * 430);
+            var sy = 40 + (t * 430);
+            AddGaussianStar(pixels, width, height, sx, sy, 3000, 1.4);
+        }
+
+        // A handful of extra unrelated stars scattered off the line.
+        for (var i = 0; i < 20; i++)
+        {
+            var sx = rng.NextDouble() * (width - 40) + 20;
+            var sy = rng.NextDouble() * (height - 40) + 20;
+            AddGaussianStar(pixels, width, height, sx, sy, 1500 + (rng.NextDouble() * 2000), 1.4);
+        }
+
+        var metrics = new RustafitsService().AnalyzeFrame(new RustafitsService.LoadedFrame(pixels, width, height));
+
+        Assert.Equal(0, metrics.SatelliteTrailConfidence);
+        Assert.Null(metrics.TrailX1);
+        Assert.Null(metrics.TrailY1);
+        Assert.Null(metrics.TrailX2);
+        Assert.Null(metrics.TrailY2);
+    }
+
     private static double NextGaussian(Random rng, double mean, double stdDev)
     {
         var u1 = 1.0 - rng.NextDouble();

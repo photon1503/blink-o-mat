@@ -3353,7 +3353,19 @@ public sealed class RustafitsService
         var fwhm = WeightedMedian(fwhmSource, s => s.Fwhm, s => RadialCenterWeight(s.X, s.Y, centerX, centerY, halfDiag));
         var hfr = WeightedMedian(fwhmSource, s => s.Hfr, s => RadialCenterWeight(s.X, s.Y, centerX, centerY, halfDiag));
         var eccentricity = WeightedMedian(fwhmSource, s => s.Eccentricity, s => RadialCenterWeight(s.X, s.Y, centerX, centerY, halfDiag));
-        var trail = DetectTrail(trailPixels, trailWidth, trailHeight);
+
+        // Scale every detected star (not just the filtered/high-quality subset) into the
+        // trail buffer's coordinate space so DetectTrail can mask out star cores/wings —
+        // without this, busy star fields can produce a spurious Hough-line "trail" from
+        // chance-aligned star residuals.
+        var starToTrailScaleX = width / (double)trailWidth;
+        var starToTrailScaleY = height / (double)trailHeight;
+        var trailStarExclusions = stars.Select(s => (
+            X: s.X / starToTrailScaleX,
+            Y: s.Y / starToTrailScaleY,
+            Radius: Math.Clamp(s.Fwhm * 3.0, 4.0, 40.0) / Math.Max(1e-6, starToTrailScaleX))).ToList();
+
+        var trail = DetectTrail(trailPixels, trailWidth, trailHeight, trailStarExclusions);
         var starCount = totalStarCount;
 
         var measuredStars = new MeasuredStar[fwhmSource.Count];
@@ -4251,7 +4263,40 @@ public sealed class RustafitsService
         return 0;
     }
 
-    private static TrailDetectionResult DetectTrail(float[] pixels, int width, int height)
+    /// <summary>Rasterizes filled circles around each detected star into a boolean mask
+    /// so the trail detector's residual scan can skip them entirely.</summary>
+    private static bool[] BuildStarExclusionMask(int width, int height, IReadOnlyList<(double X, double Y, double Radius)>? stars)
+    {
+        var mask = new bool[width * height];
+        if (stars is null || stars.Count == 0)
+            return mask;
+
+        foreach (var (starX, starY, radius) in stars)
+        {
+            var r = Math.Max(1.0, radius);
+            var rSq = r * r;
+            var x0 = Math.Max(0, (int)Math.Floor(starX - r));
+            var x1 = Math.Min(width - 1, (int)Math.Ceiling(starX + r));
+            var y0 = Math.Max(0, (int)Math.Floor(starY - r));
+            var y1 = Math.Min(height - 1, (int)Math.Ceiling(starY + r));
+
+            for (var y = y0; y <= y1; y++)
+            {
+                var dy = y - starY;
+                var rowOffset = y * width;
+                for (var x = x0; x <= x1; x++)
+                {
+                    var dx = x - starX;
+                    if ((dx * dx) + (dy * dy) <= rSq)
+                        mask[rowOffset + x] = true;
+                }
+            }
+        }
+
+        return mask;
+    }
+
+    private static TrailDetectionResult DetectTrail(float[] pixels, int width, int height, IReadOnlyList<(double X, double Y, double Radius)>? excludedStars)
     {
         if (width < 16 || height < 16)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
@@ -4264,7 +4309,29 @@ public sealed class RustafitsService
         for (var i = 0; i < pixels.Length; i++)
             enhanced[i] = Math.Max(0f, pixels[i] - blurred[i]);
 
-        var sample = Sample(enhanced);
+        // ── Star exclusion ───────────────────────────────────────────────────
+        // Star cores/wings survive the background subtraction as bright residual
+        // blobs, and in star-rich fields there are enough of them that a Hough
+        // transform can find a spurious near-collinear alignment among unrelated
+        // stars. Masking out the already-detected star disks removes this entire
+        // class of false positive, and — since it happens before any statistics
+        // are computed — it also stops bright stars from skewing the percentile
+        // threshold used below.
+        var starMask = BuildStarExclusionMask(width, height, excludedStars);
+
+        var backgroundSample = new List<float>(Math.Min(enhanced.Length, 400_000));
+        for (var y = 5; y < height - 5; y++)
+        {
+            var row = y * width;
+            for (var x = 5; x < width - 5; x++)
+            {
+                if (starMask[row + x])
+                    continue;
+                backgroundSample.Add(enhanced[row + x]);
+            }
+        }
+
+        var sample = backgroundSample.ToArray();
         if (sample.Length == 0)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
@@ -4274,10 +4341,21 @@ public sealed class RustafitsService
         // Stars appear here as isolated blobs; a trail appears as a connected stripe.
         var threshold = Math.Max(1e-6, PercentileFromSorted(sample, 0.997));
 
+        // ── Significance gate ────────────────────────────────────────────────
+        // In faint/grainy frames the top of the residual histogram is just
+        // photon/read-noise tail, not a genuine bright feature. Chance-aligned
+        // noise pixels can still satisfy the Hough/PCA gates below and produce a
+        // false-positive "trail". Require the candidate threshold to sit well
+        // above the noise floor (robust sigma) before treating it as signal.
+        var residualMedian = PercentileFromSorted(sample, 0.5);
+        var residualSigma = 1.4826 * MedianAbsoluteDeviation(sample, residualMedian, alreadySorted: true);
+        if (threshold < residualMedian + (3.0 * Math.Max(1e-6, residualSigma)))
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
+
         // ── Candidate collection ─────────────────────────────────────────────
-        // Keep every high-residual pixel here. Direction must not be quantized by
-        // a hand-picked list of slopes; the Hough stage below evaluates the full
-        // 0–180° range and is the orientation filter.
+        // Keep every high-residual, non-star pixel here. Direction must not be
+        // quantized by a hand-picked list of slopes; the Hough stage below
+        // evaluates the full 0–180° range and is the orientation filter.
         var points = new List<(int X, int Y, double Signal)>(1024);
         var cx = (width - 1) * 0.5;
         var cy = (height - 1) * 0.5;
@@ -4287,6 +4365,9 @@ public sealed class RustafitsService
             var row = y * width;
             for (var x = 5; x < width - 5; x++)
             {
+                if (starMask[row + x])
+                    continue;
+
                 var center = enhanced[row + x];
                 if (center < threshold)
                     continue;
@@ -4296,7 +4377,9 @@ public sealed class RustafitsService
         }
 
         // Hard gate: need a meaningful number of strictly trail-like pixels.
-        if (points.Count < 12)
+        // Sparse noise/hot-pixel chains rarely exceed a handful of points, so this
+        // is set well above the minimum a real streak crossing the frame leaves.
+        if (points.Count < 14)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         const int maxCandidates = 2000;
@@ -4350,7 +4433,7 @@ public sealed class RustafitsService
         // Hard gate: the winning bin must hold a large fraction of all votes.
         // For noise/stars the votes are spread uniformly across all bins.
         // For a real trail they concentrate strongly in one (angle, rho) cell.
-        if (bestAngleBin < 0 || bestVotes < Math.Max(20, points.Count / 20))
+        if (bestAngleBin < 0 || bestVotes < Math.Max(24, points.Count / 16))
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         var normalX = cosTable[bestAngleBin];
@@ -4393,9 +4476,10 @@ public sealed class RustafitsService
         var lambda1 = (trace / 2.0) + disc;
         var lambda2 = (trace / 2.0) - disc;
 
-        // Hard gate: strong elongation required (ratio ≥ 7).
-        // Random noise can score 2–6; a real trail scores 20–1000+.
-        if (lambda2 < 1e-9 || lambda1 / lambda2 < 7.0)
+        // Hard gate: strong elongation required (ratio ≥ 8).
+        // Random noise can score 2–7 (especially with small inlier counts, where
+        // PCA elongation is noisier); a real trail scores 20–1000+.
+        if (lambda2 < 1e-9 || lambda1 / lambda2 < 8.0)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         double evX, evY;
@@ -4440,7 +4524,7 @@ public sealed class RustafitsService
             inlierCount++;
         }
 
-        if (inlierCount < 10)
+        if (inlierCount < 12)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         var span = maxT - minT;
@@ -4453,14 +4537,14 @@ public sealed class RustafitsService
         if (span < 0.20 * imageDim)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        // 2. Coverage: inliers must occupy at least 20 % of the span bins
+        // 2. Coverage: inliers must occupy at least 24 % of the span bins
         //    (no very gappy, discontinuous patterns).
         var spanBinCount = Math.Max(1, (int)Math.Ceiling(span / spanBinSize));
         var coverage = occupiedSpanBins.Count / (double)spanBinCount;
-        if (coverage < 0.20)
+        if (coverage < 0.24)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        // 3. Maximum single gap: must not exceed 35 % of span.
+        // 3. Maximum single gap: must not exceed 32 % of span.
         inlierTs.Sort();
         var maxGap = 0.0;
         for (var i = 1; i < inlierTs.Count; i++)
@@ -4468,16 +4552,45 @@ public sealed class RustafitsService
             var gap = inlierTs[i] - inlierTs[i - 1];
             if (gap > maxGap) maxGap = gap;
         }
-        if (maxGap > 0.35 * span)
+        if (maxGap > 0.32 * span)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
-        // 4. RMS perpendicular residual: must be ≤ 2.0 px.
+        // 4. RMS perpendicular residual: must be ≤ 1.8 px.
         var rms = Math.Sqrt(rmsSum / inlierCount);
-        if (rms > 2.0)
+        if (rms > 1.8)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         // 5. Density: at least 1 inlier per 2 span-bins of length.
         if (inlierCount < span / (spanBinSize * 2.0))
+            return new TrailDetectionResult(0, 0, 0, 0, 0);
+
+        // 6. Continuity: sample the *original* residual image at a fine, regular step
+        //    along the fitted line (not just at the sparse Hough/PCA inlier pixels).
+        //    A genuine trail is a continuously illuminated corridor; a chain of
+        //    unrelated stars or nebula clumps that happens to fall near a Hough line
+        //    leaves long dark gaps between them at this fine sampling even though the
+        //    coarser span-bin coverage gate above can be fooled. Samples that land
+        //    inside a masked star disk are treated as neutral (can't judge either way).
+        var baseX = cx + (refinedRho * refinedNormalX);
+        var baseY = cy + (refinedRho * refinedNormalY);
+        var continuitySteps = Math.Max(20, (int)Math.Round(span / 2.0));
+        var continuityThreshold = threshold * 0.4;
+        var litSteps = 0;
+        for (var i = 0; i <= continuitySteps; i++)
+        {
+            var t = minT + (span * i / continuitySteps);
+            var ix = (int)Math.Round(baseX + (t * dirX));
+            var iy = (int)Math.Round(baseY + (t * dirY));
+            if ((uint)ix >= (uint)width || (uint)iy >= (uint)height)
+                continue;
+
+            var idx = (iy * width) + ix;
+            if (starMask[idx] || enhanced[idx] >= continuityThreshold)
+                litSteps++;
+        }
+
+        var continuity = litSteps / (double)(continuitySteps + 1);
+        if (continuity < 0.6)
             return new TrailDetectionResult(0, 0, 0, 0, 0);
 
         // ── Confidence score (1–100) — only reached after all hard gates pass ─
@@ -4485,30 +4598,29 @@ public sealed class RustafitsService
         // Users can tune the rejection threshold slider to taste.
 
         var elongRatio = lambda1 / lambda2;
-        var sElongation = Math.Clamp((elongRatio - 7.0) / 93.0, 0.0, 1.0);    // 7→0 … 100→1
+        var sElongation = Math.Clamp((elongRatio - 8.0) / 92.0, 0.0, 1.0);   // 8→0 … 100→1
 
         var spanFrac = span / imageDim;
         var sSpan = Math.Clamp((spanFrac - 0.20) / 0.70, 0.0, 1.0);     // 20%→0 … 90%→1
 
-        var sCoverage = Math.Clamp((coverage - 0.20) / 0.70, 0.0, 1.0);     // 20%→0 … 90%→1
+        var sCoverage = Math.Clamp((coverage - 0.24) / 0.66, 0.0, 1.0);     // 24%→0 … 90%→1
 
         var gapFrac = span > 0 ? maxGap / span : 1.0;
-        var sGap = Math.Clamp(1.0 - gapFrac / 0.35, 0.0, 1.0);        // 0→1 … 35%→0
+        var sGap = Math.Clamp(1.0 - gapFrac / 0.32, 0.0, 1.0);        // 0→1 … 32%→0
 
-        var sRms = Math.Clamp(1.0 - rms / 2.0, 0.0, 1.0);             // 0→1 … 2.0px→0
+        var sRms = Math.Clamp(1.0 - rms / 1.8, 0.0, 1.0);             // 0→1 … 1.8px→0
 
-        var rawScore = (0.25 * sElongation)
-                     + (0.25 * sSpan)
-                     + (0.20 * sCoverage)
+        var rawScore = (0.20 * sElongation)
+                     + (0.20 * sSpan)
+                     + (0.15 * sCoverage)
                      + (0.15 * sGap)
-                     + (0.15 * sRms);
+                     + (0.10 * sRms)
+                     + (0.20 * continuity);
 
         // Minimum score is 1 (passed all gates), maximum is 100 (perfect trail).
         var confidence = Math.Max(1, (int)Math.Round(rawScore * 100.0));
 
         // ── Result coordinates ────────────────────────────────────────────────
-        var baseX = cx + (refinedRho * refinedNormalX);
-        var baseY = cy + (refinedRho * refinedNormalY);
         var x1 = baseX + (minT * dirX);
         var y1 = baseY + (minT * dirY);
         var x2 = baseX + (maxT * dirX);
