@@ -1899,7 +1899,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private Thresholds ResolveThresholdsForFrame(ProcessedFrame frame)
     {
-        var key = NormalizeFilterKey(frame.FilterName);
+        var key = Rejector.Core.Services.FrameGroupKey.Create(frame);
         return _filterThresholds.TryGetValue(key, out var thresholds) ? thresholds : _thresholds;
     }
 
@@ -2511,17 +2511,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             };
         }
 
-        var keys = _resultContexts
-            .Select(context => NormalizeFilterKey(context.Frame.FilterName))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(FilterOrder)
-            .ThenBy(key => key, StringComparer.OrdinalIgnoreCase)
+        // Group by filter *and* exposure time: mixed sub-lengths within the same filter
+        // must never be scored, thresholded or displayed as a single chip.
+        var groups = _resultContexts
+            .Select(context => (
+                FilterName: NormalizeFilterKey(context.Frame.FilterName),
+                ExposureSeconds: context.Frame.ExposureSeconds,
+                Key: Rejector.Core.Services.FrameGroupKey.Create(context.Frame)))
+            .DistinctBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(entry => FilterOrder(entry.FilterName))
+            .ThenBy(entry => entry.FilterName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(entry => entry.ExposureSeconds ?? 0)
             .ToList();
 
-        foreach (var key in keys)
+        foreach (var entry in groups)
         {
-            var isSelected = !previous.TryGetValue(key, out var previousValue) || previousValue;
-            FilterChips.Add(new FilterChipViewModel(key, isSelected, RebuildResults));
+            var isSelected = !previous.TryGetValue(entry.Key, out var previousValue) || previousValue;
+            FilterChips.Add(new FilterChipViewModel(entry.Key, entry.FilterName, entry.ExposureSeconds, isSelected, RebuildResults));
         }
 
         if (!RejectionFilterOptions.Contains(_selectedRejectionFilter, StringComparer.OrdinalIgnoreCase))
@@ -2543,9 +2549,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return _resultContexts;
         }
 
-        var selectedKey = NormalizeFilterKey(SelectedRejectionFilter);
         return _resultContexts.Where(context =>
-            string.Equals(NormalizeFilterKey(context.Frame.FilterName), selectedKey, StringComparison.OrdinalIgnoreCase));
+            string.Equals(Rejector.Core.Services.FrameGroupKey.Create(context.Frame), SelectedRejectionFilter, StringComparison.OrdinalIgnoreCase));
     }
 
     private FrameStatistics GetFrameStatistics() =>
@@ -2618,7 +2623,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return [];
         }
 
-        return _resultContexts.Where(context => selectedKeys.Contains(NormalizeFilterKey(context.Frame.FilterName)));
+        return _resultContexts.Where(context => selectedKeys.Contains(Rejector.Core.Services.FrameGroupKey.Create(context.Frame)));
     }
 
     private IEnumerable<FrameResultContext> GetVisibleContexts()
@@ -2720,61 +2725,120 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         var bgWeight = UseScoreBackground ? ScoreWeightBackground : 0.0;
         var totalWeight = fwhmWeight + eccWeight + trailWeight + hfrWeight + starsWeight + bgWeight;
 
-        foreach (var group in contexts.GroupBy(context => NormalizeFilterKey(context.Frame.FilterName), StringComparer.OrdinalIgnoreCase))
+        if (totalWeight <= double.Epsilon)
         {
-            var members = group.ToArray();
-            if (totalWeight <= double.Epsilon)
+            foreach (var context in contexts)
             {
-                foreach (var member in members)
-                {
-                    result[member.Frame.FilePath] = 0.0;
-                }
-
-                continue;
+                result[context.Frame.FilePath] = 0.0;
             }
 
-            var fwhmPct = RankPercentile(members
-                .Select(member => IsValidFwhmForScoring(member.Frame.Metrics) ? member.Frame.Metrics.Fwhm : double.NaN)
-                .ToArray(), lowerIsBetter: true);
-            var eccPct = RankPercentile(members
-                .Select(member => IsValidEccentricityForScoring(member.Frame.Metrics) ? member.Frame.Metrics.Eccentricity : double.NaN)
-                .ToArray(), lowerIsBetter: true);
-            var hfrPct = RankPercentile(members
-                .Select(member => IsValidHfrForScoring(member.Frame.Metrics) ? member.Frame.Metrics.Hfr : double.NaN)
-                .ToArray(), lowerIsBetter: true);
-            var starsPct = RankPercentile(members.Select(member => (double)member.Frame.Metrics.StarCount).ToArray(), lowerIsBetter: false);
-            var bgPct = RankPercentile(members.Select(member => member.Frame.Metrics.MeanBackground).ToArray(), lowerIsBetter: true);
-            var trailPct = RankPercentile(members.Select(member => (double)member.Frame.Metrics.SatelliteTrailConfidence).ToArray(), lowerIsBetter: true);
-            var rawScores = new double[members.Length];
+            return result;
+        }
 
-            for (var index = 0; index < members.Length; index++)
+        // Scored per-frame against the currently configured (per-filter/exposure) rejection
+        // thresholds, anchored to the best value actually observed in that group ("pole
+        // position"): the best frame for a metric reaches full marks for it, the configured
+        // threshold is still the zero point, and everything else scales linearly in between.
+        // This keeps a strong data set from being punished just for not touching an arbitrary
+        // absolute zero, while still never inflating a small/bad batch by ranking its worst
+        // frame against its best (as pure percentile ranking did).
+        foreach (var group in contexts.GroupBy(context => Rejector.Core.Services.FrameGroupKey.Create(context.Frame), StringComparer.OrdinalIgnoreCase))
+        {
+            var members = group.ToArray();
+            var thresholds = ResolveThresholdsForFrame(members[0].Frame);
+
+            var bestFwhm = MinOrDefault(members.Where(m => IsValidFwhmForScoring(m.Frame.Metrics)).Select(m => m.Frame.Metrics.Fwhm), thresholds.MaxFwhm);
+            var bestEcc = MinOrDefault(members.Where(m => IsValidEccentricityForScoring(m.Frame.Metrics)).Select(m => m.Frame.Metrics.Eccentricity), thresholds.MaxEccentricity);
+            var bestHfr = MinOrDefault(members.Where(m => IsValidHfrForScoring(m.Frame.Metrics)).Select(m => m.Frame.Metrics.Hfr), thresholds.MaxHfr);
+            var bestStars = MaxOrDefault(members.Select(m => (double)m.Frame.Metrics.StarCount), thresholds.MinStars);
+            var bestBg = MinOrDefault(members.Select(m => m.Frame.Metrics.MeanBackground), thresholds.MaxMeanBackground);
+            var trailCeiling = thresholds.MinSatelliteConfidence > 0 ? thresholds.MinSatelliteConfidence : 100.0;
+            var bestTrail = MinOrDefault(members.Select(m => (double)m.Frame.Metrics.SatelliteTrailConfidence), trailCeiling);
+
+            foreach (var member in members)
             {
-                var weighted = fwhmPct[index] * fwhmWeight
-                             + eccPct[index] * eccWeight
-                             + hfrPct[index] * hfrWeight
-                             + starsPct[index] * starsWeight
-                             + bgPct[index] * bgWeight
-                             + trailPct[index] * trailWeight;
+                var metrics = member.Frame.Metrics;
+
+                var fwhmGoodness = IsValidFwhmForScoring(metrics) ? GoodnessLowerIsBetter(metrics.Fwhm, bestFwhm, thresholds.MaxFwhm) : 0.0;
+                var eccGoodness = IsValidEccentricityForScoring(metrics) ? GoodnessLowerIsBetter(metrics.Eccentricity, bestEcc, thresholds.MaxEccentricity) : 0.0;
+                var hfrGoodness = IsValidHfrForScoring(metrics) ? GoodnessLowerIsBetter(metrics.Hfr, bestHfr, thresholds.MaxHfr) : 0.0;
+                var starsGoodness = GoodnessHigherIsBetter(metrics.StarCount, bestStars, thresholds.MinStars);
+                var bgGoodness = GoodnessLowerIsBetter(metrics.MeanBackground, bestBg, thresholds.MaxMeanBackground);
+                var trailGoodness = GoodnessLowerIsBetter(metrics.SatelliteTrailConfidence, bestTrail, trailCeiling);
+
+                var weighted = fwhmGoodness * fwhmWeight
+                             + eccGoodness * eccWeight
+                             + hfrGoodness * hfrWeight
+                             + starsGoodness * starsWeight
+                             + bgGoodness * bgWeight
+                             + trailGoodness * trailWeight;
 
                 var score = Math.Clamp((weighted / totalWeight) * 5.0, 0.0, 5.0);
                 if (UseScoreEccentricity)
                 {
-                    score -= ComputeEccentricityPenalty(members[index].Frame.Metrics.Eccentricity);
+                    score -= ComputeEccentricityPenalty(metrics.Eccentricity);
                 }
 
-                rawScores[index] = Math.Clamp(score, 0.0, 5.0);
-            }
-
-            // Re-normalize aggregate scores within this filter so cross-filter
-            // metric baselines (for example HA vs L) never share the same scale.
-            var finalPct = RankPercentile(rawScores, lowerIsBetter: false);
-            for (var index = 0; index < members.Length; index++)
-            {
-                result[members[index].Frame.FilePath] = Math.Clamp(finalPct[index] * 5.0, 0.0, 5.0);
+                result[member.Frame.FilePath] = Math.Clamp(score, 0.0, 5.0);
             }
         }
 
         return result;
+    }
+
+    private static double MinOrDefault(IEnumerable<double> values, double fallback)
+    {
+        var finite = values.Where(double.IsFinite).ToList();
+        return finite.Count > 0 ? finite.Min() : fallback;
+    }
+
+    private static double MaxOrDefault(IEnumerable<double> values, double fallback)
+    {
+        var finite = values.Where(double.IsFinite).ToList();
+        return finite.Count > 0 ? finite.Max() : fallback;
+    }
+
+    /// <summary>Maps a lower-is-better metric to a 0–1 goodness score: 1 at the best value seen
+    /// in the group (pole position), 0 at (or beyond) the reject threshold, linear between. Falls
+    /// back to a plain fraction of the threshold if the group's best is not better than it.</summary>
+    private static double GoodnessLowerIsBetter(double value, double bestValue, double threshold)
+    {
+        if (!double.IsFinite(value) || threshold <= 0)
+        {
+            return 0.5;
+        }
+
+        var range = threshold - bestValue;
+        if (range <= 1e-9)
+        {
+            return Math.Clamp(1.0 - (value / threshold), 0.0, 1.0);
+        }
+
+        return Math.Clamp((threshold - value) / range, 0.0, 1.0);
+    }
+
+    /// <summary>Maps a higher-is-better metric to a 0–1 goodness score: 1 at the best value seen
+    /// in the group (pole position), 0 at (or below) the minimum threshold, linear between. Falls
+    /// back to a plain fraction of the threshold if the group's best does not exceed it.</summary>
+    private static double GoodnessHigherIsBetter(double value, double bestValue, double minThreshold)
+    {
+        if (!double.IsFinite(value))
+        {
+            return 0.5;
+        }
+
+        if (minThreshold <= 0)
+        {
+            return value > 0 ? 1.0 : 0.0;
+        }
+
+        var range = bestValue - minThreshold;
+        if (range <= 1e-9)
+        {
+            return Math.Clamp((value - minThreshold) / minThreshold, 0.0, 1.0);
+        }
+
+        return Math.Clamp((value - minThreshold) / range, 0.0, 1.0);
     }
 
     private static double ComputeEccentricityPenalty(double eccentricity)
@@ -2812,7 +2876,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             && double.IsFinite(metrics.Eccentricity);
     }
 
-    private static Dictionary<string, FrameIndicatorColors> ComputeIndicatorColors(IReadOnlyList<FrameResultContext> contexts)
+    private Dictionary<string, FrameIndicatorColors> ComputeIndicatorColors(IReadOnlyList<FrameResultContext> contexts)
     {
         var result = new Dictionary<string, FrameIndicatorColors>(StringComparer.OrdinalIgnoreCase);
         if (contexts.Count == 0)
@@ -2820,28 +2884,44 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return result;
         }
 
-        foreach (var group in contexts.GroupBy(context => NormalizeFilterKey(context.Frame.FilterName), StringComparer.OrdinalIgnoreCase))
+        // Per-metric indicator colors use the same pole-position anchoring as the overall score
+        // (see ComputeScores) so a metric badge's color always agrees with its contribution.
+        foreach (var group in contexts.GroupBy(context => Rejector.Core.Services.FrameGroupKey.Create(context.Frame), StringComparer.OrdinalIgnoreCase))
         {
             var members = group.ToArray();
-            var fwhmScores = RankPercentile(members.Select(context => IsValidFwhmForScoring(context.Frame.Metrics) ? context.Frame.Metrics.Fwhm : double.NaN).ToArray(), lowerIsBetter: true);
-            var hfrScores = RankPercentile(members.Select(context => IsValidHfrForScoring(context.Frame.Metrics) ? context.Frame.Metrics.Hfr : double.NaN).ToArray(), lowerIsBetter: true);
-            var starScores = RankPercentile(members.Select(context => (double)context.Frame.Metrics.StarCount).ToArray(), lowerIsBetter: false);
-            var eccScores = RankPercentile(members.Select(context => IsValidEccentricityForScoring(context.Frame.Metrics) ? context.Frame.Metrics.Eccentricity : double.NaN).ToArray(), lowerIsBetter: true);
-            var backgroundScores = RankPercentile(members.Select(context => context.Frame.Metrics.MeanBackground).ToArray(), lowerIsBetter: true);
-            var trailScores = RankPercentile(members.Select(context => (double)context.Frame.Metrics.SatelliteTrailConfidence).ToArray(), lowerIsBetter: true);
-            var cloudScores = RankPercentile(members.Select(context => (double)context.Frame.CloudConfidence).ToArray(), lowerIsBetter: true);
+            var thresholds = ResolveThresholdsForFrame(members[0].Frame);
 
-            for (var index = 0; index < members.Length; index++)
+            var bestFwhm = MinOrDefault(members.Where(m => IsValidFwhmForScoring(m.Frame.Metrics)).Select(m => m.Frame.Metrics.Fwhm), thresholds.MaxFwhm);
+            var bestEcc = MinOrDefault(members.Where(m => IsValidEccentricityForScoring(m.Frame.Metrics)).Select(m => m.Frame.Metrics.Eccentricity), thresholds.MaxEccentricity);
+            var bestHfr = MinOrDefault(members.Where(m => IsValidHfrForScoring(m.Frame.Metrics)).Select(m => m.Frame.Metrics.Hfr), thresholds.MaxHfr);
+            var bestStars = MaxOrDefault(members.Select(m => (double)m.Frame.Metrics.StarCount), thresholds.MinStars);
+            var bestBg = MinOrDefault(members.Select(m => m.Frame.Metrics.MeanBackground), thresholds.MaxMeanBackground);
+            var trailCeiling = thresholds.MinSatelliteConfidence > 0 ? thresholds.MinSatelliteConfidence : 100.0;
+            var bestTrail = MinOrDefault(members.Select(m => (double)m.Frame.Metrics.SatelliteTrailConfidence), trailCeiling);
+            var cloudCeiling = thresholds.MinCloudConfidence > 0 ? thresholds.MinCloudConfidence : 100.0;
+            var bestCloud = MinOrDefault(members.Select(m => (double)m.Frame.CloudConfidence), cloudCeiling);
+
+            foreach (var member in members)
             {
-                result[members[index].Frame.FilePath] = new FrameIndicatorColors(
-                    GetScoreColor(fwhmScores[index] * 5.0),
-                    GetScoreColor(hfrScores[index] * 5.0),
-                    GetScoreColor(starScores[index] * 5.0),
-                    GetScoreColor(eccScores[index] * 5.0),
-                    GetScoreColor(backgroundScores[index] * 5.0),
-                    GetScoreColor(trailScores[index] * 5.0),
-                    GetScoreColor(cloudScores[index] * 5.0),
-                    GetFilterBorderColor(members[index].Frame.FilterName));
+                var metrics = member.Frame.Metrics;
+
+                var fwhmGoodness = IsValidFwhmForScoring(metrics) ? GoodnessLowerIsBetter(metrics.Fwhm, bestFwhm, thresholds.MaxFwhm) : 0.0;
+                var hfrGoodness = IsValidHfrForScoring(metrics) ? GoodnessLowerIsBetter(metrics.Hfr, bestHfr, thresholds.MaxHfr) : 0.0;
+                var starsGoodness = GoodnessHigherIsBetter(metrics.StarCount, bestStars, thresholds.MinStars);
+                var eccGoodness = IsValidEccentricityForScoring(metrics) ? GoodnessLowerIsBetter(metrics.Eccentricity, bestEcc, thresholds.MaxEccentricity) : 0.0;
+                var bgGoodness = GoodnessLowerIsBetter(metrics.MeanBackground, bestBg, thresholds.MaxMeanBackground);
+                var trailGoodness = GoodnessLowerIsBetter(metrics.SatelliteTrailConfidence, bestTrail, trailCeiling);
+                var cloudGoodness = GoodnessLowerIsBetter(member.Frame.CloudConfidence, bestCloud, cloudCeiling);
+
+                result[member.Frame.FilePath] = new FrameIndicatorColors(
+                    GetScoreColor(fwhmGoodness * 5.0),
+                    GetScoreColor(hfrGoodness * 5.0),
+                    GetScoreColor(starsGoodness * 5.0),
+                    GetScoreColor(eccGoodness * 5.0),
+                    GetScoreColor(bgGoodness * 5.0),
+                    GetScoreColor(trailGoodness * 5.0),
+                    GetScoreColor(cloudGoodness * 5.0),
+                    GetFilterBorderColor(member.Frame.FilterName));
             }
         }
 
@@ -2886,62 +2966,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         return ColorYellow;
-    }
-
-    private static double[] RankPercentile(double[] values, bool lowerIsBetter)
-    {
-        var count = values.Length;
-        if (count == 0)
-        {
-            return [];
-        }
-
-        if (count == 1)
-        {
-            return [1.0];
-        }
-
-        var percentiles = new double[count];
-        var indexed = values
-            .Select((value, index) => (value, index))
-            .Where(item => double.IsFinite(item.value))
-            .OrderBy(item => item.value)
-            .ToArray();
-
-        if (indexed.Length == 0)
-        {
-            return percentiles;
-        }
-
-        if (indexed.Length == 1)
-        {
-            percentiles[indexed[0].index] = 1.0;
-            return percentiles;
-        }
-
-        var rank = 0;
-        while (rank < indexed.Length)
-        {
-            var value = indexed[rank].value;
-            var tieEnd = rank;
-            while (tieEnd + 1 < indexed.Length && indexed[tieEnd + 1].value == value)
-            {
-                tieEnd++;
-            }
-
-            var averageRank = (rank + tieEnd) / 2.0;
-            var normalized = averageRank / (indexed.Length - 1.0);
-            var percentile = lowerIsBetter ? (1.0 - normalized) : normalized;
-
-            for (var index = rank; index <= tieEnd; index++)
-            {
-                percentiles[indexed[index].index] = percentile;
-            }
-
-            rank = tieEnd + 1;
-        }
-
-        return percentiles;
     }
 
     private static string GetFilterBorderColor(string? filterName)
@@ -3319,18 +3343,35 @@ public sealed class FilterChipViewModel : INotifyPropertyChanged
     private bool _isSelected;
     private readonly Action _onChanged;
 
-    public FilterChipViewModel(string key, bool isSelected, Action onChanged)
+    public FilterChipViewModel(string key, string filterName, double? exposureSeconds, bool isSelected, Action onChanged)
     {
         Key = key;
-        DisplayName = key;
-        Category = Rejector.Core.Services.FilterClassifier.Classify(key);
+        FilterName = filterName;
+        ExposureSeconds = exposureSeconds;
+        DisplayName = exposureSeconds is double seconds
+            ? $"{filterName} {FormatExposureLabel(seconds)}"
+            : filterName;
+        Category = Rejector.Core.Services.FilterClassifier.Classify(filterName);
         _isSelected = isSelected;
         _onChanged = onChanged;
+    }
+
+    private static string FormatExposureLabel(double seconds)
+    {
+        var rounded = Math.Round(seconds, 1, MidpointRounding.AwayFromZero);
+        var text = rounded % 1 == 0
+            ? rounded.ToString("0", System.Globalization.CultureInfo.InvariantCulture)
+            : rounded.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        return $"{text}s";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public string Key { get; }
+
+    public string FilterName { get; }
+
+    public double? ExposureSeconds { get; }
 
     public string DisplayName { get; }
 

@@ -10,16 +10,23 @@ All notable changes to this project will be documented in this file.
 - Added cloud confidence display to frame cards and the preview metrics panel.
 - Added a per-filter minimum cloud-confidence rejection slider with live reject counts and session/profile persistence.
 - Added **Cloud confidence** to the sort filter.
+- Exposure time is now read from FITS/XISF metadata and shown in the main window and preview metrics panel.
+- Filter chips now split by exposure time in addition to filter name (e.g. separate "R 30s" and "R 120s" chips), and scoring, per-channel thresholds, and cloud-confidence detection now group frames by filter **and** exposure time instead of mixing different sub-lengths together.
+- The Avalonia main window title now includes the active version and settings profile, matching the classic app (e.g. `Rejector 2.0 (Profile: Default)`).
 
 ### Changed
 - Improved satellite-trail detection with orientation-independent full-angle Hough analysis for trails at arbitrary angles.
+- Satellite-trail detection now masks out already-detected stars and verifies illumination continuity along the fitted line, eliminating false positives from chance-aligned stars, star wings, and nebula clumps in busy star fields.
 - Improved star detection for faint stars and varying background levels while reducing false detections from noise, saturated sources, and non-stellar structures.
-- Improved per-filter metric colors across frame cards and preview metrics.
+- Improved per-filter metric colors across frame cards and preview metrics, with filter chips now colored per filter category (Ha/OIII/SII/L/R/G/B) instead of a single flat color.
+- Frame quality scores and per-metric indicator colors are now computed per filter-and-exposure group, anchored between the best value observed in that group ("pole position") and the configured rejection threshold, instead of ranked against the other currently loaded frames — so scores stay meaningful and consistent regardless of batch size.
 - Clarified minimum and maximum pixel-value/count sort labels while preserving compatibility with existing saved sort rules.
 
 ### Fixed
 - Tracking-elongated frames with stable sky backgrounds no longer receive cloud confidence solely because fewer stars were detected.
 - Invalid or incomplete star measurements no longer inflate frame quality scores.
+- Windows release builds now correctly produce the Inno Setup installer executable alongside the portable zip.
+- The Windows executable and the macOS app bundle/DMG now include the application icon.
 
 ## 1.0.36
 ### Changed

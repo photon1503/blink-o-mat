@@ -3,7 +3,7 @@
 > **Cull bad subframes from your astrophotography session before stacking.**
 
 [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)](https://www.microsoft.com/windows)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-0078D6?logo=windows)](https://www.microsoft.com/windows)
 [![License](https://img.shields.io/github/license/photon1503/blink-o-mat)](LICENSE.txt)
 [![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-blue)](CHANGELOG.md)
 
@@ -241,7 +241,7 @@ You also get:
 
 ### Per-filter thresholds & scope selector
 
-When your session contains frames from more than one filter (Ha, OIII, L, R, G, B, …), each filter gets its **own independent set of thresholds**. This is essential because, for example, a 600 s Ha sub typically has very different FWHM and background numbers than a 60 s L sub — judging them by the same yardstick would always condemn one or the other.
+When your session contains frames from more than one filter (Ha, OIII, L, R, G, B, …) — or more than one exposure length within the same filter — each **filter-and-exposure combination** gets its **own independent set of thresholds**. This is essential because, for example, a 600 s Ha sub typically has very different FWHM and background numbers than a 60 s Ha sub or a 60 s L sub — judging them by the same yardstick would always condemn one or the other.
 
 Right next to the *Automatic rejection* heading you get two extras:
 ![alt text](src/image-6.png)
@@ -316,12 +316,12 @@ Every frame gets a quality score from **0.0** (worst) to **5.0** (best), shown a
 
 ### How it works
 
-The score is **relative within the session, per filter**. That means:
+The score is computed **per frame, per filter-and-exposure group**, anchored to your configured rejection thresholds rather than purely ranked against the rest of the batch:
 
-- The best frame in your session for a given filter scores near **5.0**, the worst near **0.0** — the full scale is always used.
-- Ha frames are ranked against other Ha frames, OIII against OIII, L against L, and so on, so narrowband and broadband subs are always judged against their true peers.
+- Ha frames are scored against other Ha frames, OIII against OIII, L against L — and, within a filter, different exposure lengths (e.g. Ha 60s vs. Ha 300s) are scored independently too, since they naturally have different FWHM/background/star-count baselines.
+- For each metric, the **best value observed in that group** ("pole position") scores full marks, the **configured rejection threshold** scores zero, and everything else scales linearly between them. A strong data set is no longer penalized just for not touching an arbitrary absolute zero, but a small or uniformly poor batch also can't inflate its worst frame's score just by ranking it against slightly-worse neighbours.
 
-Internally each metric is rank-percentiled (1.0 = best in its group, 0.0 = worst), then combined with configurable weights:
+Internally each metric produces a 0–1 goodness score this way, then the metrics are combined with configurable weights:
 
 | Metric | Weight | Why |
 |---|---|---|
@@ -332,7 +332,7 @@ Internally each metric is rank-percentiled (1.0 = best in its group, 0.0 = worst
 | Star count | 1.5 | Transparency / clouds proxy |
 | Mean background | 0.5 | Light pollution / gradient |
 
-The weighted percentiles are averaged and scaled to 0–5.
+The weighted goodness scores are averaged and scaled to 0–5.
 
 In **Settings → Metric settings**, you can control per score metric:
 - **Use** (include/exclude metric from score computation), and
@@ -345,7 +345,7 @@ Score updates immediately for all loaded frames when:
 - a score metric `Use` toggle changes, or
 - metric visibility changes.
 
-> **Caveat:** because the score is relative, the same physical frame can score differently in different sessions — just like a podium spot depends on who else is competing. Scores are not comparable across sessions.
+> **Caveat:** because the score is anchored to the best value seen in its filter/exposure group (as well as to your thresholds), the same physical frame can still score differently across sessions with a different mix of frames. Scores are not comparable across sessions.
 
 ---
 
@@ -411,7 +411,7 @@ These only affect the list display — the *Frame summary* counts always reflect
 ### Filter chips
 ![alt text](src/image-3.png)
 
-Below the visibility toggles, one chip per filter found in your session. Tick / untick to include / exclude frames of that filter from the list.
+Below the visibility toggles, one chip per **filter and exposure time** combination found in your session (e.g. separate `R 30s` and `R 120s` chips). This keeps mixed sub-lengths within the same filter from being scored or thresholded together. Tick / untick a chip to include / exclude those frames from the list. Chips are colour-coded by filter category (Ha / OIII / SII / L / R / G / B).
 
 ### Sorting
 ![alt text](src/image-4.png)
@@ -521,7 +521,7 @@ All threshold arguments are optional; omitting one keeps its default value.
 - Loupe pixel stats are derived from the **stretched preview image**, not raw sensor data.
 - Manual keep / reject overrides are independent of the auto-rejection sliders — changing a threshold after a manual override does not clear the override.
 - Move operations rename on collision (`_1`, `_2`, …) so no file is ever overwritten.
-- The quality score is **relative to the current session and to the frame's filter group** — the same frame can score differently in different sessions.
+- The quality score is **relative to the current session and to the frame's filter-and-exposure group** — the same frame can score differently in different sessions.
 
 ---
 
@@ -544,13 +544,21 @@ All threshold arguments are optional; omitting one keeps its default value.
 - Added a per-filter **cloud confidence** metric based on sky-background invariance across frames, with star-count corroboration to identify frames obscured by clouds.
 - Added cloud confidence to frame cards and the preview metrics panel.
 - Added a per-filter **minimum cloud confidence** rejection slider with live rejection counts and saved session/profile settings.
+- Exposure time is now read from FITS/XISF metadata, shown in the main window and preview metrics, and used to split filter chips (e.g. `R 30s` vs `R 120s`) so mixed sub-lengths are never scored or thresholded together.
+- The main window title now shows the app version and active settings profile.
 
 #### Improved
 
-- Improved satellite-trail detection with orientation-independent full-angle Hough analysis, supporting trails at arbitrary angles.
+- Improved satellite-trail detection with orientation-independent full-angle Hough analysis, supporting trails at arbitrary angles, and with star-masking plus illumination-continuity checks that eliminate false positives from busy star fields and nebula clumps.
 - Improved star detection for faint stars and varying background levels while reducing false detections from noise, saturated sources, and non-stellar structures.
-- Improved per-filter metric coloring so cards and preview metrics consistently reflect each frame's filter-specific score.
+- Improved per-filter metric coloring so cards and preview metrics consistently reflect each frame's filter-specific score, with filter chips now colour-coded by filter category.
+- Reworked frame quality scoring to anchor each metric between the best value observed in its filter/exposure group and the configured rejection threshold, instead of pure rank percentiles, so scores stay meaningful for both large and small batches.
 - Improved handling of invalid or incomplete star measurements so missing values cannot inflate frame quality scores.
 - Added full-resolution preview rendering, zoom/pan state preservation, ROI tools, cached previews, watch-folder updates, and cross-platform file-manager integration.
+
+#### Fixed
+
+- Windows release builds now correctly produce the Inno Setup installer executable alongside the portable zip.
+- The Windows executable and the macOS app bundle/DMG now include the application icon.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full version history.

@@ -12,7 +12,7 @@ public static class CloudMetricService
 {
     public static void Compute(IEnumerable<ProcessedFrame> frames)
     {
-        foreach (var group in frames.GroupBy(frame => NormalizeFilterKey(frame.FilterName), StringComparer.OrdinalIgnoreCase))
+        foreach (var group in frames.GroupBy(frame => FrameGroupKey.Create(frame), StringComparer.OrdinalIgnoreCase))
         {
             var members = group
                 .OrderBy(frame => frame.ExposureDateTime ?? DateTimeOffset.MaxValue)
@@ -137,11 +137,6 @@ public static class CloudMetricService
         }
 
         return Median(window.ToArray());
-    }
-
-    private static string NormalizeFilterKey(string? filterName)
-    {
-        return string.IsNullOrWhiteSpace(filterName) ? "(no filter)" : filterName.Trim();
     }
 
     private static double Median(double[] values)

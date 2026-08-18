@@ -1194,6 +1194,7 @@ public sealed class FramePreviewWindow : Window
                                 new TextBlock { Text = "METRICS", Foreground = SolidColorBrush.Parse("#D0D8E0"), FontSize = 11, FontWeight = FontWeight.SemiBold },
                                 MetricRow("Date/time", "SelectedResult.TimestampDisplay"),
                                 MetricRow("Filter", "SelectedResult.FilterDisplay"),
+                                MetricRow("Exposure", "SelectedResult.ExposureDisplay"),
                                 MetricRow("FWHM", "SelectedResult.FwhmPixelDisplay", "SelectedResult.FwhmIndicatorColor"),
                                 MetricRow("FWHM sky", "SelectedResult.FwhmArcsecDisplay", "SelectedResult.FwhmIndicatorColor"),
                                 MetricRow("HFR", "SelectedResult.HfrDisplay", "SelectedResult.HfrIndicatorColor"),

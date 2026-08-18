@@ -46,6 +46,46 @@ public sealed class FrameRejectionServiceTests
     }
 
     [Fact]
+    public void RevalidateAll_SameFilterDifferentExposure_UsesExposureSpecificThreshold()
+    {
+        var service = new FrameRejectionService();
+        var frames = new[]
+        {
+            CreateFrame("r30.fit", "R", 5.0, exposureSeconds: 30),
+            CreateFrame("r120.fit", "R", 5.0, exposureSeconds: 120),
+        };
+        var filterThresholds = new Dictionary<string, Thresholds>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["R@30s"] = new Thresholds { MaxFwhm = 4.0 },
+            ["R@120s"] = new Thresholds { MaxFwhm = 6.0 },
+        };
+
+        service.RevalidateAll(frames, new Thresholds { MaxFwhm = 100.0 }, filterThresholds);
+
+        Assert.True(frames[0].AutomaticRejected);
+        Assert.False(frames[1].AutomaticRejected);
+    }
+
+    private static ProcessedFrame CreateFrame(string fileName, string filterName, double fwhm, double? exposureSeconds = null)
+    {
+        return new ProcessedFrame
+        {
+            FilePath = fileName,
+            FileName = fileName,
+            FilterName = filterName,
+            ExposureSeconds = exposureSeconds,
+            Metrics = new AstroMetrics
+            {
+                Fwhm = fwhm,
+                Hfr = 1.0,
+                Eccentricity = 0.2,
+                MeanBackground = 100,
+                StarCount = 100,
+            },
+        };
+    }
+
+    [Fact]
     public void CreatePermissive_UsesObservedWorstValuesAndAcceptsEveryFrame()
     {
         var service = new FrameRejectionService();
@@ -102,23 +142,5 @@ public sealed class FrameRejectionServiceTests
         Assert.Equal(0, thresholds.MinSatelliteConfidence);
         Assert.Equal(1.2, thresholds.MinScore);
         Assert.All(frames, frame => Assert.False(service.ShouldReject(frame, thresholds)));
-    }
-
-    private static ProcessedFrame CreateFrame(string fileName, string filterName, double fwhm)
-    {
-        return new ProcessedFrame
-        {
-            FilePath = fileName,
-            FileName = fileName,
-            FilterName = filterName,
-            Metrics = new AstroMetrics
-            {
-                Fwhm = fwhm,
-                Hfr = 1.0,
-                Eccentricity = 0.2,
-                MeanBackground = 100,
-                StarCount = 100,
-            },
-        };
     }
 }
