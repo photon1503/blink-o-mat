@@ -382,7 +382,7 @@
                           <TextBlock Text="{Binding TrailText}" Foreground="{Binding TrailIndicatorColor}" FontWeight="SemiBold" />
                         </StackPanel>
                       </Border>
-                      <Border Background="#202224" BorderBrush="{Binding CloudIndicatorColor}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,8">
+                      <Border Background="#202224" BorderBrush="{Binding CloudIndicatorColor}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,8" IsVisible="{Binding $parent[Window].DataContext.ShowCloudMetric}">
                         <StackPanel Orientation="Horizontal">
                           <TextBlock Text="CLOUD" Foreground="#A0A0A0" FontSize="11" Margin="0,0,6,0" />
                           <TextBlock Text="{Binding CloudText}" Foreground="{Binding CloudIndicatorColor}" FontWeight="SemiBold" />
@@ -458,26 +458,44 @@
                       <Button Command="{Binding ToggleRejectCommand}" CommandParameter="{Binding}" FontWeight="SemiBold" Foreground="#F5F5F5" HorizontalContentAlignment="Center" HorizontalAlignment="Stretch" Height="34" MinHeight="34" Padding="10,7" BorderThickness="0" Background="{Binding RejectionStateColor}">
                         <TextBlock Text="{Binding RejectionStateLabel}" FontWeight="SemiBold" Foreground="#F5F5F5" HorizontalAlignment="Center" />
                       </Button>
-                      <Border Margin="0,6,0,0" HorizontalAlignment="Center" IsVisible="{Binding HasRejectionReasons}">
-                        <Border Background="#2A2D31" BorderBrush="#FF6B6B" BorderThickness="1" CornerRadius="10" Width="20" Height="20">
-                          <ToolTip.Tip>
-                            <StackPanel>
-                              <TextBlock Text="REJECTION REASONS" FontSize="10" FontWeight="Bold" Foreground="#FF9A9A" Margin="0,0,0,8" />
-                              <ItemsControl ItemsSource="{Binding RejectionReasons}">
-                                <ItemsControl.ItemTemplate>
-                                  <DataTemplate>
-                                    <DockPanel Margin="0,3,0,0">
-                                      <TextBlock Text="▸" Foreground="#FF6B6B" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                      <TextBlock Text="{Binding}" Foreground="#F0F0F0" FontSize="12" TextWrapping="Wrap" />
-                                    </DockPanel>
-                                  </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                              </ItemsControl>
-                            </StackPanel>
-                          </ToolTip.Tip>
-                          <TextBlock Text="?" FontSize="11" FontWeight="Bold" Foreground="#FF9A9A" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <Grid Margin="0,6,0,0" Height="22" ColumnDefinitions="*,Auto,*">
+                        <Viewbox Grid.Column="0" Width="28" Height="22" HorizontalAlignment="Left" IsVisible="{Binding HasCloudDetection}" ToolTip.Tip="Cloud detection">
+                          <Path Data="M6,17H18A4,4 0,0 0,18.7,9.06A5.5,5.5 0,0 0,8.33,10.44A3.5,3.5 0,0 0,6,17M4,20H20"
+                                Stroke="{Binding CloudIndicatorColor}"
+                                StrokeThickness="2.2"
+                                StrokeLineCap="Round"
+                                StrokeJoin="Round"
+                                Fill="Transparent" />
+                        </Viewbox>
+                        <Border Grid.Column="1" HorizontalAlignment="Center" IsVisible="{Binding HasRejectionReasons}">
+                          <Border Background="#2A2D31" BorderBrush="#FF6B6B" BorderThickness="1" CornerRadius="10" Width="20" Height="20">
+                            <ToolTip.Tip>
+                              <StackPanel>
+                                <TextBlock Text="REJECTION REASONS" FontSize="10" FontWeight="Bold" Foreground="#FF9A9A" Margin="0,0,0,8" />
+                                <ItemsControl ItemsSource="{Binding RejectionReasons}">
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                      <DockPanel Margin="0,3,0,0">
+                                        <TextBlock Text="▸" Foreground="#FF6B6B" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding}" Foreground="#F0F0F0" FontSize="12" TextWrapping="Wrap" />
+                                      </DockPanel>
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </StackPanel>
+                            </ToolTip.Tip>
+                            <TextBlock Text="?" FontSize="11" FontWeight="Bold" Foreground="#FF9A9A" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                          </Border>
                         </Border>
-                      </Border>
+                        <Viewbox Grid.Column="2" Width="28" Height="22" HorizontalAlignment="Right" IsVisible="{Binding HasSatelliteTrailDetection}" ToolTip.Tip="Satellite trail detection">
+                          <Path Data="M9,8L13,12M11,6L15,10M6,11L10,15M14,5L19,10M16,3L21,8M12,11L17,16M18,17L21,20M3,18L8,13"
+                                Stroke="{Binding TrailIndicatorColor}"
+                                StrokeThickness="2.2"
+                                StrokeLineCap="Round"
+                                StrokeJoin="Round"
+                                Fill="Transparent" />
+                        </Viewbox>
+                      </Grid>
                     </StackPanel>
                   </Border>
                 </Grid>
@@ -587,7 +605,7 @@
           <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">
             <TextBlock Text="METRICS VISIBILITY" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
           </Border>
-          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
             <CheckBox Content="FWHM px" IsChecked="{Binding ShowFwhmMetric}" />
             <CheckBox Grid.Column="1" Content="FWHM arcsec" IsChecked="{Binding ShowFwhmArcsecMetric}" />
             <CheckBox Grid.Row="1" Content="HFR" IsChecked="{Binding ShowHfrMetric}" />
@@ -598,12 +616,13 @@
             <CheckBox Grid.Row="3" Grid.Column="1" Content="Sky temperature" IsChecked="{Binding ShowSkyTempMetric}" />
             <CheckBox Grid.Row="4" Content="Mean background" IsChecked="{Binding ShowMeanBackgroundMetric}" />
             <CheckBox Grid.Row="4" Grid.Column="1" Content="Score" IsChecked="{Binding ShowScoreMetric}" />
+            <CheckBox Grid.Row="5" Content="Clouds" IsChecked="{Binding ShowCloudMetric}" />
           </Grid>
 
           <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">
             <TextBlock Text="SCORE WEIGHTS" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
           </Border>
-          <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+          <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
             <CheckBox Content="FWHM" IsChecked="{Binding UseScoreFwhm}" />
             <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
             <NumericUpDown Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightFwhm}" FormatString="F1" />
@@ -627,6 +646,10 @@
             <CheckBox Grid.Row="5" Content="Trail" IsChecked="{Binding UseScoreTrail}" />
             <TextBlock Grid.Row="5" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
             <NumericUpDown Grid.Row="5" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightTrail}" FormatString="F1" />
+
+            <CheckBox Grid.Row="6" Content="Clouds" IsChecked="{Binding UseScoreCloud}" />
+            <TextBlock Grid.Row="6" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
+            <NumericUpDown Grid.Row="6" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightCloud}" FormatString="F1" />
           </Grid>
         </StackPanel>
         </ScrollViewer>

@@ -95,6 +95,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _showStarsMetric = true;
     private bool _showEccentricityMetric = true;
     private bool _showTrailMetric = true;
+    private bool _showCloudMetric = true;
     private bool _showSqmMetric = true;
     private bool _showSkyTempMetric = true;
     private bool _showMeanBackgroundMetric = true;
@@ -115,12 +116,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _useScoreEccentricity = true;
     private bool _useScoreBackground = true;
     private bool _useScoreTrail = true;
+    private bool _useScoreCloud = true;
     private double _scoreWeightFwhm = 3.0;
     private double _scoreWeightHfr = 1.5;
     private double _scoreWeightStars = 1.5;
     private double _scoreWeightEccentricity = 2.5;
     private double _scoreWeightBackground = 0.5;
     private double _scoreWeightTrail = 2.0;
+    private double _scoreWeightCloud = 2.0;
     private double _previewFrameSliderValue;
     private bool _isSynchronizingPreviewSlider;
     private const string AllFiltersScopeLabel = "All Filters";
@@ -605,6 +608,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool ShowStarsMetric { get => _showStarsMetric; set { if (SetBool(ref _showStarsMetric, value)) { PersistProfileSettings(); } } }
     public bool ShowEccentricityMetric { get => _showEccentricityMetric; set { if (SetBool(ref _showEccentricityMetric, value)) { PersistProfileSettings(); } } }
     public bool ShowTrailMetric { get => _showTrailMetric; set { if (SetBool(ref _showTrailMetric, value)) { PersistProfileSettings(); } } }
+    public bool ShowCloudMetric { get => _showCloudMetric; set { if (SetBool(ref _showCloudMetric, value)) { PersistProfileSettings(); } } }
     public bool ShowSqmMetric { get => _showSqmMetric; set { if (SetBool(ref _showSqmMetric, value)) { PersistProfileSettings(); } } }
     public bool ShowSkyTempMetric { get => _showSkyTempMetric; set { if (SetBool(ref _showSkyTempMetric, value)) { PersistProfileSettings(); } } }
     public bool ShowMeanBackgroundMetric { get => _showMeanBackgroundMetric; set { if (SetBool(ref _showMeanBackgroundMetric, value)) { PersistProfileSettings(); } } }
@@ -664,6 +668,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool UseScoreEccentricity { get => _useScoreEccentricity; set { if (SetBoolAndRebuild(ref _useScoreEccentricity, value)) { PersistProfileSettings(); } } }
     public bool UseScoreBackground { get => _useScoreBackground; set { if (SetBoolAndRebuild(ref _useScoreBackground, value)) { PersistProfileSettings(); } } }
     public bool UseScoreTrail { get => _useScoreTrail; set { if (SetBoolAndRebuild(ref _useScoreTrail, value)) { PersistProfileSettings(); } } }
+    public bool UseScoreCloud { get => _useScoreCloud; set { if (SetBoolAndRebuild(ref _useScoreCloud, value)) { PersistProfileSettings(); } } }
 
     public double ScoreWeightFwhm { get => _scoreWeightFwhm; set { if (SetDoubleAndRebuild(ref _scoreWeightFwhm, value)) { PersistProfileSettings(); } } }
     public double ScoreWeightHfr { get => _scoreWeightHfr; set { if (SetDoubleAndRebuild(ref _scoreWeightHfr, value)) { PersistProfileSettings(); } } }
@@ -671,6 +676,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public double ScoreWeightEccentricity { get => _scoreWeightEccentricity; set { if (SetDoubleAndRebuild(ref _scoreWeightEccentricity, value)) { PersistProfileSettings(); } } }
     public double ScoreWeightBackground { get => _scoreWeightBackground; set { if (SetDoubleAndRebuild(ref _scoreWeightBackground, value)) { PersistProfileSettings(); } } }
     public double ScoreWeightTrail { get => _scoreWeightTrail; set { if (SetDoubleAndRebuild(ref _scoreWeightTrail, value)) { PersistProfileSettings(); } } }
+    public double ScoreWeightCloud { get => _scoreWeightCloud; set { if (SetDoubleAndRebuild(ref _scoreWeightCloud, value)) { PersistProfileSettings(); } } }
 
     public int CachedPreviewCount => _cachedPreviewPaths.Count;
 
@@ -1793,6 +1799,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             ShowStarsMetric = profile.ShowStarsMetric;
             ShowEccentricityMetric = profile.ShowEccentricityMetric;
             ShowTrailMetric = profile.ShowTrailMetric;
+            ShowCloudMetric = profile.ShowCloudMetric;
             ShowSqmMetric = profile.ShowSqmMetric;
             ShowSkyTempMetric = profile.ShowSkyTempMetric;
             ShowMeanBackgroundMetric = profile.ShowMeanBackgroundMetric;
@@ -1808,12 +1815,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             UseScoreEccentricity = profile.UseScoreEccentricity;
             UseScoreBackground = profile.UseScoreMeanBackground;
             UseScoreTrail = profile.UseScoreTrail;
+            UseScoreCloud = profile.UseScoreCloud;
             ScoreWeightFwhm = profile.ScoreWeightFwhm;
             ScoreWeightHfr = profile.ScoreWeightHfr;
             ScoreWeightStars = profile.ScoreWeightStars;
             ScoreWeightEccentricity = profile.ScoreWeightEccentricity;
             ScoreWeightBackground = profile.ScoreWeightMeanBackground;
             ScoreWeightTrail = profile.ScoreWeightTrail;
+            ScoreWeightCloud = profile.ScoreWeightCloud;
 
             OnPropertyChanged(nameof(MaxFwhm));
             OnPropertyChanged(nameof(MaxHfr));
@@ -1842,6 +1851,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(ShowStarsMetric));
             OnPropertyChanged(nameof(ShowEccentricityMetric));
             OnPropertyChanged(nameof(ShowTrailMetric));
+            OnPropertyChanged(nameof(ShowCloudMetric));
             OnPropertyChanged(nameof(ShowSqmMetric));
             OnPropertyChanged(nameof(ShowSkyTempMetric));
             OnPropertyChanged(nameof(ShowMeanBackgroundMetric));
@@ -1856,12 +1866,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(UseScoreEccentricity));
             OnPropertyChanged(nameof(UseScoreBackground));
             OnPropertyChanged(nameof(UseScoreTrail));
+            OnPropertyChanged(nameof(UseScoreCloud));
             OnPropertyChanged(nameof(ScoreWeightFwhm));
             OnPropertyChanged(nameof(ScoreWeightHfr));
             OnPropertyChanged(nameof(ScoreWeightStars));
             OnPropertyChanged(nameof(ScoreWeightEccentricity));
             OnPropertyChanged(nameof(ScoreWeightBackground));
             OnPropertyChanged(nameof(ScoreWeightTrail));
+            OnPropertyChanged(nameof(ScoreWeightCloud));
             OnPropertyChanged(nameof(IncludeSubfolders));
             OnPropertyChanged(nameof(WatchFolderEnabled));
             OnPropertyChanged(nameof(StfTargetBackground));
@@ -2000,6 +2012,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             ShowStarsMetric = ShowStarsMetric,
             ShowEccentricityMetric = ShowEccentricityMetric,
             ShowTrailMetric = ShowTrailMetric,
+            ShowCloudMetric = ShowCloudMetric,
             ShowSqmMetric = ShowSqmMetric,
             ShowSkyTempMetric = ShowSkyTempMetric,
             ShowMeanBackgroundMetric = ShowMeanBackgroundMetric,
@@ -2014,12 +2027,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             UseScoreEccentricity = UseScoreEccentricity,
             UseScoreMeanBackground = UseScoreBackground,
             UseScoreTrail = UseScoreTrail,
+            UseScoreCloud = UseScoreCloud,
             ScoreWeightFwhm = ScoreWeightFwhm,
             ScoreWeightHfr = ScoreWeightHfr,
             ScoreWeightStars = ScoreWeightStars,
             ScoreWeightEccentricity = ScoreWeightEccentricity,
             ScoreWeightMeanBackground = ScoreWeightBackground,
             ScoreWeightTrail = ScoreWeightTrail,
+            ScoreWeightCloud = ScoreWeightCloud,
             AutoCalcTrailThreshold = _thresholds.AutoCalcTrailThreshold,
             AutoCalcCloudThreshold = _thresholds.AutoCalcCloudThreshold,
             AutoCalcFwhmThreshold = _thresholds.AutoCalcFwhmThreshold,
@@ -2770,10 +2785,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         var fwhmWeight = UseScoreFwhm ? ScoreWeightFwhm : 0.0;
         var eccWeight = UseScoreEccentricity ? ScoreWeightEccentricity : 0.0;
         var trailWeight = UseScoreTrail ? ScoreWeightTrail : 0.0;
+        var cloudWeight = UseScoreCloud ? ScoreWeightCloud : 0.0;
         var hfrWeight = UseScoreHfr ? ScoreWeightHfr : 0.0;
         var starsWeight = UseScoreStars ? ScoreWeightStars : 0.0;
         var bgWeight = UseScoreBackground ? ScoreWeightBackground : 0.0;
-        var totalWeight = fwhmWeight + eccWeight + trailWeight + hfrWeight + starsWeight + bgWeight;
+        var totalWeight = fwhmWeight + eccWeight + trailWeight + cloudWeight + hfrWeight + starsWeight + bgWeight;
 
         if (totalWeight <= double.Epsilon)
         {
@@ -2804,6 +2820,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             var bestBg = MinOrDefault(members.Select(m => m.Frame.Metrics.MeanBackground), thresholds.MaxMeanBackground);
             var trailCeiling = thresholds.MinSatelliteConfidence > 0 ? thresholds.MinSatelliteConfidence : 100.0;
             var bestTrail = MinOrDefault(members.Select(m => (double)m.Frame.Metrics.SatelliteTrailConfidence), trailCeiling);
+            var cloudCeiling = thresholds.MinCloudConfidence > 0 ? thresholds.MinCloudConfidence : 100.0;
+            var bestCloud = MinOrDefault(members.Select(m => (double)m.Frame.CloudConfidence), cloudCeiling);
 
             foreach (var member in members)
             {
@@ -2815,13 +2833,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 var starsGoodness = GoodnessHigherIsBetter(metrics.StarCount, bestStars, thresholds.MinStars);
                 var bgGoodness = GoodnessLowerIsBetter(metrics.MeanBackground, bestBg, thresholds.MaxMeanBackground);
                 var trailGoodness = GoodnessLowerIsBetter(metrics.SatelliteTrailConfidence, bestTrail, trailCeiling);
+                var cloudGoodness = GoodnessLowerIsBetter(member.Frame.CloudConfidence, bestCloud, cloudCeiling);
 
                 var weighted = fwhmGoodness * fwhmWeight
                              + eccGoodness * eccWeight
                              + hfrGoodness * hfrWeight
                              + starsGoodness * starsWeight
                              + bgGoodness * bgWeight
-                             + trailGoodness * trailWeight;
+                             + trailGoodness * trailWeight
+                             + cloudGoodness * cloudWeight;
 
                 var score = Math.Clamp((weighted / totalWeight) * 5.0, 0.0, 5.0);
                 if (UseScoreEccentricity)
@@ -3332,6 +3352,10 @@ public sealed record FrameSummaryViewModel(
     public string TrailText => SatelliteTrailConfidence > 0 ? $"{SatelliteTrailConfidence}%" : "–";
 
     public string CloudText => CloudConfidence > 0 ? $"{CloudConfidence}%" : "–";
+
+    public bool HasSatelliteTrailDetection => SatelliteTrailConfidence > 0;
+
+    public bool HasCloudDetection => CloudConfidence > 0;
 
     public string VerdictText => IsRejected ? "Rejected" : "Accepted";
 

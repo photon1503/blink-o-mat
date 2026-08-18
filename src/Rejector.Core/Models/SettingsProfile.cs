@@ -31,6 +31,7 @@ public sealed class SettingsProfile
     public bool IsCurvatureViewVisible { get; set; }
 
     public bool ShowTrailMetric { get; set; } = true;
+    public bool ShowCloudMetric { get; set; } = true;
     public bool ShowFwhmMetric { get; set; } = true;
     public bool ShowFwhmArcsecMetric { get; set; } = true;
     public bool ShowSqmMetric { get; set; } = true;
@@ -56,6 +57,7 @@ public sealed class SettingsProfile
     public bool UseScoreFwhm { get; set; } = true;
     public bool UseScoreEccentricity { get; set; } = true;
     public bool UseScoreTrail { get; set; } = true;
+    public bool UseScoreCloud { get; set; } = true;
     public bool UseScoreHfr { get; set; } = true;
     public bool UseScoreStars { get; set; } = true;
     public bool UseScoreMeanBackground { get; set; } = true;
@@ -63,6 +65,7 @@ public sealed class SettingsProfile
     public double ScoreWeightFwhm { get; set; } = 3.0;
     public double ScoreWeightEccentricity { get; set; } = 2.5;
     public double ScoreWeightTrail { get; set; } = 2.0;
+    public double ScoreWeightCloud { get; set; } = 2.0;
     public double ScoreWeightHfr { get; set; } = 1.5;
     public double ScoreWeightStars { get; set; } = 1.5;
     public double ScoreWeightMeanBackground { get; set; } = 0.5;
@@ -150,6 +153,7 @@ public sealed class SettingsProfile
             IsOrientationDebugOverlayVisible = IsOrientationDebugOverlayVisible,
             IsCurvatureViewVisible = IsCurvatureViewVisible,
             ShowTrailMetric = ShowTrailMetric,
+            ShowCloudMetric = ShowCloudMetric,
             ShowFwhmMetric = ShowFwhmMetric,
             ShowFwhmArcsecMetric = ShowFwhmArcsecMetric,
             ShowSqmMetric = ShowSqmMetric,
@@ -173,12 +177,14 @@ public sealed class SettingsProfile
             UseScoreFwhm = UseScoreFwhm,
             UseScoreEccentricity = UseScoreEccentricity,
             UseScoreTrail = UseScoreTrail,
+            UseScoreCloud = UseScoreCloud,
             UseScoreHfr = UseScoreHfr,
             UseScoreStars = UseScoreStars,
             UseScoreMeanBackground = UseScoreMeanBackground,
             ScoreWeightFwhm = ScoreWeightFwhm,
             ScoreWeightEccentricity = ScoreWeightEccentricity,
             ScoreWeightTrail = ScoreWeightTrail,
+            ScoreWeightCloud = ScoreWeightCloud,
             ScoreWeightHfr = ScoreWeightHfr,
             ScoreWeightStars = ScoreWeightStars,
             ScoreWeightMeanBackground = ScoreWeightMeanBackground,
