@@ -3323,6 +3323,7 @@ public sealed class FilterChipViewModel : INotifyPropertyChanged
     {
         Key = key;
         DisplayName = key;
+        Category = Rejector.Core.Services.FilterClassifier.Classify(key);
         _isSelected = isSelected;
         _onChanged = onChanged;
     }
@@ -3332,6 +3333,8 @@ public sealed class FilterChipViewModel : INotifyPropertyChanged
     public string Key { get; }
 
     public string DisplayName { get; }
+
+    public Rejector.Core.Services.FilterCategory Category { get; }
 
     public bool IsSelected
     {

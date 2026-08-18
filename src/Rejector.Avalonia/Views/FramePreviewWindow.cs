@@ -1415,6 +1415,7 @@ public sealed class FramePreviewWindow : Window
         _filterChipContainer.IsVisible = true;
         foreach (var chip in vm.FilterChips)
         {
+            var (checkedBackground, checkedBorder, checkedForeground) = Rejector.Core.Services.FilterClassifier.GetColors(chip.Category);
             var toggle = new ToggleButton
             {
                 Height = 30,
@@ -1440,22 +1441,22 @@ public sealed class FramePreviewWindow : Window
                 if (args.Property == ToggleButton.IsCheckedProperty)
                 {
                     var isChecked = toggle.IsChecked == true;
-                    toggle.Background = SolidColorBrush.Parse(isChecked ? "#334F78D1" : "#161616");
-                    toggle.BorderBrush = SolidColorBrush.Parse(isChecked ? "#8FB3FF" : "#444");
-                    toggle.Foreground = SolidColorBrush.Parse(isChecked ? "#FFE8F0FF" : "#CCBDBDBD");
+                    toggle.Background = SolidColorBrush.Parse(isChecked ? checkedBackground : "#0A0A0A");
+                    toggle.BorderBrush = SolidColorBrush.Parse(isChecked ? checkedBorder : "#222222");
+                    toggle.Foreground = SolidColorBrush.Parse(isChecked ? checkedForeground : "#55777777");
                     if (toggle.Content is TextBlock text)
                     {
-                        text.Foreground = SolidColorBrush.Parse(isChecked ? "#FFE8F0FF" : "#CCBDBDBD");
+                        text.Foreground = SolidColorBrush.Parse(isChecked ? checkedForeground : "#55777777");
                     }
                 }
             };
             var isSelected = chip.IsSelected;
-            toggle.Background = SolidColorBrush.Parse(isSelected ? "#334F78D1" : "#161616");
-            toggle.BorderBrush = SolidColorBrush.Parse(isSelected ? "#8FB3FF" : "#444");
-            toggle.Foreground = SolidColorBrush.Parse(isSelected ? "#FFE8F0FF" : "#CCBDBDBD");
+            toggle.Background = SolidColorBrush.Parse(isSelected ? checkedBackground : "#0A0A0A");
+            toggle.BorderBrush = SolidColorBrush.Parse(isSelected ? checkedBorder : "#222222");
+            toggle.Foreground = SolidColorBrush.Parse(isSelected ? checkedForeground : "#55777777");
             if (toggle.Content is TextBlock contentText)
             {
-                contentText.Foreground = SolidColorBrush.Parse(isSelected ? "#FFE8F0FF" : "#CCBDBDBD");
+                contentText.Foreground = SolidColorBrush.Parse(isSelected ? checkedForeground : "#55777777");
             }
 
             _filterChipWrap.Children.Add(toggle);

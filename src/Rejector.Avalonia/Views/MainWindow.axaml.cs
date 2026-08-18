@@ -175,6 +175,15 @@ public partial class MainWindow : Window
                 border = isChecked ? "#E07A7A" : "#444";
                 foreground = isChecked ? "#FFF9EAEA" : "#CCBDBDBD";
                 break;
+            case "filter":
+                var category = toggle.DataContext is FilterChipViewModel filterChip
+                    ? filterChip.Category
+                    : Rejector.Core.Services.FilterCategory.Unknown;
+                var (checkedBackground, checkedBorder, checkedForeground) = Rejector.Core.Services.FilterClassifier.GetColors(category);
+                background = isChecked ? checkedBackground : "#0A0A0A";
+                border = isChecked ? checkedBorder : "#222222";
+                foreground = isChecked ? checkedForeground : "#55777777";
+                break;
             default:
                 background = isChecked ? "#334F78D1" : "#161616";
                 border = isChecked ? "#8FB3FF" : "#444";
