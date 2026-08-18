@@ -244,11 +244,6 @@
                                             TickFrequency="0.01"
                                             LargeChange="0.05"
                                             Decimals="2" />
-
-              <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,10,0,0">
-                <Button Command="{Binding ApplyThresholdsCommand}" Content="Apply Thresholds" Foreground="#E8EDF3" Background="#2A3036" BorderBrush="#4A525C" />
-                <Button Grid.Column="1" Click="RejectButton_Click" Content="Move Rejected" Foreground="#E8EDF3" Background="#2A3036" BorderBrush="#4A525C" />
-              </Grid>
             </StackPanel>
           </Border>
         </StackPanel>
@@ -265,10 +260,10 @@
             <StackPanel>
               <TextBlock Text="VISIBILITY" FontSize="10" FontWeight="Bold" Foreground="#BCC5CF" Margin="0,0,0,4" />
               <WrapPanel>
-                <ToggleButton Tag="accepted" IsChecked="{Binding ShowAccepted}" Margin="0,0,6,0" Height="30" Padding="12,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" Loaded="ChipToggle_Loaded" Click="ChipToggle_Click">
+                <ToggleButton Tag="accepted" IsChecked="{Binding ShowAccepted}" Margin="0,0,6,0" Height="30" Padding="12,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Loaded="ChipToggle_Loaded" Click="ChipToggle_Click">
                   <TextBlock Text="Accepted" />
                 </ToggleButton>
-                <ToggleButton Tag="rejected" IsChecked="{Binding ShowRejected}" Height="30" Padding="12,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" Loaded="ChipToggle_Loaded" Click="ChipToggle_Click">
+                <ToggleButton Tag="rejected" IsChecked="{Binding ShowRejected}" Height="30" Padding="12,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Loaded="ChipToggle_Loaded" Click="ChipToggle_Click">
                   <TextBlock Text="Rejected" />
                 </ToggleButton>
               </WrapPanel>
@@ -286,7 +281,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:FilterChipViewModel">
-                    <ToggleButton Tag="filter" IsChecked="{Binding IsSelected}" Margin="0,0,6,0" Height="30" Padding="10,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" Loaded="ChipToggle_Loaded" Click="ChipToggle_Click">
+                    <ToggleButton Tag="filter" IsChecked="{Binding IsSelected}" Margin="0,0,6,0" Height="30" Padding="10,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Loaded="ChipToggle_Loaded" Click="ChipToggle_Click">
                       <TextBlock Text="{Binding DisplayName}" />
                     </ToggleButton>
                   </DataTemplate>
@@ -569,10 +564,6 @@
             <NumericUpDown Grid.Row="4" Grid.Column="1" Minimum="0" Maximum="50000" Increment="10" Value="{Binding MinStars}" FormatString="F0" />
             <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="Min Trail %" />
             <NumericUpDown Grid.Row="5" Grid.Column="1" Minimum="0" Maximum="100" Increment="1" Value="{Binding MinSatelliteConfidence}" FormatString="F0" />
-          </Grid>
-          <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,10,0,0">
-            <Button Command="{Binding ApplyThresholdsCommand}" Content="Apply Thresholds" />
-            <Button Grid.Column="1" Click="RejectButton_Click" Content="Move Rejected" />
           </Grid>
 
           <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">

@@ -37,6 +37,8 @@ public sealed class FramePreviewWindow : Window
     private readonly Slider _frameSlider;
     private readonly Border _filterChipContainer;
     private readonly WrapPanel _filterChipWrap;
+    private readonly ToggleButton _acceptedToggle;
+    private readonly ToggleButton _rejectedToggle;
     private readonly DispatcherTimer _playTimer = new();
     private readonly Canvas _overlayCanvas;
     private readonly Canvas _starTrailOverlayCanvas;
@@ -357,7 +359,7 @@ public sealed class FramePreviewWindow : Window
 
         var toolbar = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto"),
+            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto"),
             ColumnSpacing = 6,
             Margin = new Thickness(0, 0, 0, 8),
         };
@@ -494,6 +496,7 @@ public sealed class FramePreviewWindow : Window
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(12, 0),
+            Margin = new Thickness(0, 0, 6, 0),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
         };
@@ -508,8 +511,7 @@ public sealed class FramePreviewWindow : Window
         };
         acceptedToggle.AttachedToVisualTree += (_, _) =>
             ApplyChipVisual(acceptedToggle, acceptedToggle.IsChecked == true, "#2F3FAE63", "#7AD68E", "#FFE9F8EE");
-        Grid.SetColumn(acceptedToggle, 13);
-        toolbar.Children.Add(acceptedToggle);
+        _acceptedToggle = acceptedToggle;
 
         var rejectedToggle = new ToggleButton
         {
@@ -520,6 +522,7 @@ public sealed class FramePreviewWindow : Window
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(12, 0),
+            Margin = new Thickness(0, 0, 12, 0),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
         };
@@ -534,8 +537,7 @@ public sealed class FramePreviewWindow : Window
         };
         rejectedToggle.AttachedToVisualTree += (_, _) =>
             ApplyChipVisual(rejectedToggle, rejectedToggle.IsChecked == true, "#33C45F5F", "#E07A7A", "#FFF9EAEA");
-        Grid.SetColumn(rejectedToggle, 14);
-        toolbar.Children.Add(rejectedToggle);
+        _rejectedToggle = rejectedToggle;
 
         var curvatureToggle = new ToggleButton
         {
@@ -559,12 +561,12 @@ public sealed class FramePreviewWindow : Window
             }
         };
         curvatureToggle.AttachedToVisualTree += (_, _) => ApplyNeutralToggleVisual(curvatureToggle, curvatureToggle.IsChecked == true);
-        Grid.SetColumn(curvatureToggle, 15);
+        Grid.SetColumn(curvatureToggle, 13);
         toolbar.Children.Add(curvatureToggle);
 
         var alignToggle = new ToggleButton { Content = "Align", Width = 70, Height = 30 };
         alignToggle.Bind(ToggleButton.IsCheckedProperty, new Binding("IsAlignmentEnabled") { Mode = BindingMode.TwoWay });
-        Grid.SetColumn(alignToggle, 16);
+        Grid.SetColumn(alignToggle, 14);
         toolbar.Children.Add(alignToggle);
 
         _zoomText = new TextBlock
@@ -573,7 +575,7 @@ public sealed class FramePreviewWindow : Window
             Foreground = SolidColorBrush.Parse("#B8BCC0"),
             Text = "Zoom: 1.00x",
         };
-        Grid.SetColumn(_zoomText, 17);
+        Grid.SetColumn(_zoomText, 15);
         toolbar.Children.Add(_zoomText);
         root.Children.Add(toolbar);
 
@@ -597,7 +599,7 @@ public sealed class FramePreviewWindow : Window
                 {
                     new TextBlock
                     {
-                        Text = "FILTERS",
+                        Text = "VISIBILITY / FILTERS",
                         FontSize = 9,
                         FontWeight = FontWeight.Bold,
                         Foreground = SolidColorBrush.Parse("#666"),
@@ -1406,14 +1408,15 @@ public sealed class FramePreviewWindow : Window
     private void RebuildFilterChipRow()
     {
         _filterChipWrap.Children.Clear();
+        _filterChipContainer.IsVisible = true;
+        _filterChipWrap.Children.Add(_acceptedToggle);
+        _filterChipWrap.Children.Add(_rejectedToggle);
 
         if (DataContext is not MainWindowViewModel vm || !vm.HasFilterChips)
         {
-            _filterChipContainer.IsVisible = false;
             return;
         }
 
-        _filterChipContainer.IsVisible = true;
         foreach (var chip in vm.FilterChips)
         {
             var (checkedBackground, checkedBorder, checkedForeground) = Rejector.Core.Services.FilterClassifier.GetColors(chip.Category);
