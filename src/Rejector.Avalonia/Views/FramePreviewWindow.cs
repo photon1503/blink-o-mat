@@ -359,7 +359,7 @@ public sealed class FramePreviewWindow : Window
 
         var toolbar = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto"),
+            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto"),
             ColumnSpacing = 6,
             Margin = new Thickness(0, 0, 0, 8),
         };
@@ -443,25 +443,14 @@ public sealed class FramePreviewWindow : Window
         Grid.SetColumn(oneToOneButton, 9);
         toolbar.Children.Add(oneToOneButton);
 
-        var toggleRejectButton = new Button { Content = "Toggle Reject", MinWidth = 108, Height = 30 };
-        toggleRejectButton.Click += (_, _) =>
-        {
-            if (DataContext is MainWindowViewModel vm)
-            {
-                vm.ToggleSelectedReject();
-            }
-        };
-        Grid.SetColumn(toggleRejectButton, 10);
-        toolbar.Children.Add(toggleRejectButton);
-
         var roiToggle = new ToggleButton { Content = "ROI", Width = 50, Height = 30 };
         roiToggle.Bind(ToggleButton.IsCheckedProperty, new Binding("IsRoiOverlayVisible") { Mode = BindingMode.TwoWay });
-        Grid.SetColumn(roiToggle, 11);
+        Grid.SetColumn(roiToggle, 10);
         toolbar.Children.Add(roiToggle);
 
         var openButton = new Button { Content = "Open", Width = 58, Height = 30 };
         openButton.Click += (_, _) => OpenCurrentFrameInFileManager();
-        Grid.SetColumn(openButton, 12);
+        Grid.SetColumn(openButton, 11);
         toolbar.Children.Add(openButton);
 
         static void ApplyChipVisual(
@@ -561,13 +550,8 @@ public sealed class FramePreviewWindow : Window
             }
         };
         curvatureToggle.AttachedToVisualTree += (_, _) => ApplyNeutralToggleVisual(curvatureToggle, curvatureToggle.IsChecked == true);
-        Grid.SetColumn(curvatureToggle, 13);
+        Grid.SetColumn(curvatureToggle, 12);
         toolbar.Children.Add(curvatureToggle);
-
-        var alignToggle = new ToggleButton { Content = "Align", Width = 70, Height = 30 };
-        alignToggle.Bind(ToggleButton.IsCheckedProperty, new Binding("IsAlignmentEnabled") { Mode = BindingMode.TwoWay });
-        Grid.SetColumn(alignToggle, 14);
-        toolbar.Children.Add(alignToggle);
 
         _zoomText = new TextBlock
         {
@@ -575,7 +559,7 @@ public sealed class FramePreviewWindow : Window
             Foreground = SolidColorBrush.Parse("#B8BCC0"),
             Text = "Zoom: 1.00x",
         };
-        Grid.SetColumn(_zoomText, 15);
+        Grid.SetColumn(_zoomText, 14);
         toolbar.Children.Add(_zoomText);
         root.Children.Add(toolbar);
 

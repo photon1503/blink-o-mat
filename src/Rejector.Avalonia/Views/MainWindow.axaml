@@ -296,15 +296,15 @@
               <ItemsControl ItemsSource="{Binding SortRules}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:SortRuleViewModel">
-                    <Grid ColumnDefinitions="140,92,Auto" ColumnSpacing="6" Margin="0,0,0,4">
+                    <Grid ColumnDefinitions="140,92,Auto,Auto" ColumnSpacing="6" Margin="0,0,0,4">
                       <ComboBox Grid.Column="0" ItemsSource="{Binding $parent[Window].DataContext.SortFieldOptions}" SelectedItem="{Binding Field}" Width="136" />
                       <ToggleButton Grid.Column="1" IsChecked="{Binding IsAscending}" Content="{Binding DirectionLabel}" Width="88" />
-                      <Button Grid.Column="2" Content="-" Width="24" Command="{Binding $parent[Window].DataContext.RemoveSortRuleCommand}" CommandParameter="{Binding}" />
+                      <Button Grid.Column="2" Content="-" Width="32" Height="32" Command="{Binding $parent[Window].DataContext.RemoveSortRuleCommand}" CommandParameter="{Binding}" />
+                      <Button Grid.Column="3" Content="+" Width="32" Height="32" IsVisible="{Binding IsLast}" Command="{Binding $parent[Window].DataContext.AddSortRuleCommand}" />
                     </Grid>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <Button Command="{Binding AddSortRuleCommand}" Content="Add rule" HorizontalAlignment="Left" Padding="8,3" />
             </StackPanel>
           </Border>
         </Grid>

@@ -109,7 +109,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _isStarDebugOverlayVisible;
     private bool _isOrientationDebugOverlayVisible;
     private bool _isCurvatureViewVisible;
-    private bool _isAlignmentEnabled = true;
     private bool _useScoreFwhm = true;
     private bool _useScoreHfr = true;
     private bool _useScoreStars = true;
@@ -172,7 +171,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SelectedSettingsProfile = defaultProfile;
         NewProfileName = defaultProfile.Name;
 
-        SortRules.Add(new SortRuleViewModel(SortFieldOptions[0], true, RebuildResults));
+        SortRules.Add(new SortRuleViewModel(SortFieldOptions[0], true, RebuildResults) { IsLast = true });
 
         Dispatcher.UIThread.Post(() =>
         {
@@ -325,27 +324,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _showRejected = value;
             OnPropertyChanged();
             RebuildResults();
-        }
-    }
-
-    public bool IsAlignmentEnabled
-    {
-        get => _isAlignmentEnabled;
-        set
-        {
-            if (_isAlignmentEnabled == value)
-            {
-                return;
-            }
-
-            _isAlignmentEnabled = value;
-            OnPropertyChanged();
-            _cachedPreviewPaths.Clear();
-            OnPropertyChanged(nameof(CachedPreviewCount));
-            if (SelectedResult is not null)
-            {
-                StartLoadSelectedPreview();
-            }
         }
     }
 
@@ -2235,11 +2213,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             var raw = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, CancellationToken.None);
             var renderFrame = raw;
-            if (IsAlignmentEnabled)
-            {
-                renderFrame = _analysisService.ApplyOrientation(renderFrame, context.Rotate180);
-                renderFrame = _analysisService.ApplyShift(renderFrame, context.ShiftX, context.ShiftY);
-            }
 
             StfParameters stf;
             if (_useAutoStretchForPreview)
@@ -3068,6 +3041,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         var remaining = SortFieldOptions.FirstOrDefault(option => !SortRules.Any(rule => string.Equals(rule.Field, option, StringComparison.OrdinalIgnoreCase)));
         SortRules.Add(new SortRuleViewModel(remaining ?? SortFieldOptions[0], true, RebuildResults));
+        RefreshSortRuleIsLastFlags();
         _addSortRuleCommand.RaiseCanExecuteChanged();
         _removeSortRuleCommand.RaiseCanExecuteChanged();
         RebuildResults();
@@ -3081,9 +3055,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         SortRules.Remove(rule);
+        RefreshSortRuleIsLastFlags();
         _addSortRuleCommand.RaiseCanExecuteChanged();
         _removeSortRuleCommand.RaiseCanExecuteChanged();
         RebuildResults();
+    }
+
+    private void RefreshSortRuleIsLastFlags()
+    {
+        for (var i = 0; i < SortRules.Count; i++)
+        {
+            SortRules[i].IsLast = i == SortRules.Count - 1;
+        }
     }
 
     private bool SetBool(ref bool field, bool value, [CallerMemberName] string? propertyName = null)
@@ -3273,14 +3256,14 @@ public sealed record FrameSummaryViewModel(
 
     public string CloudText => CloudConfidence > 0 ? $"{CloudConfidence}%" : "–";
 
-    public string VerdictText => IsRejected ? "Rejected" : "Keep";
+    public string VerdictText => IsRejected ? "Rejected" : "Accepted";
 
     public string RejectionStateLabel
     {
         get
         {
             var prefix = ManualRejectedOverride.HasValue ? "✋ " : string.Empty;
-            return IsRejected ? $"{prefix}Rejected" : $"{prefix}Keep";
+            return IsRejected ? $"{prefix}Rejected" : $"{prefix}Accepted";
         }
     }
     public string RejectionStateColor => IsRejected ? "#CD5C5C" : "#5D9A65";
@@ -3408,6 +3391,7 @@ public sealed class SortRuleViewModel : INotifyPropertyChanged
 {
     private string _field;
     private bool _isAscending;
+    private bool _isLast;
     private readonly Action _onChanged;
 
     public SortRuleViewModel(string field, bool isAscending, Action onChanged)
@@ -3418,6 +3402,22 @@ public sealed class SortRuleViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>True for the last rule in the list; drives the inline "+" add-rule button.</summary>
+    public bool IsLast
+    {
+        get => _isLast;
+        set
+        {
+            if (_isLast == value)
+            {
+                return;
+            }
+
+            _isLast = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsLast)));
+        }
+    }
 
     public string Field
     {
