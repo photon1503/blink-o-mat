@@ -26,6 +26,8 @@ jobs:
             rid: win-x64
           - os: macos-latest
             rid: osx-arm64
+          - os: ubuntu-latest
+            rid: linux-x64
     runs-on: ${{ matrix.os }}
 
     env:
@@ -90,14 +92,6 @@ jobs:
             "/O${{ github.workspace }}\artifacts" `
             "${{ github.workspace }}\Rejector.iss"
 
-      - name: Create Windows portable zip
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Compress-Archive `
-            -Path "${{ github.workspace }}\artifacts\publish-win-x64\*" `
-            -DestinationPath "${{ github.workspace }}\artifacts\Rejector-${{ steps.version.outputs.version }}-win-x64.zip"
-
       - name: Build macOS DMG
         if: runner.os == 'macOS'
         shell: bash
@@ -108,14 +102,45 @@ jobs:
             --rid osx-arm64 \
             --out-dir artifacts/macos
 
-      - name: Upload build artifacts
+      - name: Build Linux archive
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          publish_dir="artifacts/publish-linux-x64"
+          archive="artifacts/Rejector-${{ steps.version.outputs.version }}-linux-x64.tar.gz"
+          dotnet publish "$AVALONIA_PROJECT" \
+            -c "$DOTNET_CONFIGURATION" \
+            -r linux-x64 \
+            --self-contained true \
+            -o "$publish_dir" \
+            /p:Version=${{ steps.version.outputs.version }} \
+            /p:AssemblyVersion=${{ steps.version.outputs.version }} \
+            /p:FileVersion=${{ steps.version.outputs.version }} \
+            /p:InformationalVersion=${{ steps.version.outputs.tag }}
+          tar -C "$publish_dir" -czf "$archive" .
+
+      - name: Upload Windows installer
+        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: rejector-${{ matrix.rid }}
-          path: |
-            artifacts/Rejector-Setup-*.exe
-            artifacts/Rejector-*-win-x64.zip
-            artifacts/macos/*.dmg
+          name: rejector-win-x64
+          path: artifacts/Rejector-Setup-${{ steps.version.outputs.version }}.exe
+          if-no-files-found: error
+
+      - name: Upload macOS DMG
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rejector-osx-arm64
+          path: artifacts/macos/Rejector-${{ steps.version.outputs.version }}-osx-arm64.dmg
+          if-no-files-found: error
+
+      - name: Upload Linux archive
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rejector-linux-x64
+          path: artifacts/Rejector-${{ steps.version.outputs.version }}-linux-x64.tar.gz
           if-no-files-found: error
 
   release:
@@ -142,6 +167,23 @@ jobs:
         with:
           path: release-artifacts
           merge-multiple: true
+
+      - name: Remove obsolete release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          for asset in $(gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null || true); do
+            case "$asset" in
+              "Rejector-$VERSION-osx-arm64.dmg"|"Rejector-Setup-$VERSION.exe"|"Rejector-$VERSION-linux-x64.tar.gz")
+                ;;
+              Rejector-*)
+                gh release delete-asset "$TAG" "$asset" --yes
+                ;;
+            esac
+          done
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
