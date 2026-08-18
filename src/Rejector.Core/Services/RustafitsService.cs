@@ -106,6 +106,23 @@ public sealed class RustafitsService
         }, cancellationToken);
     }
 
+    /// <summary>Renders only the ROI thumbnail, skipping the (unchanged) full-frame thumbnail —
+    /// used to cheaply refresh every loaded frame's ROI preview after the user redraws the ROI.</summary>
+    public Task<RenderedImage> RenderRoiPreviewImageAsync(LoadedFrame frame, StfParameters stf, (double Left, double Top, double Width, double Height)? roiNormalizedRect, CancellationToken cancellationToken)
+    {
+        return Task.Run(() =>
+        {
+            if (frame.IsOsc && frame.ColorChannels is { Length: 3 } cc)
+            {
+                var oscStf = ComputeAutoStretchOsc(frame);
+                return CreateRoiBitmapColor(cc[0], cc[1], cc[2], frame.Width, frame.Height, 160, oscStf[0], oscStf[1], oscStf[2], roiNormalizedRect, frame.NormalizationMax);
+            }
+
+            return CreateRoiBitmap(frame.Pixels, frame.Width, frame.Height, 160, stf, roiNormalizedRect, frame.NormalizationMax);
+        }, cancellationToken);
+    }
+
+
     public Task<RenderedImage> RenderFullImageAsync(LoadedFrame frame, StfParameters stf, CancellationToken cancellationToken)
     {
         return Task.Run(() =>

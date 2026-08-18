@@ -127,6 +127,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _selectedRejectionFilter = AllFiltersScopeLabel;
     private List<FileSystemWatcher>? _folderWatchers;
     private CancellationTokenSource? _watchReloadCts;
+    private CancellationTokenSource? _roiRegenCts;
     private (double Left, double Top, double Width, double Height) _manualRoi = (0.35, 0.35, 0.3, 0.3);
 
     public MainWindowViewModel()
@@ -695,6 +696,82 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         if (!IsAnalyzing)
         {
             BottomStatusText = $"ROI: {next.Left:F3}, {next.Top:F3}, {next.Width:F3} x {next.Height:F3}";
+            _ = RegenerateRoiThumbnailsAsync();
+        }
+    }
+
+    /// <summary>Re-renders every loaded frame's ROI thumbnail against the current manual ROI.
+    /// A newer call (from another ROI edit) cancels and supersedes any run still in progress.</summary>
+    private async Task RegenerateRoiThumbnailsAsync()
+    {
+        if (_resultContexts.Count == 0)
+        {
+            return;
+        }
+
+        _roiRegenCts?.Cancel();
+        _roiRegenCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _roiRegenCts = cts;
+        var token = cts.Token;
+        var roi = _manualRoi;
+        var snapshot = _resultContexts.ToList();
+
+        BottomStatusText = $"Updating ROI preview for {snapshot.Count} frame(s)...";
+
+        try
+        {
+            var maxParallelism = Math.Min(GetAnalyzeParallelism(), Math.Max(1, snapshot.Count));
+            using var gate = new SemaphoreSlim(Math.Max(1, maxParallelism));
+
+            var tasks = snapshot.Select(async context =>
+            {
+                await gate.WaitAsync(token).ConfigureAwait(false);
+                try
+                {
+                    if (!File.Exists(context.Frame.FilePath))
+                    {
+                        return (context.Frame.FilePath, RoiPayload: (string?)null);
+                    }
+
+                    var raw = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, token).ConfigureAwait(false);
+                    var stf = _analysisService.ComputeAutoStretch(raw);
+                    var roiImage = await _analysisService.RenderRoiPreviewImageAsync(raw, stf, roi, token).ConfigureAwait(false);
+                    return (context.Frame.FilePath, RoiPayload: (string?)PreviewPayloadCodec.Encode(roiImage));
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }).ToList();
+
+            var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var roiByPath = results
+                .Where(result => result.RoiPayload is not null)
+                .ToDictionary(result => result.FilePath, result => result.RoiPayload!, StringComparer.OrdinalIgnoreCase);
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                for (var i = 0; i < _resultContexts.Count; i++)
+                {
+                    if (roiByPath.TryGetValue(_resultContexts[i].Frame.FilePath, out var payload))
+                    {
+                        _resultContexts[i] = _resultContexts[i] with { RoiPayload = payload };
+                    }
+                }
+
+                RebuildResults();
+                BottomStatusText = $"Updated ROI preview for {roiByPath.Count} frame(s).";
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer ROI edit.
         }
     }
 
