@@ -21,6 +21,15 @@ All notable changes to this project will be documented in this file.
 - Improved per-filter metric colors across frame cards and preview metrics, with filter chips now colored per filter category (Ha/OIII/SII/L/R/G/B) instead of a single flat color.
 - Frame quality scores and per-metric indicator colors are now computed per filter-and-exposure group, anchored between the best value observed in that group ("pole position") and the configured rejection threshold, instead of ranked against the other currently loaded frames — so scores stay meaningful and consistent regardless of batch size.
 - Clarified minimum and maximum pixel-value/count sort labels while preserving compatibility with existing saved sort rules.
+- The Sort card's add rule control now sits inline next to the last rule's remove button instead of on its own row, saving vertical space.
+- Vertically centered the Visibility/Filters chip badge labels in the main window.
+- The preview window's Accepted/Rejected visibility toggles now share the same row as its filter chips, matching the main window layout.
+- Renamed "Keep" to "Accepted" on frame cards and in the preview window.
+- Improved orientation-flip (180°) detection reliability with a higher minimum star count, a stronger confidence floor, and a larger decision margin, reducing inconsistent flip decisions on sparse or narrowband star fields.
+
+### Removed
+- Removed the duplicate "Apply Thresholds" and "Move Rejected" buttons from the main window sidebar and Settings overlay (thresholds already apply live, and rejecting is available from the top toolbar).
+- Removed the preview window's "Align" button and its orientation/shift preview-compensation code, which was not reliable.
 
 ### Fixed
 - Tracking-elongated frames with stable sky backgrounds no longer receive cloud confidence solely because fewer stars were detected.

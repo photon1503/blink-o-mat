@@ -106,7 +106,7 @@ The main window is divided into three areas:
 - **Top toolbar** — input/rejected folder pickers, **Subfolders** toggle, **Load Frames**, **Reject** (move bad frames), and **💾 Save Session** / **📂 Load Session** icons in the top-left corner.
 - **Above Frame list** - *Visibility*, *Filters*, and *Sort* cards.
 - **Left sidebar** — *Frame summary*, *Stretch*, *ROI*, *Automatic rejection*, 
-- **Frame list** (right) — one row per frame with thumbnail, ROI preview, metric chips, score, star rating, and a **Reject / Keep** button.
+- **Frame list** (right) — one row per frame with thumbnail, ROI preview, metric chips, score, star rating, and a **Reject / Accepted** button.
 - **Bottom** - status bar and performance indicators
 - **Title bar** — shows app version and the currently selected settings profile, e.g. `Rejector 1.0.34 (Profile: Default)`.
 
@@ -120,7 +120,7 @@ Each row shows:
 - A **ROI thumbnail** showing a zoom into the most interesting part of the image (see [ROI](#region-of-interest-roi)).
 - A row of **colour-coded metric chips** (🟢 / 🟡 / 🔴) relative to the session average.
 - The **overall score** as a number (0.0–5.0) and label (**GOOD / FAIR / POOR**).
-- A **Reject / Keep** button to flip the verdict manually.
+- A **Reject / Accepted** button to flip the verdict manually.
 - A small **?** badge on automatically rejected frames — hover it to see exactly which thresholds were violated and by how much.
 - A **filename** with full path tooltip; long names are truncated with an ellipsis.
 
@@ -236,7 +236,7 @@ You also get:
 
 - A **? badge** on every auto-rejected frame in the list — hover to see exactly which thresholds it violated and by how much (e.g. *FWHM 4.21 px > limit 3.50 px*).
   ![alt text](src/image-11.png)
-- A **Reject / Keep** button on every row that **overrides the automatic decision**. Manual overrides are independent of the sliders: changing a threshold later does **not** wipe out manual overrides.
+- A **Reject / Accepted** button on every row that **overrides the automatic decision**. Manual overrides are independent of the sliders: changing a threshold later does **not** wipe out manual overrides.
   ![alt text](src/image-10.png)
 
 ### Per-filter thresholds & scope selector
@@ -300,7 +300,7 @@ Visibility behavior:
 
 Rows have fixed heights to avoid layout jumping while toggling controls.
 
-The **Keep / Reject** row action remains available even if the score metric display is hidden.
+The **Accepted / Reject** row action remains available even if the score metric display is hidden.
 
 ---
 
@@ -555,6 +555,14 @@ All threshold arguments are optional; omitting one keeps its default value.
 - Reworked frame quality scoring to anchor each metric between the best value observed in its filter/exposure group and the configured rejection threshold, instead of pure rank percentiles, so scores stay meaningful for both large and small batches.
 - Improved handling of invalid or incomplete star measurements so missing values cannot inflate frame quality scores.
 - Added full-resolution preview rendering, zoom/pan state preservation, ROI tools, cached previews, watch-folder updates, and cross-platform file-manager integration.
+- Reworked the Sort card's add/remove rule controls so "+" sits inline next to the last rule's "-" button, and vertically centered the Visibility/Filters chip badge labels.
+- Combined the preview window's Accepted/Rejected visibility toggles into the same row as its filter chips, matching the main window layout, and renamed "Keep" to "Accepted" throughout.
+- Improved orientation-flip (180°) detection reliability with a higher minimum star count, a stronger confidence floor, and a larger decision margin, reducing inconsistent flip decisions on sparse or narrowband star fields.
+
+#### Removed
+
+- Removed the duplicate "Apply Thresholds" and "Move Rejected" buttons from the main window sidebar and Settings overlay.
+- Removed the preview window's "Align" button and its orientation/shift preview-compensation code, which was not reliable.
 
 #### Fixed
 

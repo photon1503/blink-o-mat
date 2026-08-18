@@ -339,7 +339,14 @@ public sealed class RustafitsService
 
     public (bool Rotate180, int ShiftX, int ShiftY, OrientationDebugInfo ReferenceDebug, OrientationDebugInfo CandidateDebug) AnalyzeOrientation(LoadedFrame frame, LoadedFrame reference)
     {
-        const double minImprovement = 0.02;
+        // Correlation scores are normalized (roughly -1..1). A decisive flip requires a solid
+        // absolute margin over the alternative, otherwise noise in sparse/narrowband star
+        // fields can flip the decision frame-to-frame even when neither orientation actually
+        // matches better. minConfidence rejects the comparison entirely (falls back to "not
+        // flipped") when even the best-scoring orientation is too weak a match to trust.
+        const double minAbsoluteImprovement = 0.05;
+        const double minConfidence = 0.15;
+        const int minStarsForCorrelation = 12;
 
         var referenceCache = GetOrCreateOrientationReferenceCache(reference);
         var originalSample = CreateOrientationSample(
@@ -381,7 +388,7 @@ public sealed class RustafitsService
         const int fineShiftCells = 4;
         const int coarseToFineRatio = fineMapSize / coarseMapSize;
 
-        if (referenceStars.Count >= 5 && originalStars.Count >= 5)
+        if (referenceStars.Count >= minStarsForCorrelation && originalStars.Count >= minStarsForCorrelation)
         {
             var referenceMapFine = RasterizeStarDensityMap(referenceStars, referenceCache.SampleWidth, referenceCache.SampleHeight, fineMapSize);
             var referenceMapCoarse = RasterizeStarDensityMap(referenceStars, referenceCache.SampleWidth, referenceCache.SampleHeight, coarseMapSize);
@@ -419,7 +426,8 @@ public sealed class RustafitsService
             rotatedTriangle = [];
         }
 
-        var rotate180 = rotatedScore > originalScore + minImprovement;
+        var rotate180 = rotatedScore >= minConfidence
+                     && rotatedScore > originalScore + minAbsoluteImprovement;
         var sampleDx = rotate180 ? rotatedSampleDx : originalSampleDx;
         var sampleDy = rotate180 ? rotatedSampleDy : originalSampleDy;
 
