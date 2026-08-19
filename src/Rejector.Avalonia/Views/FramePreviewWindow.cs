@@ -92,6 +92,9 @@ public sealed class FramePreviewWindow : Window
     private int _playbackIntervalIndex = 3;
     private MainWindowViewModel? _attachedVm;
     private bool _hasInitializedView;
+    private bool _isWindowPlacementReady;
+    private bool _isApplyingWindowPlacement;
+    private WindowPlacement? _restoredWindowPlacement;
     private bool _overlayRedrawQueued;
     private ViewState? _pendingViewState;
 
@@ -239,9 +242,50 @@ public sealed class FramePreviewWindow : Window
             Width = placement.Width;
             Height = placement.Height;
             WindowState = placement.WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal;
+            _restoredWindowPlacement = placement;
         }
         catch
         {
+        }
+    }
+
+    private void ApplyRestoredWindowPlacementOrSaveCurrent()
+    {
+        if (_restoredWindowPlacement is not { } placement)
+        {
+            _isWindowPlacementReady = true;
+            SaveWindowPlacement();
+            return;
+        }
+
+        _isApplyingWindowPlacement = true;
+        DispatcherTimer.RunOnce(() =>
+        {
+            try
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                if (!MacWindowPlacement.TrySetFrame(this, new Rect(placement.Left, placement.Top, placement.Width, placement.Height)))
+                {
+                    Position = new PixelPoint((int)Math.Round(placement.Left), (int)Math.Round(placement.Top));
+                    Width = placement.Width;
+                    Height = placement.Height;
+                }
+                WindowState = placement.WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal;
+            }
+            finally
+            {
+                _isApplyingWindowPlacement = false;
+                _isWindowPlacementReady = true;
+                SaveWindowPlacement();
+            }
+        }, TimeSpan.FromMilliseconds(100), DispatcherPriority.Background);
+    }
+
+    private void SaveWindowPlacementIfReady()
+    {
+        if (_isWindowPlacementReady && !_isApplyingWindowPlacement)
+        {
+            SaveWindowPlacement();
         }
     }
 
@@ -249,18 +293,31 @@ public sealed class FramePreviewWindow : Window
     {
         try
         {
-            var placement = new WindowPlacement
+            if (_isApplyingWindowPlacement)
             {
-                Left = Position.X,
-                Top = Position.Y,
-                Width = Width,
-                Height = Height,
-                WindowState = WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal,
-            };
+                return;
+            }
+
+            if (WindowState == WindowState.Minimized)
+            {
+                return;
+            }
 
             var settings = File.Exists(WindowPlacementPath)
                 ? JsonSerializer.Deserialize<Dictionary<string, WindowPlacement>>(File.ReadAllText(WindowPlacementPath)) ?? new Dictionary<string, WindowPlacement>()
                 : new Dictionary<string, WindowPlacement>();
+
+            settings.TryGetValue("PreviewWindow", out var previous);
+            var saveBounds = WindowState == WindowState.Normal || previous is null;
+            var nativeFrame = MacWindowPlacement.TryGetFrame(this, out var frame);
+            var placement = new WindowPlacement
+            {
+                Left = saveBounds ? (nativeFrame ? frame.X : Position.X) : previous!.Left,
+                Top = saveBounds ? (nativeFrame ? frame.Y : Position.Y) : previous!.Top,
+                Width = saveBounds ? (nativeFrame ? frame.Width : Bounds.Width) : previous!.Width,
+                Height = saveBounds ? (nativeFrame ? frame.Height : Bounds.Height) : previous!.Height,
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal,
+            };
 
             settings["PreviewWindow"] = placement;
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(WindowPlacementPath)!);
@@ -347,8 +404,13 @@ public sealed class FramePreviewWindow : Window
         Background = SolidColorBrush.Parse("#111315");
 
         RestoreWindowPlacement();
-        PositionChanged += (_, _) => SaveWindowPlacement();
-        SizeChanged += (_, _) => SaveWindowPlacement();
+        Opened += (_, _) =>
+        {
+            ApplyRestoredWindowPlacementOrSaveCurrent();
+        };
+        Closing += (_, _) => SaveWindowPlacement();
+        PositionChanged += (_, _) => SaveWindowPlacementIfReady();
+        SizeChanged += (_, _) => SaveWindowPlacementIfReady();
         Closed += (_, _) => SaveWindowPlacement();
 
         var root = new Grid

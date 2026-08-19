@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Rejector.Avalonia.ViewModels;
 using Rejector.Avalonia.Views;
@@ -19,6 +20,9 @@ namespace Rejector.Avalonia.Views;
 public partial class MainWindow : Window
 {
     private FramePreviewWindow? _previewWindow;
+    private bool _isWindowPlacementReady;
+    private bool _isApplyingWindowPlacement;
+    private WindowPlacement? _restoredWindowPlacement;
     private static readonly FuncControlTemplate<ToggleButton> ChipTemplate = new((control, _) =>
         new Border
         {
@@ -46,8 +50,13 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         RestoreWindowPlacement();
-        PositionChanged += (_, _) => SaveWindowPlacement();
-        SizeChanged += (_, _) => SaveWindowPlacement();
+        Opened += (_, _) =>
+        {
+            ApplyRestoredWindowPlacementOrSaveCurrent();
+        };
+        Closing += (_, _) => SaveWindowPlacement();
+        PositionChanged += (_, _) => SaveWindowPlacementIfReady();
+        SizeChanged += (_, _) => SaveWindowPlacementIfReady();
         Closed += (_, _) => SaveWindowPlacement();
     }
 
@@ -83,9 +92,50 @@ public partial class MainWindow : Window
             Width = placement.Width;
             Height = placement.Height;
             WindowState = placement.WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal;
+            _restoredWindowPlacement = placement;
         }
         catch
         {
+        }
+    }
+
+    private void ApplyRestoredWindowPlacementOrSaveCurrent()
+    {
+        if (_restoredWindowPlacement is not { } placement)
+        {
+            _isWindowPlacementReady = true;
+            SaveWindowPlacement();
+            return;
+        }
+
+        _isApplyingWindowPlacement = true;
+        DispatcherTimer.RunOnce(() =>
+        {
+            try
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                if (!MacWindowPlacement.TrySetFrame(this, new Rect(placement.Left, placement.Top, placement.Width, placement.Height)))
+                {
+                    Position = new PixelPoint((int)Math.Round(placement.Left), (int)Math.Round(placement.Top));
+                    Width = placement.Width;
+                    Height = placement.Height;
+                }
+                WindowState = placement.WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal;
+            }
+            finally
+            {
+                _isApplyingWindowPlacement = false;
+                _isWindowPlacementReady = true;
+                SaveWindowPlacement();
+            }
+        }, TimeSpan.FromMilliseconds(100), DispatcherPriority.Background);
+    }
+
+    private void SaveWindowPlacementIfReady()
+    {
+        if (_isWindowPlacementReady && !_isApplyingWindowPlacement)
+        {
+            SaveWindowPlacement();
         }
     }
 
@@ -93,18 +143,31 @@ public partial class MainWindow : Window
     {
         try
         {
-            var placement = new WindowPlacement
+            if (_isApplyingWindowPlacement)
             {
-                Left = Position.X,
-                Top = Position.Y,
-                Width = Width,
-                Height = Height,
-                WindowState = WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal,
-            };
+                return;
+            }
+
+            if (WindowState == WindowState.Minimized)
+            {
+                return;
+            }
 
             var settings = File.Exists(WindowPlacementPath)
                 ? JsonSerializer.Deserialize<Dictionary<string, WindowPlacement>>(File.ReadAllText(WindowPlacementPath)) ?? new Dictionary<string, WindowPlacement>()
                 : new Dictionary<string, WindowPlacement>();
+
+            settings.TryGetValue("MainWindow", out var previous);
+            var saveBounds = WindowState == WindowState.Normal || previous is null;
+            var nativeFrame = MacWindowPlacement.TryGetFrame(this, out var frame);
+            var placement = new WindowPlacement
+            {
+                Left = saveBounds ? (nativeFrame ? frame.X : Position.X) : previous!.Left,
+                Top = saveBounds ? (nativeFrame ? frame.Y : Position.Y) : previous!.Top,
+                Width = saveBounds ? (nativeFrame ? frame.Width : Bounds.Width) : previous!.Width,
+                Height = saveBounds ? (nativeFrame ? frame.Height : Bounds.Height) : previous!.Height,
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal,
+            };
 
             settings["MainWindow"] = placement;
             Directory.CreateDirectory(Path.GetDirectoryName(WindowPlacementPath)!);
