@@ -310,6 +310,11 @@ public sealed class FramePreviewWindow : Window
             settings.TryGetValue("PreviewWindow", out var previous);
             var saveBounds = WindowState == WindowState.Normal || previous is null;
             var nativeFrame = MacWindowPlacement.TryGetFrame(this, out var frame);
+            if (saveBounds && OperatingSystem.IsMacOS() && !nativeFrame)
+            {
+                return;
+            }
+
             var placement = new WindowPlacement
             {
                 Left = saveBounds ? (nativeFrame ? frame.X : Position.X) : previous!.Left,
