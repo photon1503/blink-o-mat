@@ -219,6 +219,22 @@ public partial class MainWindow : Window
         }
     }
 
+    private void FilterChip_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(this);
+        if (!point.Properties.IsRightButtonPressed)
+        {
+            return;
+        }
+
+        if (DataContext is MainWindowViewModel viewModel && sender is ToggleButton { DataContext: FilterChipViewModel chip } toggle)
+        {
+            viewModel.ToggleFilterExclusively(chip);
+            ApplyChipColors(toggle);
+            e.Handled = true;
+        }
+    }
+
     private void ChipToggle_PropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         if (sender is ToggleButton toggle && e.Property == ToggleButton.IsCheckedProperty)

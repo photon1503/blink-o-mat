@@ -110,6 +110,15 @@ public sealed class FramePreviewViewModel : INotifyPropertyChanged
 
     public bool HasFilterChips => _filterChips.Count > 0;
 
+    public void ToggleFilterExclusively(FilterChipViewModel targetChip)
+    {
+        var nextSelected = !targetChip.IsSelected;
+        foreach (var chip in _filterChips)
+        {
+            chip.IsSelected = ReferenceEquals(chip, targetChip) && nextSelected;
+        }
+    }
+
     public bool ShowAccepted
     {
         get => _getShowAccepted();

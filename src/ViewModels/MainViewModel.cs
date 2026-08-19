@@ -2033,6 +2033,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         RefreshPreviewVisibleFrames();
     }
 
+    public void ToggleFilterExclusively(FilterChipViewModel targetChip)
+    {
+        var nextSelected = !targetChip.IsSelected;
+        foreach (var chip in FilterChips)
+        {
+            chip.IsSelected = ReferenceEquals(chip, targetChip) && nextSelected;
+        }
+    }
+
     private void AddSortRule(SortFieldOption? initialField = null, SortDirectionOption? initialDirection = null)
     {
         if (SortRules.Count >= SortFieldOptions.Count)

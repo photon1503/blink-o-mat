@@ -1416,6 +1416,7 @@ public sealed class FramePreviewWindow : Window
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Content = new TextBlock { Text = chip.DisplayName },
             };
+            ToolTip.SetTip(toggle, "Left-click toggles this filter. Right-click toggles only this filter and clears the others.");
             ApplyChipTemplate(toggle);
 
             toggle.Bind(ToggleButton.IsCheckedProperty, new Binding(nameof(FilterChipViewModel.IsSelected))
@@ -1423,6 +1424,17 @@ public sealed class FramePreviewWindow : Window
                 Source = chip,
                 Mode = BindingMode.TwoWay,
             });
+            toggle.PointerPressed += (_, args) =>
+            {
+                var point = args.GetCurrentPoint(this);
+                if (!point.Properties.IsRightButtonPressed || DataContext is not MainWindowViewModel viewModel)
+                {
+                    return;
+                }
+
+                viewModel.ToggleFilterExclusively(chip);
+                args.Handled = true;
+            };
 
             toggle.PropertyChanged += (_, args) =>
             {

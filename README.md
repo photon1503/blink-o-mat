@@ -411,7 +411,7 @@ These only affect the list display — the *Frame summary* counts always reflect
 ### Filter chips
 ![alt text](src/image-3.png)
 
-Below the visibility toggles, one chip per **filter and exposure time** combination found in your session (e.g. separate `R 30s` and `R 120s` chips). This keeps mixed sub-lengths within the same filter from being scored or thresholded together. Tick / untick a chip to include / exclude those frames from the list. Chips are colour-coded by filter category (Ha / OIII / SII / L / R / G / B).
+Below the visibility toggles, one chip per **filter and exposure time** combination found in your session (e.g. separate `R 30s` and `R 120s` chips). This keeps mixed sub-lengths within the same filter from being scored or thresholded together. Left-click a chip to include / exclude those frames from the list, or right-click a chip to toggle it while deselecting every other filter. Chips are colour-coded by filter category (Ha / OIII / SII / L / R / G / B), and the same chip behavior is available in the preview window.
 
 ### Sorting
 ![alt text](src/image-4.png)

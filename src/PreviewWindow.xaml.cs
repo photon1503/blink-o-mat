@@ -164,6 +164,15 @@ public partial class PreviewWindow : Window
         WindowPlacementService.SavePreviewWindow(this);
     }
 
+    private void FilterChip_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: FilterChipViewModel chip })
+        {
+            _vm.ToggleFilterExclusively(chip);
+            e.Handled = true;
+        }
+    }
+
     protected override void OnClosed(EventArgs e)
     {
         _vm.PropertyChanged -= Vm_PropertyChanged;

@@ -49,6 +49,15 @@ namespace blink_o_mat
             return $"Rejector {v.Major}.{v.Minor}.{v.Build}{profileSuffix}";
         }
 
+        private void FilterChip_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (DataContext is MainViewModel viewModel && sender is FrameworkElement { DataContext: FilterChipViewModel chip })
+            {
+                viewModel.ToggleFilterExclusively(chip);
+                e.Handled = true;
+            }
+        }
+
         private void RejectButton_Click(object sender, System.Windows.RoutedEventArgs e)
         {
             if (DataContext is not ViewModels.MainViewModel vm) return;

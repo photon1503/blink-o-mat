@@ -281,7 +281,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:FilterChipViewModel">
-                    <ToggleButton Tag="filter" IsChecked="{Binding IsSelected}" Margin="0,0,6,0" Height="30" Padding="10,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Loaded="ChipToggle_Loaded" Click="ChipToggle_Click">
+                    <ToggleButton Tag="filter" IsChecked="{Binding IsSelected}" Margin="0,0,6,0" Height="30" Padding="10,0" BorderThickness="1" FontWeight="SemiBold" CornerRadius="12" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" ToolTip.Tip="Left-click toggles this filter. Right-click toggles only this filter and clears the others." Loaded="ChipToggle_Loaded" Click="ChipToggle_Click" PointerPressed="FilterChip_PointerPressed">
                       <TextBlock Text="{Binding DisplayName}" />
                     </ToggleButton>
                   </DataTemplate>

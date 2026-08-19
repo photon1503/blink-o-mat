@@ -378,7 +378,9 @@
                                     <ToggleButton IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                   Margin="0,0,6,0"
                                                   BorderThickness="1"
-                                                  FontWeight="SemiBold">
+                                                  FontWeight="SemiBold"
+                                                  ToolTip="Left-click toggles this filter. Right-click toggles only this filter and clears the others."
+                                                  PreviewMouseRightButtonDown="FilterChip_PreviewMouseRightButtonDown">
                                         <ToggleButton.Style>
                                             <Style TargetType="ToggleButton">
                                                 <Setter Property="Height" Value="30" />

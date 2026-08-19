@@ -2607,6 +2607,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         RaiseThresholdPanelDiagnosticsChanged();
     }
 
+    public void ToggleFilterExclusively(FilterChipViewModel targetChip)
+    {
+        var nextSelected = !targetChip.IsSelected;
+        foreach (var chip in FilterChips)
+        {
+            chip.IsSelected = ReferenceEquals(chip, targetChip) && nextSelected;
+        }
+    }
+
     private IEnumerable<FrameResultContext> GetThresholdScopeContexts()
     {
         if (string.Equals(SelectedRejectionFilter, AllFiltersScopeLabel, StringComparison.OrdinalIgnoreCase))

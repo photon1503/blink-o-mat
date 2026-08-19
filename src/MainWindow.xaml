@@ -963,7 +963,9 @@
                                                      Margin="0,0,6,0" Padding="10,4" BorderThickness="1" FontWeight="SemiBold"
                                                      Background="{Binding BackgroundBrush}"
                                                      Foreground="{Binding ForegroundBrush}"
-                                                     BorderBrush="{Binding BorderBrush}">
+                                                     BorderBrush="{Binding BorderBrush}"
+                                                     ToolTip="Left-click toggles this filter. Right-click toggles only this filter and clears the others."
+                                                     PreviewMouseRightButtonDown="FilterChip_PreviewMouseRightButtonDown">
                                             <ToggleButton.Style>
                                                 <Style TargetType="ToggleButton">
                                                     <Setter Property="Cursor" Value="Hand" />

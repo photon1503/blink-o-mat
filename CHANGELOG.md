@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 - The Sort card's add rule control now sits inline next to the last rule's remove button instead of on its own row, saving vertical space.
 - Vertically centered the Visibility/Filters chip badge labels in the main window.
 - The preview window's Accepted/Rejected visibility toggles now share the same row as its filter chips, matching the main window layout.
+- Filter chips in the main and preview windows now support right-click exclusive selection: left-click still toggles a chip, while right-click toggles the clicked chip and clears the other filters.
 - Renamed "Keep" to "Accepted" on frame cards and in the preview window.
 - Improved orientation-flip (180°) detection reliability with a higher minimum star count, a stronger confidence floor, and a larger decision margin, reducing inconsistent flip decisions on sparse or narrowband star fields.
 
