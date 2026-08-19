@@ -106,6 +106,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private double _stfHighlights = 1.0;
     private bool _useAutoStretchForPreview = true;
     private bool _suppressStfPreviewRefresh;
+    private bool _isRebuildingResults;
     private bool _isRoiOverlayVisible;
     private bool _isStarDebugOverlayVisible;
     private bool _isOrientationDebugOverlayVisible;
@@ -985,6 +986,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         get => _selectedResult;
         set
         {
+            if (_isRebuildingResults && value is null)
+            {
+                return;
+            }
+
             if (ReferenceEquals(_selectedResult, value))
             {
                 return;
@@ -2269,7 +2275,64 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         context.Frame.SetManualRejectedOverride(!context.Frame.IsRejected);
-        RebuildResults();
+        var fallbackSelectedPath = FindAdjacentVisibleResultPath(summary.FilePath);
+        RebuildResults(fallbackSelectedPath);
+    }
+
+    private string? FindAdjacentVisibleResultPath(string currentPath)
+    {
+        var currentIndex = -1;
+        for (var i = 0; i < Results.Count; i++)
+        {
+            if (string.Equals(Results[i].FilePath, currentPath, StringComparison.OrdinalIgnoreCase))
+            {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        if (currentIndex < 0)
+        {
+            return null;
+        }
+
+        for (var i = currentIndex + 1; i < Results.Count; i++)
+        {
+            if (IsResultVisible(Results[i]))
+            {
+                return Results[i].FilePath;
+            }
+        }
+
+        for (var i = currentIndex - 1; i >= 0; i--)
+        {
+            if (IsResultVisible(Results[i]))
+            {
+                return Results[i].FilePath;
+            }
+        }
+
+        return null;
+    }
+
+    private bool IsResultVisible(FrameSummaryViewModel summary)
+    {
+        var context = _resultContexts.FirstOrDefault(item => string.Equals(item.Frame.FilePath, summary.FilePath, StringComparison.OrdinalIgnoreCase));
+        if (context is null)
+        {
+            return false;
+        }
+
+        if (FilterChips.Count > 0)
+        {
+            var selectedKeys = FilterChips.Where(chip => chip.IsSelected).Select(chip => chip.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (selectedKeys.Count == 0 || !selectedKeys.Contains(Rejector.Core.Services.FrameGroupKey.Create(context.Frame)))
+            {
+                return false;
+            }
+        }
+
+        return (context.Frame.IsRejected && ShowRejected) || (!context.Frame.IsRejected && ShowAccepted);
     }
 
     private async void StartLoadSelectedPreview()
@@ -2475,6 +2538,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private void RebuildResults()
     {
+        RebuildResults(null);
+    }
+
+    private void RebuildResults(string? fallbackSelectedPath)
+    {
         var selectedPath = SelectedResult?.FilePath;
         var scopedContexts = GetFilterScopedContexts().ToList();
         var scoreMap = ComputeScores(_resultContexts);
@@ -2487,13 +2555,22 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
         var indicatorMap = ComputeIndicatorColors(scopedContexts);
 
-        Results.Clear();
-        foreach (var context in GetVisibleContexts())
+        _isRebuildingResults = true;
+        try
         {
-            Results.Add(CreateFrameSummary(context, scoreMap, indicatorMap));
+            Results.Clear();
+            foreach (var context in GetVisibleContexts())
+            {
+                Results.Add(CreateFrameSummary(context, scoreMap, indicatorMap));
+            }
+        }
+        finally
+        {
+            _isRebuildingResults = false;
         }
 
         SelectedResult = Results.FirstOrDefault(result => string.Equals(result.FilePath, selectedPath, StringComparison.OrdinalIgnoreCase))
+            ?? Results.FirstOrDefault(result => string.Equals(result.FilePath, fallbackSelectedPath, StringComparison.OrdinalIgnoreCase))
             ?? Results.FirstOrDefault();
         OnPropertyChanged(nameof(ResultCountText));
         OnPropertyChanged(nameof(SelectedDecisionText));
