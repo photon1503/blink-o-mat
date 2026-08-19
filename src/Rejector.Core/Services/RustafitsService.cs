@@ -896,10 +896,13 @@ public sealed class RustafitsService
             extraFrames *= Math.Max(1L, header.Axes[i]);
         }
 
-        // Bulk-read all channel data in one allocation and decode in parallel
+        // Bulk-read all channel data into a pooled buffer and decode in parallel
         var totalSamples = (long)channels * pixelCount;
-        var rawBytes = new byte[totalSamples * bytesPerSample];
-        ReadExactly(stream, rawBytes);
+        var totalBytes = checked((int)(totalSamples * bytesPerSample));
+        var rawBytes = System.Buffers.ArrayPool<byte>.Shared.Rent(totalBytes);
+        try
+        {
+        ReadExactly(stream, rawBytes.AsSpan(0, totalBytes));
 
         // Hoist header values out of the hot path so the closure does not re-read
         // record-property accessors on every iteration.
@@ -936,6 +939,11 @@ public sealed class RustafitsService
                     result[i] = (float)sum;
                 }
             });
+        }
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(rawBytes);
         }
 
         // Skip any remaining channel data beyond what we decoded
@@ -3524,52 +3532,147 @@ public sealed class RustafitsService
 
     private static (double Min, int MinCount, double Max, int MaxCount) ComputeExtremaWithCounts(float[] values)
     {
-        var initialized = false;
-        float min = 0;
-        float max = 0;
-        var minCount = 0;
-        var maxCount = 0;
-
-        for (var i = 0; i < values.Length; i++)
+        // Parallel chunk scan; min/max/count merging is exact, so results match the sequential loop.
+        var locals = new System.Collections.Concurrent.ConcurrentBag<(bool Initialized, float Min, int MinCount, float Max, int MaxCount)>();
+        Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, values.Length), range =>
         {
-            var value = values[i];
-            if (float.IsNaN(value) || float.IsInfinity(value))
+            var initialized = false;
+            float min = 0;
+            float max = 0;
+            var minCount = 0;
+            var maxCount = 0;
+
+            for (var i = range.Item1; i < range.Item2; i++)
             {
+                var value = values[i];
+                if (float.IsNaN(value) || float.IsInfinity(value))
+                {
+                    continue;
+                }
+
+                if (!initialized)
+                {
+                    min = value;
+                    max = value;
+                    minCount = 1;
+                    maxCount = 1;
+                    initialized = true;
+                    continue;
+                }
+
+                if (value < min)
+                {
+                    min = value;
+                    minCount = 1;
+                }
+                else if (value == min)
+                {
+                    minCount++;
+                }
+
+                if (value > max)
+                {
+                    max = value;
+                    maxCount = 1;
+                }
+                else if (value == max)
+                {
+                    maxCount++;
+                }
+            }
+
+            if (initialized)
+            {
+                locals.Add((true, min, minCount, max, maxCount));
+            }
+        });
+
+        var anyInitialized = false;
+        float globalMin = 0;
+        float globalMax = 0;
+        var globalMinCount = 0;
+        var globalMaxCount = 0;
+        foreach (var local in locals)
+        {
+            if (!anyInitialized)
+            {
+                globalMin = local.Min;
+                globalMinCount = local.MinCount;
+                globalMax = local.Max;
+                globalMaxCount = local.MaxCount;
+                anyInitialized = true;
                 continue;
             }
 
-            if (!initialized)
+            if (local.Min < globalMin)
             {
-                min = value;
-                max = value;
-                minCount = 1;
-                maxCount = 1;
-                initialized = true;
-                continue;
+                globalMin = local.Min;
+                globalMinCount = local.MinCount;
+            }
+            else if (local.Min == globalMin)
+            {
+                globalMinCount += local.MinCount;
             }
 
-            if (value < min)
+            if (local.Max > globalMax)
             {
-                min = value;
-                minCount = 1;
+                globalMax = local.Max;
+                globalMaxCount = local.MaxCount;
             }
-            else if (value == min)
+            else if (local.Max == globalMax)
             {
-                minCount++;
-            }
-
-            if (value > max)
-            {
-                max = value;
-                maxCount = 1;
-            }
-            else if (value == max)
-            {
-                maxCount++;
+                globalMaxCount += local.MaxCount;
             }
         }
 
-        return initialized ? (min, minCount, max, maxCount) : (0, 0, 0, 0);
+        return anyInitialized ? (globalMin, globalMinCount, globalMax, globalMaxCount) : (0, 0, 0, 0);
+    }
+
+    /// <summary>Returns the k-th smallest element (identical to Array.Sort()[k], including NaN ordering via CompareTo).</summary>
+    private static float SelectKth(float[] values, int count, int k)
+    {
+        var left = 0;
+        var right = count - 1;
+        while (true)
+        {
+            if (left >= right)
+            {
+                return values[left];
+            }
+
+            var mid = left + ((right - left) >> 1);
+            if (values[mid].CompareTo(values[left]) < 0) (values[left], values[mid]) = (values[mid], values[left]);
+            if (values[right].CompareTo(values[left]) < 0) (values[left], values[right]) = (values[right], values[left]);
+            if (values[right].CompareTo(values[mid]) < 0) (values[mid], values[right]) = (values[right], values[mid]);
+            var pivot = values[mid];
+
+            var i = left;
+            var j = right;
+            while (i <= j)
+            {
+                while (values[i].CompareTo(pivot) < 0) i++;
+                while (values[j].CompareTo(pivot) > 0) j--;
+                if (i <= j)
+                {
+                    (values[i], values[j]) = (values[j], values[i]);
+                    i++;
+                    j--;
+                }
+            }
+
+            if (k <= j)
+            {
+                right = j;
+            }
+            else if (k >= i)
+            {
+                left = i;
+            }
+            else
+            {
+                return values[k];
+            }
+        }
     }
 
     private static (List<(double Peak, double Fwhm, double Hfr, double Eccentricity, double X, double Y, double Quality)> Measurements, int TotalCount) DetectStars(float[] pixels, int width, int height, double background, double sigma)
@@ -3795,9 +3898,12 @@ public sealed class RustafitsService
 
     private static float[] SmoothForDetection(float[] pixels, int width, int height)
     {
-        var tmp = new float[pixels.Length];
+        // Pool the horizontal-pass scratch buffer; only dst escapes to the caller.
+        var tmp = System.Buffers.ArrayPool<float>.Shared.Rent(pixels.Length);
         var dst = new float[pixels.Length];
 
+        try
+        {
         Parallel.For(0, height, y =>
         {
             var row = y * width;
@@ -3825,6 +3931,11 @@ public sealed class RustafitsService
                 dst[row + x] = 0.25f * (tmp[up + x] + (2f * tmp[row + x]) + tmp[dn + x]);
             }
         });
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<float>.Shared.Return(tmp);
+        }
 
         return dst;
     }
@@ -3866,16 +3977,15 @@ public sealed class RustafitsService
                     continue;
                 }
 
-                Array.Sort(samples, 0, n);
-                var tileMedian = samples[n / 2];
+                // Quickselect: identical k-th value to Array.Sort()[n/2] at O(n) instead of O(n log n).
+                var tileMedian = SelectKth(samples, n, n / 2);
                 for (var i = 0; i < n; i++)
                 {
                     deviations[i] = Math.Abs(samples[i] - tileMedian);
                 }
 
-                Array.Sort(deviations, 0, n);
                 bg[idx] = tileMedian;
-                noise[idx] = 1.4826f * deviations[n / 2];
+                noise[idx] = 1.4826f * SelectKth(deviations, n, n / 2);
             }
         });
 
