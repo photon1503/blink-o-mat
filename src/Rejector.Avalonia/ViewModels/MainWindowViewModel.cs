@@ -2385,7 +2385,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             }
             else
             {
-                raw = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, token).ConfigureAwait(false);
+                raw = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, token);
                 _cachedRawPreviewFrame = raw;
                 _cachedRawPreviewFramePath = context.Frame.FilePath;
             }
@@ -2414,7 +2414,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 stf = new StfParameters(StfShadows, StfMidtones, StfHighlights);
             }
 
-            var preview = await _analysisService.RenderFullPreviewImageAsync(renderFrame, stf, token).ConfigureAwait(false);
+            var preview = await _analysisService.RenderFullPreviewImageAsync(renderFrame, stf, token);
 
             if (token.IsCancellationRequested || !ReferenceEquals(selected, SelectedResult))
             {

@@ -17,6 +17,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Controls.Shapes;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.Styling;
 using Rejector.Avalonia.ViewModels;
 using System.Text.Json;
 using System.IO;
@@ -112,104 +113,31 @@ public sealed class FramePreviewWindow : Window
         Resize,
     }
 
-    private static readonly FuncControlTemplate<Slider> PreviewSliderTemplate = new((control, _) =>
+    // Enlarges the default (fully-functional) Fluent Slider's Thumb/track so it's easy to grab, without
+    // replacing the control template - a from-scratch FuncControlTemplate risks breaking Slider's internal
+    // NameScope-based wiring (PART_Track lookup, drag handling) in subtle ways.
+    private static readonly Style[] PreviewSliderStyles =
     {
-        var track = new Track
+        new Style(x => x.OfType<Slider>().Class("PreviewSlider").Template().OfType<Thumb>())
         {
-            Name = "PART_Track",
-            Margin = new Thickness(4, 0),
-            Height = 26,
-            VerticalAlignment = VerticalAlignment.Center,
-            [!Track.MinimumProperty] = control[!RangeBase.MinimumProperty],
-            [!Track.MaximumProperty] = control[!RangeBase.MaximumProperty],
-            [!Track.ValueProperty] = control[!RangeBase.ValueProperty],
-            [!Track.OrientationProperty] = control[!Slider.OrientationProperty],
-            [!Track.IsDirectionReversedProperty] = control[!Slider.IsDirectionReversedProperty],
-        };
-
-        track.DecreaseButton = new RepeatButton
-        {
-            IsTabStop = false,
-            Focusable = false,
-            Background = Brushes.Transparent,
-            Template = new FuncControlTemplate<RepeatButton>((_, _) =>
-                new Grid
-                {
-                    Background = Brushes.Transparent,
-                    Children =
-                    {
-                        new Border
-                        {
-                            Height = 2,
-                            VerticalAlignment = VerticalAlignment.Center,
-                            Background = SolidColorBrush.Parse("#1E90FF"),
-                            CornerRadius = new CornerRadius(1),
-                        },
-                    },
-                }),
-        };
-
-        track.IncreaseButton = new RepeatButton
-        {
-            IsTabStop = false,
-            Focusable = false,
-            Background = Brushes.Transparent,
-            Template = new FuncControlTemplate<RepeatButton>((_, _) =>
-                new Border
-                {
-                    Background = Brushes.Transparent,
-                }),
-        };
-
-        track.Thumb = new Thumb
-        {
-            Width = 26,
-            Height = 26,
-            MinWidth = 26,
-            MinHeight = 26,
-            Background = Brushes.Transparent,
-            VerticalAlignment = VerticalAlignment.Center,
-            Template = new FuncControlTemplate<Thumb>((_, _) =>
-                new Grid
-                {
-                    Background = Brushes.Transparent,
-                    ClipToBounds = false,
-                    Children =
-                    {
-                        new Border
-                        {
-                            Width = 14,
-                            Height = 14,
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            VerticalAlignment = VerticalAlignment.Center,
-                            Background = SolidColorBrush.Parse("#4FB3FF"),
-                            BorderBrush = SolidColorBrush.Parse("#0D6FC8"),
-                            BorderThickness = new Thickness(1),
-                            CornerRadius = new CornerRadius(7),
-                        },
-                    },
-                }),
-        };
-
-        return new Grid
-        {
-            Height = 26,
-            VerticalAlignment = VerticalAlignment.Center,
-            ClipToBounds = false,
-            Children =
+            Setters =
             {
-                new Border
-                {
-                    Height = 2,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(4, 0),
-                    Background = SolidColorBrush.Parse("#8E949B"),
-                    CornerRadius = new CornerRadius(1),
-                },
-                track,
+                new Setter(WidthProperty, 22.0),
+                new Setter(HeightProperty, 22.0),
+                new Setter(TemplatedControl.BackgroundProperty, SolidColorBrush.Parse("#4FB3FF")),
+                new Setter(TemplatedControl.BorderBrushProperty, SolidColorBrush.Parse("#0D6FC8")),
+                new Setter(TemplatedControl.BorderThicknessProperty, new Thickness(1)),
+                new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(11)),
             },
-        };
-    });
+        },
+        new Style(x => x.OfType<Slider>().Class("PreviewSlider").Template().OfType<Track>())
+        {
+            Setters =
+            {
+                new Setter(HeightProperty, 22.0),
+            },
+        },
+    };
 
     private void RestoreWindowPlacement()
     {
@@ -370,7 +298,7 @@ public sealed class FramePreviewWindow : Window
 
     private static void ApplyPreviewSliderTemplate(Slider slider)
     {
-        slider.Template = PreviewSliderTemplate;
+        slider.Classes.Add("PreviewSlider");
         slider.Height = 28;
         slider.VerticalAlignment = VerticalAlignment.Center;
     }
@@ -408,6 +336,7 @@ public sealed class FramePreviewWindow : Window
         MinWidth = 640;
         MinHeight = 480;
         Background = SolidColorBrush.Parse("#111315");
+        Styles.AddRange(PreviewSliderStyles);
 
         RestoreWindowPlacement();
         Opened += (_, _) =>
