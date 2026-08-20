@@ -744,7 +744,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                         return (context.Frame.FilePath, RoiPayload: (string?)null);
                     }
 
-                    var raw = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, token).ConfigureAwait(false);
+                    var loaded = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, token).ConfigureAwait(false);
+                    var raw = _analysisService.ApplyOrientation(loaded, context.Rotate180);
                     var stf = _analysisService.ComputeAutoStretch(raw);
                     var roiImage = await _analysisService.RenderRoiPreviewImageAsync(raw, stf, roi, token).ConfigureAwait(false);
                     return (context.Frame.FilePath, RoiPayload: (string?)PreviewPayloadCodec.Encode(roiImage));
@@ -1578,21 +1579,27 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                                     return (HasValue: false, SourceIndex: entry.Index, Context: (FrameResultContext?)null, Focal: (double?)null, Pixel: (double?)null, FileName: Path.GetFileName(entry.FilePath), FileSize: fileSize);
                                 }
 
-                                var metrics = _analysisService.AnalyzeFrame(raw);
-                                var orientation = _analysisService.AnalyzeOrientation(raw, metrics, orientationReference, orientationReferenceMetrics);
+                                var rawMetrics = _analysisService.AnalyzeFrame(raw);
+                                var orientation = _analysisService.AnalyzeOrientation(raw, rawMetrics, orientationReference, orientationReferenceMetrics);
                                 var orientationDebug = orientation.CandidateDebug;
-                                var stf = _analysisService.ComputeAutoStretch(raw);
-                                var roiRect = _analysisService.DetectRoiNormalizedRect(raw);
-                                var previews = await _analysisService.RenderPreviewImagesAsync(raw, stf, roiRect, metrics, CancellationToken.None).ConfigureAwait(false);
+
+                                // Meridian-flipped frames must actually be rotated (pixels + star coordinates)
+                                // before scoring/rendering - previously Rotate180 was only recorded as unused metadata.
+                                var oriented = _analysisService.ApplyOrientation(raw, orientation.Rotate180);
+                                var metrics = _analysisService.ApplyOrientation(rawMetrics, raw.Width, raw.Height, orientation.Rotate180);
+
+                                var stf = _analysisService.ComputeAutoStretch(oriented);
+                                var roiRect = _analysisService.DetectRoiNormalizedRect(oriented);
+                                var previews = await _analysisService.RenderPreviewImagesAsync(oriented, stf, roiRect, metrics, CancellationToken.None).ConfigureAwait(false);
 
                                 var frame = new ProcessedFrame
                                 {
                                     FilePath = entry.FilePath,
                                     FileName = Path.GetFileName(entry.FilePath),
                                     RelativePath = ComputeRelativePath(entry.FilePath),
-                                    ExposureDateTime = raw.ExposureDateTime,
-                                    ExposureSeconds = raw.ExposureSeconds,
-                                    FilterName = raw.FilterName,
+                                    ExposureDateTime = oriented.ExposureDateTime,
+                                    ExposureSeconds = oriented.ExposureSeconds,
+                                    FilterName = oriented.FilterName,
                                     Metrics = metrics,
                                 };
                                 frame.SetAutomaticRejected(_rejectionService.ShouldReject(frame, ResolveThresholdsForFrame(frame)));
@@ -1601,9 +1608,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                                 var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
                                 var context = new FrameResultContext(
                                     frame,
-                                    raw.Width,
-                                    raw.Height,
-                                    raw.NormalizationMax,
+                                    oriented.Width,
+                                    oriented.Height,
+                                    oriented.NormalizationMax,
                                     thumbnailPayload,
                                     roiPayload,
                                     orientationDebug,
@@ -2381,12 +2388,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             RustafitsService.LoadedFrame raw;
             if (_cachedRawPreviewFrame is not null && string.Equals(_cachedRawPreviewFramePath, context.Frame.FilePath, StringComparison.OrdinalIgnoreCase))
             {
-                // Reuse the already-decoded frame for STF-only adjustments instead of re-reading/decoding from disk on every slider tick.
+                // Reuse the already-decoded (and already-oriented) frame for STF-only adjustments
+                // instead of re-reading/decoding/re-rotating from disk on every slider tick.
                 raw = _cachedRawPreviewFrame;
             }
             else
             {
-                raw = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, token);
+                var loaded = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, token);
+                // Match the analyzed/displayed card orientation - a raw disk load has no idea the
+                // frame was meridian-flipped, so re-apply the orientation detected during analysis.
+                raw = _analysisService.ApplyOrientation(loaded, context.Rotate180);
                 _cachedRawPreviewFrame = raw;
                 _cachedRawPreviewFramePath = context.Frame.FilePath;
             }
