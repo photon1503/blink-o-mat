@@ -3629,7 +3629,7 @@ public sealed class RustafitsService
     }
 
     /// <summary>Returns the k-th smallest element (identical to Array.Sort()[k], including NaN ordering via CompareTo).</summary>
-    private static float SelectKth(float[] values, int count, int k)
+    private static float SelectKth(Span<float> values, int count, int k)
     {
         var left = 0;
         var right = count - 1;
@@ -4095,12 +4095,12 @@ public sealed class RustafitsService
         var localBackground = background;
         if (annulusCount >= 16)
         {
-            var annulusValues = annulus[..annulusCount];
-            annulusValues.Sort();
+            // Quickselect the median in O(n) instead of a full O(n log n) sort - same
+            // value, cheaper, and this runs once per measured star (up to thousands/frame).
             var mid = annulusCount / 2;
             localBackground = annulusCount % 2 == 0
-                ? (annulusValues[mid - 1] + annulusValues[mid]) * 0.5
-                : annulusValues[mid];
+                ? (SelectKth(annulus, annulusCount, mid - 1) + SelectKth(annulus, annulusCount, mid)) * 0.5
+                : SelectKth(annulus, annulusCount, mid);
         }
 
         for (var y = cy - radius; y <= cy + radius; y++)
@@ -4194,7 +4194,9 @@ public sealed class RustafitsService
 
     private static double ComputeHfr(List<(double X, double Y, double R, double Flux)> points, double totalFlux)
     {
-        points.Sort(static (a, b) => a.R.CompareTo(b.R));
+        // Callers always invoke this right after EstimateFwhmGaussianFit, which already
+        // sorts `points` ascending by R and never reorders it afterward - re-sorting here
+        // would be redundant work repeated for every measured star.
         var half = totalFlux * 0.5;
         double accum = 0;
         foreach (var p in points)

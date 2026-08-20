@@ -1733,13 +1733,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         var cores = Math.Max(2, Environment.ProcessorCount);
         var isAppleSilicon = OperatingSystem.IsMacOS() && RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
 
-        // Apple Silicon can sustain more decode/render workers without UI starvation.
+        // Frame decode/analyze/render is CPU-bound; keep one core free for UI responsiveness and use the rest,
+        // instead of an arbitrary fraction that leaves cores idle on higher-core machines.
         if (isAppleSilicon)
         {
-            return Math.Clamp((int)Math.Round(cores * 0.75), 4, 10);
+            return Math.Clamp(cores - 1, 4, 24);
         }
 
-        return Math.Clamp(cores / 2, 2, 8);
+        return Math.Clamp(cores - 1, 2, 24);
     }
 
     private void PersistFolderSettings()
