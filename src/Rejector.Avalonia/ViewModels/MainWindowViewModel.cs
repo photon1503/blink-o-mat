@@ -132,6 +132,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private List<FileSystemWatcher>? _folderWatchers;
     private CancellationTokenSource? _watchReloadCts;
     private CancellationTokenSource? _roiRegenCts;
+    private CancellationTokenSource? _previewLoadCts;
+    private string? _cachedRawPreviewFramePath;
+    private RustafitsService.LoadedFrame? _cachedRawPreviewFrame;
     private (double Left, double Top, double Width, double Height) _manualRoi = (0.35, 0.35, 0.3, 0.3);
 
     public MainWindowViewModel()
@@ -2340,12 +2343,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         var selected = SelectedResult;
         if (selected is null)
         {
+            _previewLoadCts?.Cancel();
             _selectedPreviewRenderedImage = null;
             SelectedPreviewImage = null;
             SelectedPreviewCaption = "Select a frame to preview it here.";
             BottomStatusText = SelectedPreviewCaption;
             return;
         }
+
+        // Cancel/supersede any in-flight preview render (e.g. from rapid STF slider drags) so results apply in order.
+        _previewLoadCts?.Cancel();
+        _previewLoadCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _previewLoadCts = cts;
+        var token = cts.Token;
 
         SelectedPreviewCaption = $"Loading preview for {selected.FileName}...";
 
@@ -2366,7 +2377,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         try
         {
-            var raw = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, CancellationToken.None);
+            RustafitsService.LoadedFrame raw;
+            if (_cachedRawPreviewFrame is not null && string.Equals(_cachedRawPreviewFramePath, context.Frame.FilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                // Reuse the already-decoded frame for STF-only adjustments instead of re-reading/decoding from disk on every slider tick.
+                raw = _cachedRawPreviewFrame;
+            }
+            else
+            {
+                raw = await _analysisService.LoadRawFrameAsync(context.Frame.FilePath, token).ConfigureAwait(false);
+                _cachedRawPreviewFrame = raw;
+                _cachedRawPreviewFramePath = context.Frame.FilePath;
+            }
+
+            token.ThrowIfCancellationRequested();
             var renderFrame = raw;
 
             StfParameters stf;
@@ -2390,9 +2414,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 stf = new StfParameters(StfShadows, StfMidtones, StfHighlights);
             }
 
-            var preview = await _analysisService.RenderFullPreviewImageAsync(renderFrame, stf, CancellationToken.None);
+            var preview = await _analysisService.RenderFullPreviewImageAsync(renderFrame, stf, token).ConfigureAwait(false);
 
-            if (!ReferenceEquals(selected, SelectedResult))
+            if (token.IsCancellationRequested || !ReferenceEquals(selected, SelectedResult))
             {
                 return;
             }
@@ -2408,9 +2432,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 BottomStatusText = SelectedPreviewCaption;
             }
         }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer preview request; ignore.
+        }
         catch (Exception ex)
         {
-            if (!ReferenceEquals(selected, SelectedResult))
+            if (token.IsCancellationRequested || !ReferenceEquals(selected, SelectedResult))
             {
                 return;
             }

@@ -118,7 +118,7 @@ public sealed class FramePreviewWindow : Window
         {
             Name = "PART_Track",
             Margin = new Thickness(4, 0),
-            Height = 16,
+            Height = 26,
             VerticalAlignment = VerticalAlignment.Center,
             [!Track.MinimumProperty] = control[!RangeBase.MinimumProperty],
             [!Track.MaximumProperty] = control[!RangeBase.MaximumProperty],
@@ -135,6 +135,7 @@ public sealed class FramePreviewWindow : Window
             Template = new FuncControlTemplate<RepeatButton>((_, _) =>
                 new Grid
                 {
+                    Background = Brushes.Transparent,
                     Children =
                     {
                         new Border
@@ -162,29 +163,29 @@ public sealed class FramePreviewWindow : Window
 
         track.Thumb = new Thumb
         {
-            Width = 24,
-            Height = 24,
-            MinWidth = 24,
-            MinHeight = 24,
+            Width = 26,
+            Height = 26,
+            MinWidth = 26,
+            MinHeight = 26,
+            Background = Brushes.Transparent,
             VerticalAlignment = VerticalAlignment.Center,
             Template = new FuncControlTemplate<Thumb>((_, _) =>
                 new Grid
                 {
-                    Width = 14,
-                    Height = 14,
+                    Background = Brushes.Transparent,
                     ClipToBounds = false,
                     Children =
                     {
                         new Border
                         {
-                            Width = 8,
-                            Height = 8,
+                            Width = 14,
+                            Height = 14,
                             HorizontalAlignment = HorizontalAlignment.Center,
                             VerticalAlignment = VerticalAlignment.Center,
-                            Background = SolidColorBrush.Parse("#1E90FF"),
+                            Background = SolidColorBrush.Parse("#4FB3FF"),
                             BorderBrush = SolidColorBrush.Parse("#0D6FC8"),
                             BorderThickness = new Thickness(1),
-                            CornerRadius = new CornerRadius(3),
+                            CornerRadius = new CornerRadius(7),
                         },
                     },
                 }),
@@ -192,7 +193,7 @@ public sealed class FramePreviewWindow : Window
 
         return new Grid
         {
-            Height = 16,
+            Height = 26,
             VerticalAlignment = VerticalAlignment.Center,
             ClipToBounds = false,
             Children =
@@ -370,7 +371,7 @@ public sealed class FramePreviewWindow : Window
     private static void ApplyPreviewSliderTemplate(Slider slider)
     {
         slider.Template = PreviewSliderTemplate;
-        slider.Height = 24;
+        slider.Height = 28;
         slider.VerticalAlignment = VerticalAlignment.Center;
     }
 
@@ -1011,19 +1012,19 @@ public sealed class FramePreviewWindow : Window
 
         var stfTargetSlider = new Slider { Minimum = 0.01, Maximum = 0.5, Width = 220 };
         ApplyPreviewSliderTemplate(stfTargetSlider);
-        stfTargetSlider.Bind(Slider.ValueProperty, new Binding("StfTargetBackground") { Mode = BindingMode.TwoWay });
+        stfTargetSlider.Bind(Slider.ValueProperty, new Binding("StfTargetBackground") { Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged });
 
         var stfShadowsSlider = new Slider { Minimum = 0.0, Maximum = 1.0, Width = 170 };
         ApplyPreviewSliderTemplate(stfShadowsSlider);
-        stfShadowsSlider.Bind(Slider.ValueProperty, new Binding("StfShadows") { Mode = BindingMode.TwoWay });
+        stfShadowsSlider.Bind(Slider.ValueProperty, new Binding("StfShadows") { Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged });
 
         var stfMidtonesSlider = new Slider { Minimum = 0.0, Maximum = 1.0, Width = 170 };
         ApplyPreviewSliderTemplate(stfMidtonesSlider);
-        stfMidtonesSlider.Bind(Slider.ValueProperty, new Binding("StfMidtones") { Mode = BindingMode.TwoWay });
+        stfMidtonesSlider.Bind(Slider.ValueProperty, new Binding("StfMidtones") { Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged });
 
         var stfHighlightsSlider = new Slider { Minimum = 0.0, Maximum = 1.0, Width = 170 };
         ApplyPreviewSliderTemplate(stfHighlightsSlider);
-        stfHighlightsSlider.Bind(Slider.ValueProperty, new Binding("StfHighlights") { Mode = BindingMode.TwoWay });
+        stfHighlightsSlider.Bind(Slider.ValueProperty, new Binding("StfHighlights") { Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged });
 
         var autoStretchButton = new Button
         {
@@ -1143,8 +1144,7 @@ public sealed class FramePreviewWindow : Window
                 StfSliderRow("Shadows", stfShadowsSlider, "StfShadows"),
                 StfSliderRow("Midtones", stfMidtonesSlider, "StfMidtones"),
                 StfSliderRow("Highlights", stfHighlightsSlider, "StfHighlights"),
-                new TextBlock { Text = "Target Background", Foreground = SolidColorBrush.Parse("#AAB3BC"), FontSize = 11 },
-                stfTargetSlider,
+                StfSliderRow("Target Background", stfTargetSlider, "StfTargetBackground"),
                 roiButton,
             },
         };

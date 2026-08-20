@@ -12,6 +12,23 @@
     MinWidth="1200"
     MinHeight="800"
     Title="{Binding Title}">
+  <Window.Styles>
+    <!-- Wider, always-visible, easier-to-grab scrollbar for the frame card list -->
+    <Style Selector="ListBox.Cards ScrollBar:vertical">
+      <Setter Property="Width" Value="18" />
+      <Setter Property="Background" Value="#FF232629" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="ListBox.Cards ScrollBar:vertical /template/ Thumb">
+      <Setter Property="Background" Value="#FF6B7076" />
+      <Setter Property="MinHeight" Value="48" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Margin" Value="2,0" />
+    </Style>
+    <Style Selector="ListBox.Cards ScrollBar:vertical:pointerover /template/ Thumb">
+      <Setter Property="Background" Value="#FF8A9096" />
+    </Style>
+  </Window.Styles>
   <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="12" Background="{DynamicResource WindowBackgroundBrush}">
     <Grid Grid.Row="0" Margin="0,0,0,12">
       <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="8">
@@ -309,7 +326,7 @@
           </Border>
         </Grid>
 
-        <ListBox Grid.Row="1" Background="Transparent" BorderThickness="0" ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResult}">
+        <ListBox Grid.Row="1" Classes="Cards" Background="Transparent" BorderThickness="0" ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResult}" ScrollViewer.VerticalScrollBarVisibility="Visible">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:FrameSummaryViewModel">
               <Border Margin="0,0,0,8" Padding="6" CornerRadius="4" Background="#FF3A3A3A" BorderBrush="#FF555555" BorderThickness="1" Tapped="ResultRow_Tapped">
