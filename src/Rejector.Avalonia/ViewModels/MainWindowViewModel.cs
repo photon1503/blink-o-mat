@@ -1589,7 +1589,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                                 var metrics = _analysisService.ApplyOrientation(rawMetrics, raw.Width, raw.Height, orientation.Rotate180);
 
                                 var stf = _analysisService.ComputeAutoStretch(oriented);
-                                var roiRect = _analysisService.DetectRoiNormalizedRect(oriented);
+                                // Reuse the ROI auto-detected from the reference frame so every frame's ROI thumbnail
+                                // shows the same crop region, instead of each frame independently re-detecting its own.
+                                var roiRect = _manualRoi;
                                 var previews = await _analysisService.RenderPreviewImagesAsync(oriented, stf, roiRect, metrics, CancellationToken.None).ConfigureAwait(false);
 
                                 var frame = new ProcessedFrame
