@@ -19,6 +19,9 @@ public sealed class RustafitsService
     public sealed record PreviewRenderResult(RenderedImage Full, RenderedImage Roi);
 
     private readonly record struct StarPoint(float X, float Y, float Signal);
+    // Thread-local scratch buffer for MeasureStar (called up to thousands of times per
+    // frame from Parallel.For); avoids a fresh List allocation on every call.
+    [ThreadStatic] private static List<(double X, double Y, double R, double Flux)>? _measureStarPointsBuffer;
     private readonly record struct TrailDetectionResult(int Confidence, double X1, double Y1, double X2, double Y2);
     private readonly record struct OrientationReferenceCache(string Key, IReadOnlyList<MeasuredStar> Stars, IReadOnlyList<TriangleSignature> Triangles, double ScaleX, double ScaleY, int OffsetX, int OffsetY, int SampleWidth, int SampleHeight);
     private OrientationReferenceCache? _orientationReferenceCache;
@@ -4061,7 +4064,13 @@ public sealed class RustafitsService
         const int radius = 7;
         const int annulusInner = 9;
         const int annulusOuter = 13;
-        var points = new List<(double X, double Y, double R, double Flux)>((radius * 2 + 1) * (radius * 2 + 1));
+        const int annulusInnerSq = annulusInner * annulusInner;
+        const int annulusOuterSq = annulusOuter * annulusOuter;
+        // Reused per-thread to avoid a fresh heap allocation on every one of the
+        // up to thousands of MeasureStar calls per frame (Parallel.For keeps threads
+        // alive across iterations, so this buffer is naturally recycled).
+        var points = _measureStarPointsBuffer ??= new List<(double X, double Y, double R, double Flux)>((radius * 2 + 1) * (radius * 2 + 1));
+        points.Clear();
         Span<float> annulus = stackalloc float[(annulusOuter * 2 + 1) * (annulusOuter * 2 + 1)];
         var annulusCount = 0;
         double fluxSum = 0;
@@ -4075,6 +4084,8 @@ public sealed class RustafitsService
                 continue;
             }
 
+            var dy = y - cy;
+            var dySq = dy * dy;
             for (var x = cx - annulusOuter; x <= cx + annulusOuter; x++)
             {
                 if (x < 0 || x >= width)
@@ -4082,8 +4093,11 @@ public sealed class RustafitsService
                     continue;
                 }
 
-                var r = Math.Sqrt(((x - cx) * (x - cx)) + ((y - cy) * (y - cy)));
-                if (r < annulusInner || r > annulusOuter)
+                // Squared-distance compare avoids a sqrt per candidate pixel; the actual
+                // radius is never needed here, only ring membership.
+                var dx = x - cx;
+                var rSq = (dx * dx) + dySq;
+                if (rSq < annulusInnerSq || rSq > annulusOuterSq)
                 {
                     continue;
                 }
@@ -4127,8 +4141,9 @@ public sealed class RustafitsService
                 xSum += signal * x;
                 ySum += signal * y;
 
-                var r = Math.Sqrt(((x - cx) * (x - cx)) + ((y - cy) * (y - cy)));
-                points.Add((x, y, r, signal));
+                // R is recomputed below from the intensity-weighted centroid before any
+                // use, so the placeholder 0 here is never read.
+                points.Add((x, y, 0, signal));
             }
         }
 
