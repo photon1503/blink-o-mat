@@ -2266,12 +2266,28 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public Task MoveRejectedAsync(IReadOnlyCollection<string>? filterKeys = null)
     {
-        var moved = _moveService.MoveRejected(_resultContexts.Select(context => context.Frame), RejectedFolder, filterKeys);
-        StatusText = moved.Count == 0
-            ? "No rejected frames were moved."
-            : $"Moved {moved.Count} rejected frame(s) to {RejectedFolder}";
+        return MoveRejectedCoreAsync(filterKeys);
+    }
+
+    private async Task MoveRejectedCoreAsync(IReadOnlyCollection<string>? filterKeys)
+    {
+        try
+        {
+            StatusText = "Moving rejected frames...";
+            BottomStatusText = StatusText;
+
+            var frames = _resultContexts.Select(context => context.Frame).ToList();
+            var moved = await Task.Run(() => _moveService.MoveRejected(frames, RejectedFolder, filterKeys));
+            StatusText = moved.Count == 0
+                ? "No rejected frames were moved."
+                : $"Moved {moved.Count} rejected frame(s) to {RejectedFolder}";
+        }
+        catch (Exception exception)
+        {
+            StatusText = $"Move failed: {exception.Message}";
+        }
+
         BottomStatusText = StatusText;
-        return Task.CompletedTask;
     }
 
     private void ToggleReject(FrameSummaryViewModel? summary)

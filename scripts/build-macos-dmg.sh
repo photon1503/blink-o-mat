@@ -14,6 +14,7 @@ RID="$(uname -m)"
 VERSION=""
 BUNDLE_ID="com.photon1503.rejector"
 SELF_CONTAINED="true"
+DMG_README="docs/macos-dmg-readme.txt"
 
 usage() {
   cat <<EOF
@@ -176,6 +177,7 @@ echo "[3/4] Preparing DMG staging..."
 rm -rf "$DMG_STAGE"
 mkdir -p "$DMG_STAGE"
 cp -R "$APP_DIR" "$DMG_STAGE/"
+cp "$DMG_README" "$DMG_STAGE/README.txt"
 ln -sfn /Applications "$DMG_STAGE/Applications"
 
 echo "[4/4] Creating DMG..."
