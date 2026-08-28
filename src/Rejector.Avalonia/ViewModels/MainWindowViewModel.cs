@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 using System.Windows.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -1596,88 +1597,106 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
                 if (orientationReference is not null && orientationReferenceMetrics is not null)
                 {
-                    var maxParallelism = Math.Min(GetAnalyzeParallelism(), Math.Max(1, files.Count - 1));
-                    using var gate = new SemaphoreSlim(Math.Max(1, maxParallelism));
+                    var analyzeParallelism = Math.Min(GetAnalyzeParallelism(), Math.Max(1, files.Count - 1));
+                    var loadParallelism = Math.Min(GetLoadParallelism(), Math.Max(1, files.Count - 1));
+                    var remainingEntries = indexedFiles.Where(entry => entry.Index > firstLightFileIndex).ToList();
 
-                    var pending = indexedFiles
-                        .Where(entry => entry.Index > firstLightFileIndex)
-                        .Select(async entry =>
+                    // Bounded so decoded-but-not-yet-analyzed frames (each a full-resolution
+                    // float[] pixel buffer) cannot pile up in RAM ahead of the slower CPU-bound
+                    // analyze stage; disk reads simply block once the queue is full.
+                    var loadQueue = Channel.CreateBounded<LoadedFrameItem>(new BoundedChannelOptions(Math.Max(2, analyzeParallelism))
+                    {
+                        SingleReader = false,
+                        SingleWriter = false,
+                        FullMode = BoundedChannelFullMode.Wait,
+                    });
+                    var resultQueue = Channel.CreateUnbounded<AnalyzedFrameItem>(new UnboundedChannelOptions
+                    {
+                        SingleReader = true,
+                        SingleWriter = false,
+                    });
+
+                    var producerTask = Task.Run(async () =>
+                    {
+                        Exception? failure = null;
+                        try
                         {
-                            await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-                            try
+                            using var loadGate = new SemaphoreSlim(Math.Max(1, loadParallelism));
+                            var loadTasks = remainingEntries.Select(async entry =>
                             {
-                                var raw = await _analysisService.LoadRawFrameAsync(entry.FilePath, CancellationToken.None).ConfigureAwait(false);
-                                long fileSize = 0;
-                                if (File.Exists(entry.FilePath))
+                                await loadGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                                try
+                                {
+                                    var raw = await _analysisService.LoadRawFrameAsync(entry.FilePath, CancellationToken.None).ConfigureAwait(false);
+                                    long fileSize = 0;
+                                    if (File.Exists(entry.FilePath))
+                                    {
+                                        try
+                                        {
+                                            fileSize = new FileInfo(entry.FilePath).Length;
+                                        }
+                                        catch
+                                        {
+                                        }
+                                    }
+
+                                    await loadQueue.Writer.WriteAsync(new LoadedFrameItem(entry.Index, entry.FilePath, raw, fileSize), CancellationToken.None).ConfigureAwait(false);
+                                }
+                                finally
+                                {
+                                    loadGate.Release();
+                                }
+                            });
+                            await Task.WhenAll(loadTasks).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            failure = ex;
+                        }
+                        finally
+                        {
+                            loadQueue.Writer.Complete(failure);
+                        }
+                    });
+
+                    var consumerTask = Task.Run(async () =>
+                    {
+                        Exception? failure = null;
+                        try
+                        {
+                            using var analyzeGate = new SemaphoreSlim(Math.Max(1, analyzeParallelism));
+                            var analyzeTasks = new List<Task>();
+                            await foreach (var item in loadQueue.Reader.ReadAllAsync(CancellationToken.None).ConfigureAwait(false))
+                            {
+                                await analyzeGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                                analyzeTasks.Add(Task.Run(async () =>
                                 {
                                     try
                                     {
-                                        fileSize = new FileInfo(entry.FilePath).Length;
+                                        var result = await AnalyzeLoadedFrameAsync(item, orientationReference, orientationReferenceMetrics).ConfigureAwait(false);
+                                        await resultQueue.Writer.WriteAsync(result, CancellationToken.None).ConfigureAwait(false);
                                     }
-                                    catch
+                                    finally
                                     {
+                                        analyzeGate.Release();
                                     }
-                                }
-                                if (!raw.IsLightFrame)
-                                {
-                                    return (HasValue: false, SourceIndex: entry.Index, Context: (FrameResultContext?)null, Focal: (double?)null, Pixel: (double?)null, FileName: Path.GetFileName(entry.FilePath), FileSize: fileSize);
-                                }
-
-                                var rawMetrics = _analysisService.AnalyzeFrame(raw);
-                                var orientation = _analysisService.AnalyzeOrientation(raw, rawMetrics, orientationReference, orientationReferenceMetrics);
-                                var orientationDebug = orientation.CandidateDebug;
-
-                                // Meridian-flipped frames must actually be rotated (pixels + star coordinates)
-                                // before scoring/rendering - previously Rotate180 was only recorded as unused metadata.
-                                var oriented = _analysisService.ApplyOrientation(raw, orientation.Rotate180);
-                                var metrics = _analysisService.ApplyOrientation(rawMetrics, raw.Width, raw.Height, orientation.Rotate180);
-
-                                var stf = _analysisService.ComputeAutoStretch(oriented);
-                                // Reuse the ROI auto-detected from the reference frame so every frame's ROI thumbnail
-                                // shows the same crop region, instead of each frame independently re-detecting its own.
-                                var roiRect = _manualRoi;
-                                var previews = await _analysisService.RenderPreviewImagesAsync(oriented, stf, roiRect, metrics, CancellationToken.None).ConfigureAwait(false);
-
-                                var frame = new ProcessedFrame
-                                {
-                                    FilePath = entry.FilePath,
-                                    FileName = Path.GetFileName(entry.FilePath),
-                                    RelativePath = ComputeRelativePath(entry.FilePath),
-                                    ExposureDateTime = oriented.ExposureDateTime,
-                                    ExposureSeconds = oriented.ExposureSeconds,
-                                    FilterName = oriented.FilterName,
-                                    Metrics = metrics,
-                                };
-                                frame.SetAutomaticRejected(_rejectionService.ShouldReject(frame, ResolveThresholdsForFrame(frame)));
-
-                                var thumbnailPayload = PreviewPayloadCodec.Encode(previews.Full);
-                                var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
-                                var context = new FrameResultContext(
-                                    frame,
-                                    oriented.Width,
-                                    oriented.Height,
-                                    oriented.NormalizationMax,
-                                    thumbnailPayload,
-                                    roiPayload,
-                                    orientationDebug,
-                                    orientation.Rotate180,
-                                    orientation.ShiftX,
-                                    orientation.ShiftY);
-                                return (HasValue: true, SourceIndex: entry.Index, Context: (FrameResultContext?)context, Focal: raw.FocalLengthMm, Pixel: raw.PixelSizeUm, FileName: frame.FileName, FileSize: fileSize);
+                                }));
                             }
-                            finally
-                            {
-                                gate.Release();
-                            }
-                        })
-                        .ToList<Task<(bool HasValue, int SourceIndex, FrameResultContext? Context, double? Focal, double? Pixel, string FileName, long FileSize)>>();
 
-                    while (pending.Count > 0)
+                            await Task.WhenAll(analyzeTasks).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            failure = ex;
+                        }
+                        finally
+                        {
+                            resultQueue.Writer.Complete(failure);
+                        }
+                    });
+
+                    await foreach (var item in resultQueue.Reader.ReadAllAsync(CancellationToken.None))
                     {
-                        var completedTask = await Task.WhenAny(pending);
-                        pending.Remove(completedTask);
-                        var item = await completedTask;
-
                         completedFiles++;
                         bytesRead += item.FileSize;
                         StatusText = $"Loading frames {completedFiles}/{totalFiles}: {item.FileName}";
@@ -1691,6 +1710,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                         prepared.Add((item.SourceIndex, item.Context, item.Focal, item.Pixel));
                         AddPreparedFrameIncremental(item.Context, item.Focal, item.Pixel);
                     }
+
+                    // Surface any load/analyze failure exactly as before (aborts to the outer catch).
+                    await producerTask.ConfigureAwait(false);
+                    await consumerTask.ConfigureAwait(false);
                 }
 
                 StatusText = "Finalizing frame comparisons...";
@@ -1794,6 +1817,76 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         return Math.Clamp(cores - 1, 2, 24);
+    }
+
+    // Disk reads are I/O-bound (thread mostly waits, not computes), so this is sized independently
+    // of the CPU-bound analyze stage - it can exceed core count without starving analysis.
+    private static int GetLoadParallelism()
+    {
+        var cores = Math.Max(2, Environment.ProcessorCount);
+        return Math.Clamp(cores, 4, 16);
+    }
+
+    private readonly record struct LoadedFrameItem(int SourceIndex, string FilePath, RustafitsService.LoadedFrame Raw, long FileSize);
+
+    private readonly record struct AnalyzedFrameItem(bool HasValue, int SourceIndex, FrameResultContext? Context, double? Focal, double? Pixel, string FileName, long FileSize);
+
+    /// <summary>CPU-bound analyze/orient/render stage for a single already-loaded frame; runs on the
+    /// analyze-stage worker pool, decoupled from the disk-load stage by the bounded load queue.</summary>
+    private async Task<AnalyzedFrameItem> AnalyzeLoadedFrameAsync(
+        LoadedFrameItem item,
+        RustafitsService.LoadedFrame orientationReference,
+        AstroMetrics orientationReferenceMetrics)
+    {
+        var raw = item.Raw;
+        var fileName = Path.GetFileName(item.FilePath);
+        if (!raw.IsLightFrame)
+        {
+            return new AnalyzedFrameItem(false, item.SourceIndex, null, null, null, fileName, item.FileSize);
+        }
+
+        var rawMetrics = _analysisService.AnalyzeFrame(raw);
+        var orientation = _analysisService.AnalyzeOrientation(raw, rawMetrics, orientationReference, orientationReferenceMetrics);
+        var orientationDebug = orientation.CandidateDebug;
+
+        // Meridian-flipped frames must actually be rotated (pixels + star coordinates)
+        // before scoring/rendering - previously Rotate180 was only recorded as unused metadata.
+        var oriented = _analysisService.ApplyOrientation(raw, orientation.Rotate180);
+        var metrics = _analysisService.ApplyOrientation(rawMetrics, raw.Width, raw.Height, orientation.Rotate180);
+
+        var stf = _analysisService.ComputeAutoStretch(oriented);
+        // Reuse the ROI auto-detected from the reference frame so every frame's ROI thumbnail
+        // shows the same crop region, instead of each frame independently re-detecting its own.
+        var roiRect = _manualRoi;
+        var previews = await _analysisService.RenderPreviewImagesAsync(oriented, stf, roiRect, metrics, CancellationToken.None).ConfigureAwait(false);
+
+        var frame = new ProcessedFrame
+        {
+            FilePath = item.FilePath,
+            FileName = fileName,
+            RelativePath = ComputeRelativePath(item.FilePath),
+            ExposureDateTime = oriented.ExposureDateTime,
+            ExposureSeconds = oriented.ExposureSeconds,
+            FilterName = oriented.FilterName,
+            Metrics = metrics,
+        };
+        frame.SetAutomaticRejected(_rejectionService.ShouldReject(frame, ResolveThresholdsForFrame(frame)));
+
+        var thumbnailPayload = PreviewPayloadCodec.Encode(previews.Full);
+        var roiPayload = PreviewPayloadCodec.Encode(previews.Roi);
+        var context = new FrameResultContext(
+            frame,
+            oriented.Width,
+            oriented.Height,
+            oriented.NormalizationMax,
+            thumbnailPayload,
+            roiPayload,
+            orientationDebug,
+            orientation.Rotate180,
+            orientation.ShiftX,
+            orientation.ShiftY);
+
+        return new AnalyzedFrameItem(true, item.SourceIndex, context, raw.FocalLengthMm, raw.PixelSizeUm, frame.FileName, item.FileSize);
     }
 
     private void PersistFolderSettings()
