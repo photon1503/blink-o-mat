@@ -29,7 +29,7 @@
       <Setter Property="Background" Value="#FF8A9096" />
     </Style>
   </Window.Styles>
-  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="12" Background="{DynamicResource WindowBackgroundBrush}">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="12" Background="{DynamicResource WindowBackgroundBrush}">
     <Grid Grid.Row="0" Margin="0,0,0,12">
       <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="8">
         <ToggleButton Grid.Column="0"
@@ -47,12 +47,14 @@
 
         <Button Grid.Column="2" Padding="10,8" Click="SaveSession_Click">
           <StackPanel Orientation="Horizontal" Spacing="6">
+            <Path Width="14" Height="14" Stretch="Uniform" Fill="#FFFFFF" Data="M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3M19,19H5V5H16.17L19,7.83V19M12,12C10.34,12 9,13.34 9,15S10.34,18 12,18 15,16.66 15,15 13.66,12 12,12M6,6H15V10H6V6Z" />
             <TextBlock Text="Save" />
           </StackPanel>
         </Button>
 
         <Button Grid.Column="3" Padding="10,8" Click="LoadSession_Click">
           <StackPanel Orientation="Horizontal" Spacing="6">
+            <Path Width="14" Height="14" Stretch="Uniform" Fill="#FFFFFF" Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M12,11L16,15H13.5V19H10.5V15H8L12,11Z" />
             <TextBlock Text="Load" />
           </StackPanel>
         </Button>
@@ -75,19 +77,7 @@
       </Grid>
     </Grid>
 
-    <Border Grid.Row="1" Margin="0,0,0,8" Padding="10,8" Background="#14171A" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="4">
-      <StackPanel Spacing="6">
-        <Border Background="#3E5B93" BorderBrush="#87A9E6" BorderThickness="1" Padding="8,5" CornerRadius="4" IsVisible="{Binding IsUpdateBannerVisible}">
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-            <TextBlock Text="{Binding UpdateBannerText}" Foreground="#F4F8FF" FontSize="12" TextWrapping="Wrap" />
-            <Button Grid.Column="1" Command="{Binding DismissUpdateBannerCommand}" Content="Close" Padding="10,2" />
-          </Grid>
-        </Border>
-        <TextBlock FontSize="12" Text="{Binding StatusText}" TextWrapping="Wrap" />
-      </StackPanel>
-    </Border>
-
-    <Grid Grid.Row="2" Margin="0,0,0,10" ColumnDefinitions="310,*">
+    <Grid Grid.Row="1" Margin="0,0,0,10" ColumnDefinitions="310,*">
       <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,8,0">
         <StackPanel Spacing="10">
           <Border Padding="10" Margin="0,0,0,10" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="#FF27292C" BorderThickness="1">
@@ -524,7 +514,7 @@
       </Grid>
     </Grid>
 
-    <Border Grid.Row="2" Width="440" MaxHeight="680" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,0,0,10" Padding="14" Background="#DD1A1C1F" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding IsFolderPanelOpen}" ZIndex="51">
+    <Border Grid.Row="1" Width="440" MaxHeight="680" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,0,0,10" Padding="14" Background="#DD1A1C1F" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding IsFolderPanelOpen}" ZIndex="51">
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Spacing="10">
         <Grid ColumnDefinitions="*,Auto">
@@ -564,7 +554,7 @@
       </ScrollViewer>
     </Border>
 
-    <Border Grid.Row="2" Margin="0,0,0,10" Padding="14" Background="#DD1A1C1F" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding IsSettingsOpen}" ZIndex="50">
+    <Border Grid.Row="1" Margin="0,0,0,10" Padding="14" Background="#DD1A1C1F" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding IsSettingsOpen}" ZIndex="50">
       <Grid RowDefinitions="Auto,*">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Text="Settings" FontSize="18" FontWeight="SemiBold" />

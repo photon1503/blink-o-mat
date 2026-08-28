@@ -361,40 +361,49 @@ public sealed class FramePreviewWindow : Window
 
         var root = new Grid
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*,Auto"),
             Margin = new Thickness(12),
         };
 
-        var toolbar = new Grid
+        var toolbar = new StackPanel
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto"),
-            ColumnSpacing = 6,
+            Orientation = Orientation.Horizontal,
+            Spacing = 10,
             Margin = new Thickness(0, 0, 0, 8),
         };
 
-        var prevButton = new Button { Content = "Prev", MinWidth = 58, Height = 30 };
-        prevButton.Click += (_, _) =>
+        static Border CreateToolbarGroup(string label, Control content) => new()
         {
-            if (DataContext is MainWindowViewModel vm)
+            Background = SolidColorBrush.Parse("#15181B"),
+            BorderBrush = SolidColorBrush.Parse("#2D3136"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(7, 4, 7, 5),
+            Child = new StackPanel
             {
-                vm.SelectPreviousResult();
-            }
+                Spacing = 3,
+                Children =
+                {
+                    new TextBlock { Text = label, FontSize = 9, FontWeight = FontWeight.Bold, Foreground = SolidColorBrush.Parse("#666A70") },
+                    content,
+                },
+            },
         };
-        Grid.SetColumn(prevButton, 0);
-        toolbar.Children.Add(prevButton);
 
-        var nextButton = new Button { Content = "Next", MinWidth = 58, Height = 30 };
-        nextButton.Click += (_, _) =>
-        {
-            if (DataContext is MainWindowViewModel vm)
-            {
-                vm.SelectNextResult();
-            }
-        };
-        Grid.SetColumn(nextButton, 1);
-        toolbar.Children.Add(nextButton);
+        var navigationTools = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        toolbar.Children.Add(CreateToolbarGroup("NAVIGATION", navigationTools));
+        var prevButton = new Button { Content = new global::Avalonia.Controls.Shapes.Path { Width = 14, Height = 14, Stretch = Stretch.Uniform, Fill = Brushes.White, Data = Geometry.Parse("M15,18L9,12L15,6V18Z") }, Width = 32, Height = 30 };
+        ToolTip.SetTip(prevButton, "Previous frame");
+        prevButton.Click += (_, _) => (DataContext as MainWindowViewModel)?.SelectPreviousResult();
+        navigationTools.Children.Add(prevButton);
 
-        _playButton = new Button { Content = "▶", Width = 36, Height = 30 };
+        var nextButton = new Button { Content = new global::Avalonia.Controls.Shapes.Path { Width = 14, Height = 14, Stretch = Stretch.Uniform, Fill = Brushes.White, Data = Geometry.Parse("M9,18L15,12L9,6V18Z") }, Width = 32, Height = 30 };
+        ToolTip.SetTip(nextButton, "Next frame");
+        nextButton.Click += (_, _) => (DataContext as MainWindowViewModel)?.SelectNextResult();
+        navigationTools.Children.Add(nextButton);
+
+        _playButton = new Button { Content = "▶", Width = 32, Height = 30 };
+        ToolTip.SetTip(_playButton, "Play or pause frame navigation");
         _playButton.Click += (_, _) =>
         {
             if (_playTimer.IsEnabled)
@@ -408,58 +417,50 @@ public sealed class FramePreviewWindow : Window
                 _playButton.Content = "⏸";
             }
         };
-        Grid.SetColumn(_playButton, 2);
-        toolbar.Children.Add(_playButton);
+        var playbackTools = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        toolbar.Children.Add(CreateToolbarGroup("PLAYBACK", playbackTools));
+        playbackTools.Children.Add(_playButton);
 
-        var intervalDown = new Button { Content = "-", Width = 24, Height = 30 };
+        var intervalDown = new Button { Content = "−", Width = 30, Height = 30 };
+        ToolTip.SetTip(intervalDown, "Decrease playback interval");
         intervalDown.Click += (_, _) => SetPlaybackInterval(_playbackIntervalIndex - 1);
-        Grid.SetColumn(intervalDown, 3);
-        toolbar.Children.Add(intervalDown);
-
-        _intervalText = new TextBlock
-        {
-            Width = 56,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextAlignment = TextAlignment.Center,
-            Text = "1.0 s",
-        };
-        Grid.SetColumn(_intervalText, 4);
-        toolbar.Children.Add(_intervalText);
-
-        var intervalUp = new Button { Content = "+", Width = 24, Height = 30 };
+        playbackTools.Children.Add(intervalDown);
+        _intervalText = new TextBlock { Width = 56, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center, Text = "1.0 s" };
+        playbackTools.Children.Add(_intervalText);
+        var intervalUp = new Button { Content = "+", Width = 30, Height = 30 };
+        ToolTip.SetTip(intervalUp, "Increase playback interval");
         intervalUp.Click += (_, _) => SetPlaybackInterval(_playbackIntervalIndex + 1);
-        Grid.SetColumn(intervalUp, 5);
-        toolbar.Children.Add(intervalUp);
+        playbackTools.Children.Add(intervalUp);
 
-        var zoomOutButton = new Button { Content = "-", Width = 34, Height = 30 };
+        var zoomTools = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        toolbar.Children.Add(CreateToolbarGroup("ZOOM", zoomTools));
+        var zoomOutButton = new Button { Content = "-", Width = 30, Height = 30 };
+        ToolTip.SetTip(zoomOutButton, "Zoom out");
         zoomOutButton.Click += (_, _) => ZoomAroundViewportCenter(1.0 / 1.25);
-        Grid.SetColumn(zoomOutButton, 6);
-        toolbar.Children.Add(zoomOutButton);
-
-        var fitButton = new Button { Content = "Fit", Width = 44, Height = 30 };
+        zoomTools.Children.Add(zoomOutButton);
+        var fitButton = new Button { Content = new global::Avalonia.Controls.Shapes.Path { Width = 14, Height = 14, Stretch = Stretch.Uniform, Fill = Brushes.White, Data = Geometry.Parse("M4,4H10V6H6V10H4V4M14,4H20V10H18V6H14V4M4,14H6V18H10V20H4V14M18,14H20V20H14V18H18V14Z") }, Width = 30, Height = 30 };
+        ToolTip.SetTip(fitButton, "Fit image to view");
         fitButton.Click += (_, _) => FitToView();
-        Grid.SetColumn(fitButton, 7);
-        toolbar.Children.Add(fitButton);
-
-        var zoomInButton = new Button { Content = "+", Width = 34, Height = 30 };
+        zoomTools.Children.Add(fitButton);
+        var zoomInButton = new Button { Content = "+", Width = 30, Height = 30 };
+        ToolTip.SetTip(zoomInButton, "Zoom in");
         zoomInButton.Click += (_, _) => ZoomAroundViewportCenter(1.25);
-        Grid.SetColumn(zoomInButton, 8);
-        toolbar.Children.Add(zoomInButton);
-
-        var oneToOneButton = new Button { Content = "1:1", Width = 46, Height = 30 };
+        zoomTools.Children.Add(zoomInButton);
+        var oneToOneButton = new Button { Content = "1:1", Width = 38, Height = 30 };
+        ToolTip.SetTip(oneToOneButton, "Show image at one-to-one pixels");
         oneToOneButton.Click += (_, _) => SetZoomAroundViewerPoint(GetViewportCenter(), 1.0);
-        Grid.SetColumn(oneToOneButton, 9);
-        toolbar.Children.Add(oneToOneButton);
+        zoomTools.Children.Add(oneToOneButton);
 
-        var roiToggle = new ToggleButton { Content = "ROI", Width = 50, Height = 30 };
+        var viewTools = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        toolbar.Children.Add(CreateToolbarGroup("VIEW", viewTools));
+        var roiToggle = new ToggleButton { Content = "ROI", Width = 42, Height = 30 };
+        ToolTip.SetTip(roiToggle, "Show or edit ROI");
         roiToggle.Bind(ToggleButton.IsCheckedProperty, new Binding("IsRoiOverlayVisible") { Mode = BindingMode.TwoWay });
-        Grid.SetColumn(roiToggle, 10);
-        toolbar.Children.Add(roiToggle);
-
-        var openButton = new Button { Content = "Open", Width = 58, Height = 30 };
+        viewTools.Children.Add(roiToggle);
+        var openButton = new Button { Content = new global::Avalonia.Controls.Shapes.Path { Width = 15, Height = 15, Stretch = Stretch.Uniform, Fill = Brushes.White, Data = Geometry.Parse("M4,6H10L12,8H20V18H4V6M4,4V6H2V20H22V6H14L12,4H4Z") }, Width = 32, Height = 30 };
+        ToolTip.SetTip(openButton, "Reveal current frame in file manager");
         openButton.Click += (_, _) => OpenCurrentFrameInFileManager();
-        Grid.SetColumn(openButton, 11);
-        toolbar.Children.Add(openButton);
+        viewTools.Children.Add(openButton);
 
         static void ApplyChipVisual(
             ToggleButton chip,
@@ -647,6 +648,25 @@ public sealed class FramePreviewWindow : Window
 
         var imageGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("14,26,14,*,300") };
         Grid.SetRow(imageGrid, 4);
+
+        var statusBar = new Border
+        {
+            Margin = new Thickness(0, 10, 0, 0),
+            Padding = new Thickness(10, 7),
+            Background = SolidColorBrush.Parse("#14171A"),
+            BorderBrush = SolidColorBrush.Parse("#2D3136"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Child = new TextBlock
+            {
+                FontSize = 11,
+                Foreground = SolidColorBrush.Parse("#B8BCC0"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            },
+        };
+        ((TextBlock)statusBar.Child).Bind(TextBlock.TextProperty, new Binding("BottomStatusText"));
+        Grid.SetRow(statusBar, 5);
+        root.Children.Add(statusBar);
 
         _cacheIndicatorCanvas = new Canvas
         {

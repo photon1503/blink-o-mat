@@ -2442,20 +2442,19 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _previewLoadCts = cts;
         var token = cts.Token;
 
-        SelectedPreviewCaption = $"Loading preview for {selected.FileName}...";
+        SelectedPreviewCaption = selected.FileName;
+        BottomStatusText = $"Loading preview for {selected.FileName}...";
 
         var context = _resultContexts.FirstOrDefault(item => string.Equals(item.Frame.FilePath, selected.FilePath, StringComparison.OrdinalIgnoreCase));
         if (context is null)
         {
-            SelectedPreviewCaption = selected.FileName;
-            BottomStatusText = SelectedPreviewCaption;
+            BottomStatusText = $"Preview unavailable: {selected.FileName}";
             return;
         }
 
         if (!File.Exists(context.Frame.FilePath))
         {
-            SelectedPreviewCaption = $"{selected.FileName} (source file unavailable)";
-            BottomStatusText = SelectedPreviewCaption;
+            BottomStatusText = $"Preview failed: source file unavailable for {selected.FileName}";
             return;
         }
 
@@ -2517,7 +2516,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             UpdatePerformanceText();
             if (!IsAnalyzing)
             {
-                BottomStatusText = SelectedPreviewCaption;
+                BottomStatusText = $"Preview ready: {selected.FileName}";
             }
         }
         catch (OperationCanceledException)
@@ -2531,8 +2530,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 return;
             }
 
-            SelectedPreviewCaption = $"{selected.FileName} (preview failed: {ex.Message})";
-            BottomStatusText = SelectedPreviewCaption;
+            BottomStatusText = $"Preview failed for {selected.FileName}: {ex.Message}";
         }
     }
 
