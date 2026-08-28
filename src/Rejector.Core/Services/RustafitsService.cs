@@ -3159,7 +3159,7 @@ public sealed class RustafitsService
 
         var output = new float[input.Length];
         var area = (2 * radius + 1) * (2 * radius + 1);
-        for (var y = 0; y < height; y++)
+        Parallel.For(0, height, y =>
         {
             for (var x = 0; x < width; x++)
             {
@@ -3177,7 +3177,7 @@ public sealed class RustafitsService
 
                 output[(y * width) + x] = (float)(sum / area);
             }
-        }
+        });
 
         return output;
     }
@@ -4458,8 +4458,11 @@ public sealed class RustafitsService
         // residuals. A satellite trail is a bright stripe in this residual image.
         var blurred = BoxBlur(pixels, width, height, 2);
         var enhanced = new float[pixels.Length];
-        for (var i = 0; i < pixels.Length; i++)
-            enhanced[i] = Math.Max(0f, pixels[i] - blurred[i]);
+        Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, pixels.Length), range =>
+        {
+            for (var i = range.Item1; i < range.Item2; i++)
+                enhanced[i] = Math.Max(0f, pixels[i] - blurred[i]);
+        });
 
         // ── Star exclusion ───────────────────────────────────────────────────
         // Star cores/wings survive the background subtraction as bright residual
@@ -4471,16 +4474,34 @@ public sealed class RustafitsService
         // threshold used below.
         var starMask = BuildStarExclusionMask(width, height, excludedStars);
 
-        var backgroundSample = new List<float>(Math.Min(enhanced.Length, 400_000));
-        for (var y = 5; y < height - 5; y++)
+        const int trailStripeHeight = 64;
+        var bgRowStart = 5;
+        var bgRowEnd = height - 5;
+        var bgStripeCount = Math.Max(0, ((bgRowEnd - bgRowStart) + trailStripeHeight - 1) / trailStripeHeight);
+        var bgStripeLists = new List<float>[bgStripeCount];
+        Parallel.For(0, bgStripeCount, stripe =>
         {
-            var row = y * width;
-            for (var x = 5; x < width - 5; x++)
+            var yStart = bgRowStart + (stripe * trailStripeHeight);
+            var yEnd = Math.Min(yStart + trailStripeHeight, bgRowEnd);
+            var local = new List<float>((yEnd - yStart) * width);
+            for (var y = yStart; y < yEnd; y++)
             {
-                if (starMask[row + x])
-                    continue;
-                backgroundSample.Add(enhanced[row + x]);
+                var row = y * width;
+                for (var x = 5; x < width - 5; x++)
+                {
+                    if (starMask[row + x])
+                        continue;
+                    local.Add(enhanced[row + x]);
+                }
             }
+
+            bgStripeLists[stripe] = local;
+        });
+
+        var backgroundSample = new List<float>(Math.Min(enhanced.Length, 400_000));
+        for (var i = 0; i < bgStripeLists.Length; i++)
+        {
+            backgroundSample.AddRange(bgStripeLists[i]);
         }
 
         var sample = backgroundSample.ToArray();
