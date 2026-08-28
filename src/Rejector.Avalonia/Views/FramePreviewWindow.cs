@@ -49,6 +49,7 @@ public sealed class FramePreviewWindow : Window
     private readonly Rectangle _roiDragRect;
     private readonly Rectangle[] _roiHandles = new Rectangle[4];
     private readonly Canvas _cacheIndicatorCanvas;
+    private readonly Canvas _cacheDotCanvas;
     private readonly Button _playButton;
     private readonly Border _loupeBorder;
     private readonly Image _loupeImage;
@@ -130,11 +131,13 @@ public sealed class FramePreviewWindow : Window
                 new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(11)),
             },
         },
-        new Style(x => x.OfType<Slider>().Class("PreviewSlider").Template().OfType<Track>())
+        new Style(x => x.OfType<Slider>().Class("VerticalPreviewSlider").Template().OfType<Thumb>())
         {
             Setters =
             {
-                new Setter(HeightProperty, 22.0),
+                new Setter(WidthProperty, 16.0),
+                new Setter(HeightProperty, 16.0),
+                new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(8)),
             },
         },
     ];
@@ -299,6 +302,14 @@ public sealed class FramePreviewWindow : Window
     private static void ApplyPreviewSliderTemplate(Slider slider)
     {
         slider.Classes.Add("PreviewSlider");
+        if (slider.Orientation == Orientation.Vertical)
+        {
+            slider.Classes.Add("VerticalPreviewSlider");
+            slider.Width = 26;
+            slider.VerticalAlignment = VerticalAlignment.Stretch;
+            return;
+        }
+
         slider.Height = 28;
         slider.VerticalAlignment = VerticalAlignment.Center;
     }
@@ -594,17 +605,10 @@ public sealed class FramePreviewWindow : Window
 
         var previewStateRow = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"),
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
             ColumnSpacing = 10,
             Margin = new Thickness(0, 0, 0, 8),
         };
-
-        _frameSlider = new Slider { Minimum = 0, Maximum = 0 };
-        ApplyPreviewSliderTemplate(_frameSlider);
-        _frameSlider.Bind(Slider.ValueProperty, new Binding("PreviewFrameSliderValue") { Mode = BindingMode.TwoWay });
-        _frameSlider.Bind(Slider.MaximumProperty, new Binding("PreviewFrameSliderMaximum"));
-        Grid.SetColumn(_frameSlider, 0);
-        previewStateRow.Children.Add(_frameSlider);
 
         _framePositionText = new TextBlock
         {
@@ -614,7 +618,7 @@ public sealed class FramePreviewWindow : Window
             TextAlignment = TextAlignment.Right,
         };
         _framePositionText.Bind(TextBlock.TextProperty, new Binding("PreviewFramePositionText"));
-        Grid.SetColumn(_framePositionText, 1);
+        Grid.SetColumn(_framePositionText, 0);
         previewStateRow.Children.Add(_framePositionText);
 
         _cacheText = new TextBlock
@@ -625,7 +629,7 @@ public sealed class FramePreviewWindow : Window
             TextAlignment = TextAlignment.Right,
             Text = "cache: 0",
         };
-        Grid.SetColumn(_cacheText, 2);
+        Grid.SetColumn(_cacheText, 1);
         previewStateRow.Children.Add(_cacheText);
         Grid.SetRow(previewStateRow, 2);
         root.Children.Add(previewStateRow);
@@ -641,7 +645,7 @@ public sealed class FramePreviewWindow : Window
         Grid.SetRow(caption, 3);
         root.Children.Add(caption);
 
-        var imageGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("14,*,300") };
+        var imageGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("14,26,14,*,300") };
         Grid.SetRow(imageGrid, 4);
 
         _cacheIndicatorCanvas = new Canvas
@@ -651,6 +655,29 @@ public sealed class FramePreviewWindow : Window
         };
         imageGrid.Children.Add(_cacheIndicatorCanvas);
 
+        _frameSlider = new Slider
+        {
+            Minimum = 0,
+            Maximum = 0,
+            Orientation = Orientation.Vertical,
+            IsDirectionReversed = true,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        ApplyPreviewSliderTemplate(_frameSlider);
+        _frameSlider.Bind(Slider.ValueProperty, new Binding("PreviewFrameSliderValue") { Mode = BindingMode.TwoWay });
+        _frameSlider.Bind(Slider.MaximumProperty, new Binding("PreviewFrameSliderMaximum"));
+        Grid.SetColumn(_frameSlider, 1);
+        imageGrid.Children.Add(_frameSlider);
+
+        _cacheDotCanvas = new Canvas
+        {
+            Width = 12,
+            Background = SolidColorBrush.Parse("#181B1E"),
+            IsHitTestVisible = false,
+        };
+        Grid.SetColumn(_cacheDotCanvas, 2);
+        imageGrid.Children.Add(_cacheDotCanvas);
+
         var imageBorder = new Border
         {
             Background = SolidColorBrush.Parse("#17191B"),
@@ -659,7 +686,7 @@ public sealed class FramePreviewWindow : Window
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(8),
         };
-        Grid.SetColumn(imageBorder, 1);
+        Grid.SetColumn(imageBorder, 3);
 
         _previewImage = new Image
         {
@@ -1217,7 +1244,7 @@ public sealed class FramePreviewWindow : Window
                 },
             },
         };
-        Grid.SetColumn(sidePanel, 2);
+        Grid.SetColumn(sidePanel, 4);
         imageGrid.Children.Add(sidePanel);
         root.Children.Add(imageGrid);
 
@@ -1412,7 +1439,7 @@ public sealed class FramePreviewWindow : Window
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Content = new TextBlock { Text = chip.DisplayName },
             };
-            ToolTip.SetTip(toggle, "Left-click toggles this filter. Right-click toggles only this filter and clears the others.");
+            ToolTip.SetTip(toggle, "Left-click toggles this filter. Right-click shows only this filter.");
             ApplyChipTemplate(toggle);
 
             toggle.Bind(ToggleButton.IsCheckedProperty, new Binding(nameof(FilterChipViewModel.IsSelected))
@@ -2056,6 +2083,7 @@ public sealed class FramePreviewWindow : Window
     private void UpdateCacheIndicators()
     {
         _cacheIndicatorCanvas.Children.Clear();
+        _cacheDotCanvas.Children.Clear();
 
         if (DataContext is not MainWindowViewModel vm || vm.Results.Count == 0)
         {
@@ -2129,7 +2157,7 @@ public sealed class FramePreviewWindow : Window
                 };
                 Canvas.SetLeft(cacheDot, 5);
                 Canvas.SetTop(cacheDot, top + (markerHeight / 2.0) - 1.5);
-                _cacheIndicatorCanvas.Children.Add(cacheDot);
+                _cacheDotCanvas.Children.Add(cacheDot);
             }
 
             var hitArea = new Rectangle

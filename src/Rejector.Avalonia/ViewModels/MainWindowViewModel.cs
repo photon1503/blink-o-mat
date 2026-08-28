@@ -2802,10 +2802,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public void ToggleFilterExclusively(FilterChipViewModel targetChip)
     {
-        var nextSelected = !targetChip.IsSelected;
         foreach (var chip in FilterChips)
         {
-            chip.IsSelected = ReferenceEquals(chip, targetChip) && nextSelected;
+            chip.IsSelected = ReferenceEquals(chip, targetChip);
         }
     }
 
