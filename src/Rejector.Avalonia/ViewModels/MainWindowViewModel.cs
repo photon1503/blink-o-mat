@@ -2432,6 +2432,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             StatusText = moved.Count == 0
                 ? "No rejected frames were moved."
                 : $"Moved {moved.Count} rejected frame(s) to {RejectedFolder}";
+
+            if (moved.Count > 0)
+            {
+                // Moved frames no longer exist at their original path - drop them from every
+                // UI surface (card list, filter chips, statistics bar) instead of leaving stale entries.
+                var movedPaths = new HashSet<string>(moved.Select(frame => frame.FilePath), StringComparer.OrdinalIgnoreCase);
+                _resultContexts.RemoveAll(context => movedPaths.Contains(context.Frame.FilePath));
+                RefreshFilterChips();
+                RebuildResults();
+            }
         }
         catch (Exception exception)
         {
