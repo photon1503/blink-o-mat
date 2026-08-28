@@ -80,6 +80,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private int _lastAnalysisFrameCount;
     private double _lastAnalysisReadGibPerSecond;
     private bool _showTrailSlider = true;
+    private bool _showCloudSlider = true;
     private bool _showFwhmSlider = true;
     private bool _showFwhmArcsecSlider = true;
     private bool _showSqmSlider = true;
@@ -597,6 +598,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     }
 
     public bool ShowTrailSlider { get => _showTrailSlider; set { if (SetBool(ref _showTrailSlider, value)) { PersistProfileSettings(); } } }
+    public bool ShowCloudSlider { get => _showCloudSlider; set { if (SetBool(ref _showCloudSlider, value)) { PersistProfileSettings(); } } }
     public bool ShowFwhmSlider { get => _showFwhmSlider; set { if (SetBool(ref _showFwhmSlider, value)) { PersistProfileSettings(); } } }
     public bool ShowFwhmArcsecSlider { get => _showFwhmArcsecSlider; set { if (SetBool(ref _showFwhmArcsecSlider, value)) { PersistProfileSettings(); } } }
     public bool ShowSqmSlider { get => _showSqmSlider; set { if (SetBool(ref _showSqmSlider, value)) { PersistProfileSettings(); } } }
@@ -617,6 +619,37 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool ShowSkyTempMetric { get => _showSkyTempMetric; set { if (SetBool(ref _showSkyTempMetric, value)) { PersistProfileSettings(); } } }
     public bool ShowMeanBackgroundMetric { get => _showMeanBackgroundMetric; set { if (SetBool(ref _showMeanBackgroundMetric, value)) { PersistProfileSettings(); } } }
     public bool ShowScoreMetric { get => _showScoreMetric; set { if (SetBool(ref _showScoreMetric, value)) { PersistProfileSettings(); } } }
+
+    public bool AutoCalcTrailThreshold { get => GetSelectedThresholds().AutoCalcTrailThreshold; set => SetAutoCalculate((t, v) => t.AutoCalcTrailThreshold = v, value, nameof(AutoCalcTrailThreshold)); }
+    public bool AutoCalcCloudThreshold { get => GetSelectedThresholds().AutoCalcCloudThreshold; set => SetAutoCalculate((t, v) => t.AutoCalcCloudThreshold = v, value, nameof(AutoCalcCloudThreshold)); }
+    public bool AutoCalcFwhmThreshold { get => GetSelectedThresholds().AutoCalcFwhmThreshold; set => SetAutoCalculate((t, v) => t.AutoCalcFwhmThreshold = v, value, nameof(AutoCalcFwhmThreshold)); }
+    public bool AutoCalcFwhmArcsecThreshold { get => GetSelectedThresholds().AutoCalcFwhmArcsecThreshold; set => SetAutoCalculate((t, v) => t.AutoCalcFwhmArcsecThreshold = v, value, nameof(AutoCalcFwhmArcsecThreshold)); }
+    public bool AutoCalcSqmThreshold { get => GetSelectedThresholds().AutoCalcSqmThreshold; set => SetAutoCalculate((t, v) => t.AutoCalcSqmThreshold = v, value, nameof(AutoCalcSqmThreshold)); }
+    public bool AutoCalcSkyTempThreshold { get => GetSelectedThresholds().AutoCalcSkyTempThreshold; set => SetAutoCalculate((t, v) => t.AutoCalcSkyTempThreshold = v, value, nameof(AutoCalcSkyTempThreshold)); }
+    public bool AutoCalcHfrThreshold { get => GetSelectedThresholds().AutoCalcHfrThreshold; set => SetAutoCalculate((t, v) => t.AutoCalcHfrThreshold = v, value, nameof(AutoCalcHfrThreshold)); }
+    public bool AutoCalcEccentricityThreshold { get => GetSelectedThresholds().AutoCalcEccentricityThreshold; set => SetAutoCalculate((t, v) => t.AutoCalcEccentricityThreshold = v, value, nameof(AutoCalcEccentricityThreshold)); }
+    public bool AutoCalcMeanBackgroundThreshold { get => GetSelectedThresholds().AutoCalcMeanBackgroundThreshold; set => SetAutoCalculate((t, v) => t.AutoCalcMeanBackgroundThreshold = v, value, nameof(AutoCalcMeanBackgroundThreshold)); }
+    public bool AutoCalcStarsThreshold { get => GetSelectedThresholds().AutoCalcStarsThreshold; set => SetAutoCalculate((t, v) => t.AutoCalcStarsThreshold = v, value, nameof(AutoCalcStarsThreshold)); }
+    public bool AutoCalcScoreThreshold { get => GetSelectedThresholds().AutoCalcScoreThreshold; set => SetAutoCalculate((t, v) => t.AutoCalcScoreThreshold = v, value, nameof(AutoCalcScoreThreshold)); }
+
+    public bool IsTrailThresholdSettingVisible => ShowTrailSlider && ShowTrailMetric;
+    public bool IsCloudThresholdSettingVisible => ShowCloudSlider && ShowCloudMetric;
+    public bool IsFwhmThresholdSettingVisible => ShowFwhmSlider && ShowFwhmMetric;
+    public bool IsFwhmArcsecThresholdSettingVisible => ShowFwhmArcsecSlider && ShowFwhmArcsecMetric;
+    public bool IsSqmThresholdSettingVisible => ShowSqmSlider && ShowSqmMetric;
+    public bool IsSkyTempThresholdSettingVisible => ShowSkyTempSlider && ShowSkyTempMetric;
+    public bool IsHfrThresholdSettingVisible => ShowHfrSlider && ShowHfrMetric;
+    public bool IsEccentricityThresholdSettingVisible => ShowEccentricitySlider && ShowEccentricityMetric;
+    public bool IsMeanBackgroundThresholdSettingVisible => ShowMeanBackgroundSlider && ShowMeanBackgroundMetric;
+    public bool IsStarsThresholdSettingVisible => ShowStarsSlider && ShowStarsMetric;
+    public bool IsScoreThresholdSettingVisible => ShowScoreSlider && ShowScoreMetric;
+    public bool IsTrailScoreSettingVisible => ShowTrailMetric;
+    public bool IsCloudScoreSettingVisible => ShowCloudMetric;
+    public bool IsFwhmScoreSettingVisible => ShowFwhmMetric;
+    public bool IsHfrScoreSettingVisible => ShowHfrMetric;
+    public bool IsEccentricityScoreSettingVisible => ShowEccentricityMetric;
+    public bool IsMeanBackgroundScoreSettingVisible => ShowMeanBackgroundMetric;
+    public bool IsStarsScoreSettingVisible => ShowStarsMetric;
 
     public bool AutoStretchPerFrame
     {
@@ -681,6 +714,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public double ScoreWeightBackground { get => _scoreWeightBackground; set { if (SetDoubleAndRebuild(ref _scoreWeightBackground, value)) { PersistProfileSettings(); } } }
     public double ScoreWeightTrail { get => _scoreWeightTrail; set { if (SetDoubleAndRebuild(ref _scoreWeightTrail, value)) { PersistProfileSettings(); } } }
     public double ScoreWeightCloud { get => _scoreWeightCloud; set { if (SetDoubleAndRebuild(ref _scoreWeightCloud, value)) { PersistProfileSettings(); } } }
+
+    public void ResetScoreWeightsToDefaults()
+    {
+        ScoreWeightFwhm = 3.0;
+        ScoreWeightHfr = 1.5;
+        ScoreWeightStars = 1.5;
+        ScoreWeightEccentricity = 2.5;
+        ScoreWeightBackground = 0.5;
+        ScoreWeightTrail = 2.0;
+        ScoreWeightCloud = 2.0;
+    }
 
     public int CachedPreviewCount => _cachedPreviewPaths.Count;
 
@@ -1803,6 +1847,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             StfTargetBackground = profile.StfTargetBackgroundDefault;
 
             ShowTrailSlider = profile.ShowTrailSlider;
+            ShowCloudSlider = profile.ShowCloudSlider;
             ShowFwhmSlider = profile.ShowFwhmSlider;
             ShowFwhmArcsecSlider = profile.ShowFwhmArcsecSlider;
             ShowSqmSlider = profile.ShowSqmSlider;
@@ -1855,6 +1900,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(MinCloudConfidence));
             OnPropertyChanged(nameof(MinScore));
             OnPropertyChanged(nameof(ShowTrailSlider));
+            OnPropertyChanged(nameof(ShowCloudSlider));
             OnPropertyChanged(nameof(ShowFwhmSlider));
             OnPropertyChanged(nameof(ShowFwhmArcsecSlider));
             OnPropertyChanged(nameof(ShowSqmSlider));
@@ -1875,6 +1921,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(ShowSkyTempMetric));
             OnPropertyChanged(nameof(ShowMeanBackgroundMetric));
             OnPropertyChanged(nameof(ShowScoreMetric));
+            OnPropertyChanged(nameof(AutoCalcTrailThreshold));
+            OnPropertyChanged(nameof(AutoCalcCloudThreshold));
+            OnPropertyChanged(nameof(AutoCalcFwhmThreshold));
+            OnPropertyChanged(nameof(AutoCalcFwhmArcsecThreshold));
+            OnPropertyChanged(nameof(AutoCalcSqmThreshold));
+            OnPropertyChanged(nameof(AutoCalcSkyTempThreshold));
+            OnPropertyChanged(nameof(AutoCalcHfrThreshold));
+            OnPropertyChanged(nameof(AutoCalcEccentricityThreshold));
+            OnPropertyChanged(nameof(AutoCalcMeanBackgroundThreshold));
+            OnPropertyChanged(nameof(AutoCalcStarsThreshold));
+            OnPropertyChanged(nameof(AutoCalcScoreThreshold));
             OnPropertyChanged(nameof(IsRoiOverlayVisible));
             OnPropertyChanged(nameof(IsStarDebugOverlayVisible));
             OnPropertyChanged(nameof(IsOrientationDebugOverlayVisible));
@@ -2016,6 +2073,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             WatchFolderDefault = WatchFolderEnabled,
             StfTargetBackgroundDefault = StfTargetBackground,
             ShowTrailSlider = ShowTrailSlider,
+            ShowCloudSlider = ShowCloudSlider,
             ShowFwhmSlider = ShowFwhmSlider,
             ShowFwhmArcsecSlider = ShowFwhmArcsecSlider,
             ShowSqmSlider = ShowSqmSlider,
@@ -2817,6 +2875,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(MinSatelliteConfidence));
         OnPropertyChanged(nameof(MinCloudConfidence));
         OnPropertyChanged(nameof(MinScore));
+        OnPropertyChanged(nameof(AutoCalcTrailThreshold));
+        OnPropertyChanged(nameof(AutoCalcCloudThreshold));
+        OnPropertyChanged(nameof(AutoCalcFwhmThreshold));
+        OnPropertyChanged(nameof(AutoCalcFwhmArcsecThreshold));
+        OnPropertyChanged(nameof(AutoCalcSqmThreshold));
+        OnPropertyChanged(nameof(AutoCalcSkyTempThreshold));
+        OnPropertyChanged(nameof(AutoCalcHfrThreshold));
+        OnPropertyChanged(nameof(AutoCalcEccentricityThreshold));
+        OnPropertyChanged(nameof(AutoCalcMeanBackgroundThreshold));
+        OnPropertyChanged(nameof(AutoCalcStarsThreshold));
+        OnPropertyChanged(nameof(AutoCalcScoreThreshold));
     }
 
     private IEnumerable<FrameResultContext> GetFilterScopedContexts()
@@ -3319,7 +3388,33 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         field = value;
         OnPropertyChanged(propertyName);
+        if (propertyName?.StartsWith("Show", StringComparison.Ordinal) == true)
+        {
+            RaiseMetricSettingsVisibilityChanged();
+        }
         return true;
+    }
+
+    private void RaiseMetricSettingsVisibilityChanged()
+    {
+        OnPropertyChanged(nameof(IsTrailThresholdSettingVisible));
+        OnPropertyChanged(nameof(IsCloudThresholdSettingVisible));
+        OnPropertyChanged(nameof(IsFwhmThresholdSettingVisible));
+        OnPropertyChanged(nameof(IsFwhmArcsecThresholdSettingVisible));
+        OnPropertyChanged(nameof(IsSqmThresholdSettingVisible));
+        OnPropertyChanged(nameof(IsSkyTempThresholdSettingVisible));
+        OnPropertyChanged(nameof(IsHfrThresholdSettingVisible));
+        OnPropertyChanged(nameof(IsEccentricityThresholdSettingVisible));
+        OnPropertyChanged(nameof(IsMeanBackgroundThresholdSettingVisible));
+        OnPropertyChanged(nameof(IsStarsThresholdSettingVisible));
+        OnPropertyChanged(nameof(IsScoreThresholdSettingVisible));
+        OnPropertyChanged(nameof(IsTrailScoreSettingVisible));
+        OnPropertyChanged(nameof(IsCloudScoreSettingVisible));
+        OnPropertyChanged(nameof(IsFwhmScoreSettingVisible));
+        OnPropertyChanged(nameof(IsHfrScoreSettingVisible));
+        OnPropertyChanged(nameof(IsEccentricityScoreSettingVisible));
+        OnPropertyChanged(nameof(IsMeanBackgroundScoreSettingVisible));
+        OnPropertyChanged(nameof(IsStarsScoreSettingVisible));
     }
 
     private bool SetBoolAndRebuild(ref bool field, bool value, [CallerMemberName] string? propertyName = null)
@@ -3378,6 +3473,35 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(propertyName);
         PersistSelectedThresholdScopeAndRevalidateAll();
     }
+
+    private void SetAutoCalculate(Action<Thresholds, bool> setter, bool value, string propertyName)
+    {
+        var thresholds = GetSelectedThresholdsForEdit();
+        if (GetAutoCalculateValue(thresholds, propertyName) == value)
+        {
+            return;
+        }
+
+        setter(thresholds, value);
+        OnPropertyChanged(propertyName);
+        PersistSelectedThresholdScopeAndRevalidateAll();
+    }
+
+    private static bool GetAutoCalculateValue(Thresholds thresholds, string propertyName) => propertyName switch
+    {
+        nameof(AutoCalcTrailThreshold) => thresholds.AutoCalcTrailThreshold,
+        nameof(AutoCalcCloudThreshold) => thresholds.AutoCalcCloudThreshold,
+        nameof(AutoCalcFwhmThreshold) => thresholds.AutoCalcFwhmThreshold,
+        nameof(AutoCalcFwhmArcsecThreshold) => thresholds.AutoCalcFwhmArcsecThreshold,
+        nameof(AutoCalcSqmThreshold) => thresholds.AutoCalcSqmThreshold,
+        nameof(AutoCalcSkyTempThreshold) => thresholds.AutoCalcSkyTempThreshold,
+        nameof(AutoCalcHfrThreshold) => thresholds.AutoCalcHfrThreshold,
+        nameof(AutoCalcEccentricityThreshold) => thresholds.AutoCalcEccentricityThreshold,
+        nameof(AutoCalcMeanBackgroundThreshold) => thresholds.AutoCalcMeanBackgroundThreshold,
+        nameof(AutoCalcStarsThreshold) => thresholds.AutoCalcStarsThreshold,
+        nameof(AutoCalcScoreThreshold) => thresholds.AutoCalcScoreThreshold,
+        _ => throw new ArgumentOutOfRangeException(nameof(propertyName)),
+    };
 
     private static Bitmap CreateDemoPreview()
     {

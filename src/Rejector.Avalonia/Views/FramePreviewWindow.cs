@@ -116,8 +116,8 @@ public sealed class FramePreviewWindow : Window
     // Enlarges the default (fully-functional) Fluent Slider's Thumb/track so it's easy to grab, without
     // replacing the control template - a from-scratch FuncControlTemplate risks breaking Slider's internal
     // NameScope-based wiring (PART_Track lookup, drag handling) in subtle ways.
-    private static readonly Style[] PreviewSliderStyles =
-    {
+    private static Style[] CreatePreviewSliderStyles() =>
+    [
         new Style(x => x.OfType<Slider>().Class("PreviewSlider").Template().OfType<Thumb>())
         {
             Setters =
@@ -137,7 +137,7 @@ public sealed class FramePreviewWindow : Window
                 new Setter(HeightProperty, 22.0),
             },
         },
-    };
+    ];
 
     private void RestoreWindowPlacement()
     {
@@ -336,7 +336,7 @@ public sealed class FramePreviewWindow : Window
         MinWidth = 640;
         MinHeight = 480;
         Background = SolidColorBrush.Parse("#111315");
-        Styles.AddRange(PreviewSliderStyles);
+        Styles.AddRange(CreatePreviewSliderStyles());
 
         RestoreWindowPlacement();
         Opened += (_, _) =>

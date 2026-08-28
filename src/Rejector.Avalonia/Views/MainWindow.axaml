@@ -160,6 +160,7 @@
                                             ShowRejectCount="True"
                                             RejectCount="{Binding SatelliteTrailRejectedFrameCount}" />
               <controls:MetricSliderControl Label="Min. cloud confidence"
+                                            IsVisible="{Binding ShowCloudSlider}"
                                             Value="{Binding MinCloudConfidence}"
                                             Minimum="0"
                                             Maximum="100"
@@ -583,24 +584,6 @@
             <CheckBox Grid.Column="1" Content="Default" IsChecked="{Binding IsSelectedProfileDefault, Mode=TwoWay}" VerticalAlignment="Center" />
           </Grid>
 
-          <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,4">
-            <TextBlock Text="THRESHOLDS" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
-          </Border>
-          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="8">
-            <TextBlock VerticalAlignment="Center" Text="Max FWHM" />
-            <NumericUpDown Grid.Column="1" Minimum="0" Maximum="50" Increment="0.1" Value="{Binding MaxFwhm}" FormatString="F2" />
-            <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Max HFR" />
-            <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="50" Increment="0.1" Value="{Binding MaxHfr}" FormatString="F2" />
-            <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Max Ecc" />
-            <NumericUpDown Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="1" Increment="0.01" Value="{Binding MaxEccentricity}" FormatString="F3" />
-            <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Max Background" />
-            <NumericUpDown Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="100000" Increment="50" Value="{Binding MaxMeanBackground}" FormatString="F0" />
-            <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="Min Stars" />
-            <NumericUpDown Grid.Row="4" Grid.Column="1" Minimum="0" Maximum="50000" Increment="10" Value="{Binding MinStars}" FormatString="F0" />
-            <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="Min Trail %" />
-            <NumericUpDown Grid.Row="5" Grid.Column="1" Minimum="0" Maximum="100" Increment="1" Value="{Binding MinSatelliteConfidence}" FormatString="F0" />
-          </Grid>
-
           <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">
             <TextBlock Text="STRETCH" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
           </Border>
@@ -620,53 +603,28 @@
           </Grid>
 
           <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">
-            <TextBlock Text="METRICS VISIBILITY" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <TextBlock Text="METRIC SETTINGS" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Content="Reset score defaults" Padding="10,2" Click="ResetScoreWeightsButton_Click" />
+            </Grid>
           </Border>
-          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
-            <CheckBox Content="FWHM px" IsChecked="{Binding ShowFwhmMetric}" />
-            <CheckBox Grid.Column="1" Content="FWHM arcsec" IsChecked="{Binding ShowFwhmArcsecMetric}" />
-            <CheckBox Grid.Row="1" Content="HFR" IsChecked="{Binding ShowHfrMetric}" />
-            <CheckBox Grid.Row="1" Grid.Column="1" Content="Stars" IsChecked="{Binding ShowStarsMetric}" />
-            <CheckBox Grid.Row="2" Content="Eccentricity" IsChecked="{Binding ShowEccentricityMetric}" />
-            <CheckBox Grid.Row="2" Grid.Column="1" Content="Trail" IsChecked="{Binding ShowTrailMetric}" />
-            <CheckBox Grid.Row="3" Content="SQM" IsChecked="{Binding ShowSqmMetric}" />
-            <CheckBox Grid.Row="3" Grid.Column="1" Content="Sky temperature" IsChecked="{Binding ShowSkyTempMetric}" />
-            <CheckBox Grid.Row="4" Content="Mean background" IsChecked="{Binding ShowMeanBackgroundMetric}" />
-            <CheckBox Grid.Row="4" Grid.Column="1" Content="Score" IsChecked="{Binding ShowScoreMetric}" />
-            <CheckBox Grid.Row="5" Content="Clouds" IsChecked="{Binding ShowCloudMetric}" />
-          </Grid>
+          <Grid ColumnDefinitions="180,150,280,250" RowDefinitions="28,36,36,36,36,36,36,36,36,36,36,36" ColumnSpacing="8" RowSpacing="4">
+            <TextBlock Text="Metric" FontWeight="SemiBold" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="Visibility (slider / metric)" FontWeight="SemiBold" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Text="Thresholds (auto / value)" FontWeight="SemiBold" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="3" Text="Score (use / weight)" FontWeight="SemiBold" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" />
 
-          <Border Background="#1A2A3F5F" BorderBrush="#4C7FB2" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">
-            <TextBlock Text="SCORE WEIGHTS" FontSize="13" FontWeight="Bold" Foreground="#D7E8FF" />
-          </Border>
-          <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
-            <CheckBox Content="FWHM" IsChecked="{Binding UseScoreFwhm}" />
-            <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
-            <NumericUpDown Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightFwhm}" FormatString="F1" />
-
-            <CheckBox Grid.Row="1" Content="HFR" IsChecked="{Binding UseScoreHfr}" />
-            <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
-            <NumericUpDown Grid.Row="1" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightHfr}" FormatString="F1" />
-
-            <CheckBox Grid.Row="2" Content="Stars" IsChecked="{Binding UseScoreStars}" />
-            <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
-            <NumericUpDown Grid.Row="2" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightStars}" FormatString="F1" />
-
-            <CheckBox Grid.Row="3" Content="Eccentricity" IsChecked="{Binding UseScoreEccentricity}" />
-            <TextBlock Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
-            <NumericUpDown Grid.Row="3" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightEccentricity}" FormatString="F1" />
-
-            <CheckBox Grid.Row="4" Content="Background" IsChecked="{Binding UseScoreBackground}" />
-            <TextBlock Grid.Row="4" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
-            <NumericUpDown Grid.Row="4" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightBackground}" FormatString="F1" />
-
-            <CheckBox Grid.Row="5" Content="Trail" IsChecked="{Binding UseScoreTrail}" />
-            <TextBlock Grid.Row="5" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
-            <NumericUpDown Grid.Row="5" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightTrail}" FormatString="F1" />
-
-            <CheckBox Grid.Row="6" Content="Clouds" IsChecked="{Binding UseScoreCloud}" />
-            <TextBlock Grid.Row="6" Grid.Column="1" VerticalAlignment="Center" Text="Weight" />
-            <NumericUpDown Grid.Row="6" Grid.Column="2" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightCloud}" FormatString="F1" />
+            <TextBlock Grid.Row="1" Text="Trail confidence" VerticalAlignment="Center" /><StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="12"><CheckBox IsChecked="{Binding ShowTrailSlider}" /><CheckBox IsChecked="{Binding ShowTrailMetric}" /></StackPanel><StackPanel Grid.Row="1" Grid.Column="2" IsVisible="{Binding IsTrailThresholdSettingVisible}" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding AutoCalcTrailThreshold}" /><NumericUpDown IsVisible="{Binding AutoCalcTrailThreshold, Converter={StaticResource InverseBooleanConverter}}" Width="190" Minimum="0" Maximum="100" Increment="1" Value="{Binding MinSatelliteConfidence}" FormatString="F0" /></StackPanel><StackPanel Grid.Row="1" Grid.Column="3" IsVisible="{Binding IsTrailScoreSettingVisible}" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding UseScoreTrail}" /><NumericUpDown IsVisible="{Binding UseScoreTrail}" Width="180" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightTrail}" FormatString="F1" /></StackPanel>
+            <TextBlock Grid.Row="2" Text="Cloud confidence" VerticalAlignment="Center" /><StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="12"><CheckBox IsChecked="{Binding ShowCloudSlider}" /><CheckBox IsChecked="{Binding ShowCloudMetric}" /></StackPanel><StackPanel Grid.Row="2" Grid.Column="2" IsVisible="{Binding IsCloudThresholdSettingVisible}" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding AutoCalcCloudThreshold}" /><NumericUpDown IsVisible="{Binding AutoCalcCloudThreshold, Converter={StaticResource InverseBooleanConverter}}" Width="190" Minimum="0" Maximum="100" Increment="1" Value="{Binding MinCloudConfidence}" FormatString="F0" /></StackPanel><StackPanel Grid.Row="2" Grid.Column="3" IsVisible="{Binding IsCloudScoreSettingVisible}" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding UseScoreCloud}" /><NumericUpDown IsVisible="{Binding UseScoreCloud}" Width="180" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightCloud}" FormatString="F1" /></StackPanel>
+            <TextBlock Grid.Row="3" Text="FWHM (px)" VerticalAlignment="Center" /><StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="12"><CheckBox IsChecked="{Binding ShowFwhmSlider}" /><CheckBox IsChecked="{Binding ShowFwhmMetric}" /></StackPanel><StackPanel Grid.Row="3" Grid.Column="2" IsVisible="{Binding IsFwhmThresholdSettingVisible}" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding AutoCalcFwhmThreshold}" /><NumericUpDown IsVisible="{Binding AutoCalcFwhmThreshold, Converter={StaticResource InverseBooleanConverter}}" Width="190" Minimum="0" Maximum="50" Increment="0.1" Value="{Binding MaxFwhm}" FormatString="F2" /></StackPanel><StackPanel Grid.Row="3" Grid.Column="3" IsVisible="{Binding IsFwhmScoreSettingVisible}" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding UseScoreFwhm}" /><NumericUpDown IsVisible="{Binding UseScoreFwhm}" Width="180" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightFwhm}" FormatString="F1" /></StackPanel>
+            <TextBlock Grid.Row="4" Text="FWHM (arcsec)" VerticalAlignment="Center" /><StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="12"><CheckBox IsChecked="{Binding ShowFwhmArcsecSlider}" /><CheckBox IsChecked="{Binding ShowFwhmArcsecMetric}" /></StackPanel><StackPanel Grid.Row="4" Grid.Column="2" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding AutoCalcFwhmArcsecThreshold}" /><NumericUpDown IsVisible="{Binding AutoCalcFwhmArcsecThreshold, Converter={StaticResource InverseBooleanConverter}}" Width="190" Minimum="0" Maximum="30" Increment="0.1" Value="{Binding MaxFwhmArcsec}" FormatString="F2" /></StackPanel><TextBlock Grid.Row="4" Grid.Column="3" Text="-" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Row="5" Text="SQM" VerticalAlignment="Center" /><StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="12"><CheckBox IsChecked="{Binding ShowSqmSlider}" /><CheckBox IsChecked="{Binding ShowSqmMetric}" /></StackPanel><StackPanel Grid.Row="5" Grid.Column="2" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding AutoCalcSqmThreshold}" /><NumericUpDown IsVisible="{Binding AutoCalcSqmThreshold, Converter={StaticResource InverseBooleanConverter}}" Width="190" Minimum="0" Maximum="30" Increment="0.05" Value="{Binding MinSqm}" FormatString="F2" /></StackPanel><TextBlock Grid.Row="5" Grid.Column="3" Text="-" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Row="6" Text="Sky temp" VerticalAlignment="Center" /><StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="12"><CheckBox IsChecked="{Binding ShowSkyTempSlider}" /><CheckBox IsChecked="{Binding ShowSkyTempMetric}" /></StackPanel><StackPanel Grid.Row="6" Grid.Column="2" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding AutoCalcSkyTempThreshold}" /><NumericUpDown IsVisible="{Binding AutoCalcSkyTempThreshold, Converter={StaticResource InverseBooleanConverter}}" Width="190" Minimum="-50" Maximum="50" Increment="1" Value="{Binding MaxSkyTemp}" FormatString="F1" /></StackPanel><TextBlock Grid.Row="6" Grid.Column="3" Text="-" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Row="7" Text="HFR" VerticalAlignment="Center" /><StackPanel Grid.Row="7" Grid.Column="1" Orientation="Horizontal" Spacing="12"><CheckBox IsChecked="{Binding ShowHfrSlider}" /><CheckBox IsChecked="{Binding ShowHfrMetric}" /></StackPanel><StackPanel Grid.Row="7" Grid.Column="2" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding AutoCalcHfrThreshold}" /><NumericUpDown IsVisible="{Binding AutoCalcHfrThreshold, Converter={StaticResource InverseBooleanConverter}}" Width="190" Minimum="0" Maximum="50" Increment="0.1" Value="{Binding MaxHfr}" FormatString="F2" /></StackPanel><StackPanel Grid.Row="7" Grid.Column="3" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding UseScoreHfr}" /><NumericUpDown IsVisible="{Binding UseScoreHfr}" Width="180" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightHfr}" FormatString="F1" /></StackPanel>
+            <TextBlock Grid.Row="8" Text="Eccentricity" VerticalAlignment="Center" /><StackPanel Grid.Row="8" Grid.Column="1" Orientation="Horizontal" Spacing="12"><CheckBox IsChecked="{Binding ShowEccentricitySlider}" /><CheckBox IsChecked="{Binding ShowEccentricityMetric}" /></StackPanel><StackPanel Grid.Row="8" Grid.Column="2" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding AutoCalcEccentricityThreshold}" /><NumericUpDown IsVisible="{Binding AutoCalcEccentricityThreshold, Converter={StaticResource InverseBooleanConverter}}" Width="190" Minimum="0" Maximum="1" Increment="0.01" Value="{Binding MaxEccentricity}" FormatString="F3" /></StackPanel><StackPanel Grid.Row="8" Grid.Column="3" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding UseScoreEccentricity}" /><NumericUpDown IsVisible="{Binding UseScoreEccentricity}" Width="180" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightEccentricity}" FormatString="F1" /></StackPanel>
+            <TextBlock Grid.Row="9" Text="Mean background" VerticalAlignment="Center" /><StackPanel Grid.Row="9" Grid.Column="1" Orientation="Horizontal" Spacing="12"><CheckBox IsChecked="{Binding ShowMeanBackgroundSlider}" /><CheckBox IsChecked="{Binding ShowMeanBackgroundMetric}" /></StackPanel><StackPanel Grid.Row="9" Grid.Column="2" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding AutoCalcMeanBackgroundThreshold}" /><NumericUpDown IsVisible="{Binding AutoCalcMeanBackgroundThreshold, Converter={StaticResource InverseBooleanConverter}}" Width="190" Minimum="0" Maximum="100000" Increment="50" Value="{Binding MaxMeanBackground}" FormatString="F0" /></StackPanel><StackPanel Grid.Row="9" Grid.Column="3" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding UseScoreBackground}" /><NumericUpDown IsVisible="{Binding UseScoreBackground}" Width="180" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightBackground}" FormatString="F1" /></StackPanel>
+            <TextBlock Grid.Row="10" Text="Stars" VerticalAlignment="Center" /><StackPanel Grid.Row="10" Grid.Column="1" Orientation="Horizontal" Spacing="12"><CheckBox IsChecked="{Binding ShowStarsSlider}" /><CheckBox IsChecked="{Binding ShowStarsMetric}" /></StackPanel><StackPanel Grid.Row="10" Grid.Column="2" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding AutoCalcStarsThreshold}" /><NumericUpDown IsVisible="{Binding AutoCalcStarsThreshold, Converter={StaticResource InverseBooleanConverter}}" Width="190" Minimum="0" Maximum="50000" Increment="10" Value="{Binding MinStars}" FormatString="F0" /></StackPanel><StackPanel Grid.Row="10" Grid.Column="3" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding UseScoreStars}" /><NumericUpDown IsVisible="{Binding UseScoreStars}" Width="180" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding ScoreWeightStars}" FormatString="F1" /></StackPanel>
+            <TextBlock Grid.Row="11" Text="Score" VerticalAlignment="Center" /><StackPanel Grid.Row="11" Grid.Column="1" Orientation="Horizontal" Spacing="12"><CheckBox IsChecked="{Binding ShowScoreSlider}" /><CheckBox IsChecked="{Binding ShowScoreMetric}" /></StackPanel><StackPanel Grid.Row="11" Grid.Column="2" Orientation="Horizontal" Spacing="10"><CheckBox IsChecked="{Binding AutoCalcScoreThreshold}" /><NumericUpDown IsVisible="{Binding AutoCalcScoreThreshold, Converter={StaticResource InverseBooleanConverter}}" Width="190" Minimum="0" Maximum="5" Increment="0.1" Value="{Binding MinScore}" FormatString="F2" /></StackPanel><TextBlock Grid.Row="11" Grid.Column="3" Text="-" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" />
           </Grid>
         </StackPanel>
         </ScrollViewer>

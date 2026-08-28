@@ -15,6 +15,7 @@ public sealed class SettingsProfile
     public double StfTargetBackgroundDefault { get; set; } = 0.15;
 
     public bool ShowTrailSlider { get; set; } = true;
+    public bool ShowCloudSlider { get; set; } = true;
     public bool ShowFwhmSlider { get; set; } = true;
     public bool ShowFwhmArcsecSlider { get; set; } = true;
     public bool ShowSqmSlider { get; set; } = true;

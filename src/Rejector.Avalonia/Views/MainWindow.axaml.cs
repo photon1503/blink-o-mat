@@ -403,6 +403,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ResetScoreWeightsButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.ResetScoreWeightsToDefaults();
+        }
+    }
+
     private async void BrowseFolder_Click(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)
